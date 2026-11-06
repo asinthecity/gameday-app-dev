@@ -79,3 +79,6 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .scrim { position: fixed; left: 0; right: 0; top: 0; bottom: 0; z-index: 20; background: rgba(0, 0, 0, .5); display: flex; align-items: flex-end; justify-content: center; }
 .sheet { width: 100%; max-width: 393px; background: #fff; border-top: 3px solid #111; border-radius: 18px 18px 0 0; padding: 16px 12px calc(14px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 10px; }
 .sheet h2 { margin: 0 0 4px; font-size: 22px; text-align: center; overflow-wrap: anywhere; }
+
+/* Throw-away marker for the update test. */
+body { border-top: 8px solid #c00000; }

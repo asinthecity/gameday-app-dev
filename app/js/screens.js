@@ -54,7 +54,7 @@ function homeScreen(state, actions) {
         h("button", { class: "btn pri big", onclick: actions.addFromHome }, "+ Add players"),
       ];
   return {
-    nodes: [header("Game Day"), h("div", { class: "body" }, updateCard(state.updateNotice, actions), ...squadPart)],
+    nodes: [header("Game Day v2"), h("div", { class: "body" }, updateCard(state.updateNotice, actions), ...squadPart)],
   };
 }
 
@@ -139,7 +139,7 @@ function editScreen(state, actions) {
 function cannotOpenScreen(state, actions) {
   return {
     nodes: [
-      header("Game Day"),
+      header("Game Day v2"),
       h(
         "div",
         { class: "body" },

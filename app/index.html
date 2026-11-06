@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Game Day</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-180.png">
+  <link rel="apple-touch-icon" href="icons/icon-180.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Game Day">
+  <meta name="theme-color" content="#ffffff">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="frame"><div id="screen"></div></div>
+  <noscript>Game Day needs JavaScript switched on.</noscript>
+  <!-- Plain scripts first: the service worker shares these two files. -->
+  <script src="config.js"></script>
+  <script src="version.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

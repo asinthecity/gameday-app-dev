@@ -4,6 +4,7 @@
 // Names only ever reach the page as plain text (never as HTML), so a name
 // containing < or & just shows as typed.
 
+import { canCreateGame, formatGameDate, formatKickOff, isBlank } from "./game-rules.js";
 import { canSaveName, initialsFor } from "./squad-rules.js";
 
 /** Makes one element. Props starting "on" are tap or typing handlers. */
@@ -45,8 +46,23 @@ function updateCard(notice, actions) {
   return h("div", { class: "card" }, h("b", {}, notice.text), problemLine(notice.problem), button);
 }
 
+/** GDA-18 adds the Line-up button here. */
+function gameCard(game) {
+  return h(
+    "div",
+    { class: "card game" },
+    h("b", {}, `vs ${game.opposition}`),
+    h("div", {}, `${formatGameDate(game.date)} · ${formatKickOff(game.kickOff)}`),
+    h("div", {}, game.venue)
+  );
+}
+
 function homeScreen(state, actions) {
   const hasPlayers = state.players.length > 0;
+  const createButton = hasPlayers
+    ? h("button", { class: "btn pri big", onclick: actions.openCreateGame }, "+ Create game")
+    : null;
+  const cards = state.games.map(gameCard);
   const squadPart = hasPlayers
     ? [h("button", { class: "btn", onclick: actions.openSquad }, `Squad (${state.players.length})`)]
     : [
@@ -54,7 +70,10 @@ function homeScreen(state, actions) {
         h("button", { class: "btn pri big", onclick: actions.addFromHome }, "+ Add players"),
       ];
   return {
-    nodes: [header("Game Day v2"), h("div", { class: "body" }, updateCard(state.updateNotice, actions), ...squadPart)],
+    nodes: [
+      header("Game Day"),
+      h("div", { class: "body" }, updateCard(state.updateNotice, actions), createButton, ...cards, ...squadPart),
+    ],
   };
 }
 
@@ -136,10 +155,77 @@ function editScreen(state, actions) {
   };
 }
 
+/**
+ * One box on the New game screen. It keeps state.form up to date as it changes,
+ * and marks itself Needed when left blank. Fields not reached are never marked.
+ */
+function detailField(form, key, label, inputProps, onChange) {
+  const needed = h("span", { class: "nw", hidden: !form.marked[key] }, "Needed");
+  const input = h("input", { id: "i-" + key, ...inputProps });
+  input.value = form[key];
+  const field = h(
+    "div",
+    { class: form.marked[key] ? "f need" : "f", id: "f-" + key },
+    h("label", { for: "i-" + key }, h("span", {}, label), needed),
+    input
+  );
+
+  function mark(on) {
+    form.marked[key] = on;
+    field.classList.toggle("need", on);
+    needed.hidden = !on;
+  }
+  function changed() {
+    form[key] = input.value;
+    if (!isBlank(input.value)) {
+      mark(false);
+    }
+    onChange();
+  }
+  // Date and time pickers may report through either event, so both are heard.
+  input.addEventListener("input", changed);
+  input.addEventListener("change", changed);
+  input.addEventListener("focusout", () => {
+    changed(); // In case a picker was cleared without reporting it.
+    if (isBlank(input.value)) {
+      mark(true);
+    }
+  });
+  return field;
+}
+
+function createGameScreen(state, actions) {
+  const form = state.form;
+  const make = h(
+    "button",
+    { class: "btn pri big", id: "make", disabled: !canCreateGame(form), onclick: actions.makeGame },
+    "Create game"
+  );
+  const onChange = () => {
+    make.disabled = !canCreateGame(form);
+  };
+  const text = { type: "text", autocomplete: "off", autocapitalize: "words", autocorrect: "off", spellcheck: "false" };
+  return {
+    nodes: [
+      header("New game", actions.leaveCreateGame),
+      h(
+        "div",
+        { class: "body" },
+        detailField(form, "date", "Date", { type: "date" }, onChange),
+        detailField(form, "kickOff", "Kick-off", { type: "time" }, onChange),
+        detailField(form, "opposition", "Opposition", text, onChange),
+        detailField(form, "venue", "Venue", text, onChange),
+        make,
+        problemLine(state.problem)
+      ),
+    ],
+  };
+}
+
 function cannotOpenScreen(state, actions) {
   return {
     nodes: [
-      header("Game Day v2"),
+      header("Game Day"),
       h(
         "div",
         { class: "body" },
@@ -155,6 +241,7 @@ const SCREENS = {
   squad: squadScreen,
   add: addScreen,
   edit: editScreen,
+  createGame: createGameScreen,
   cannotOpen: cannotOpenScreen,
 };
 

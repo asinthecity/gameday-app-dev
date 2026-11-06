@@ -26,6 +26,8 @@ const APP_FILES = [
   "./icons/icon-180.png",
   "./icons/icon-512.png",
   "./js/db.js",
+  "./js/game-rules.js",
+  "./js/game-store.js",
   "./js/main.js",
   "./js/persistence.js",
   "./js/screens.js",

@@ -1,8 +1,10 @@
 // Starts the app and holds what is on screen. The order for every change is:
-// save it, read the saved squad back, then draw. So the screen only ever shows
+// save it, read the saved data back, then draw. So the screen only ever shows
 // what is really stored.
 
 import { openDatabase } from "./db.js";
+import { blankGameForm, canCreateGame } from "./game-rules.js";
+import { addGame, loadGames } from "./game-store.js";
 import { askToKeepDataOnce } from "./persistence.js";
 import { drawScreen } from "./screens.js";
 import { cleanName } from "./squad-rules.js";
@@ -22,6 +24,8 @@ let listScroll = 0; // Where the Squad list was, for coming back to it.
 const state = {
   screen: "home",
   players: [],
+  games: [],
+  form: null, // What is typed on the New game screen, until it is saved or left.
   editId: null,
   addCameFrom: "home",
   showRemoveWarning: false,
@@ -110,6 +114,29 @@ async function saveThenShowSquad(saveChange) {
   }
 }
 
+/** Saves a new game. Home appears only after it is safely stored. */
+async function saveGameThenShowHome() {
+  saving = true;
+  try {
+    await addGame(db, state.form);
+  } catch (error) {
+    console.warn("Save failed", error);
+    saving = false;
+    state.problem = SAVE_PROBLEM;
+    draw(); // Built from state.form, so nothing typed is lost.
+    return;
+  }
+  try {
+    state.games = await loadGames(db);
+    saving = false;
+    state.form = null;
+    goTo("home");
+  } catch (error) {
+    saving = false;
+    showCannotOpen(error);
+  }
+}
+
 const actions = {
   goHome: tap(() => goTo("home")),
   openSquad: tap(() => {
@@ -149,6 +176,19 @@ const actions = {
   }),
   cancelRemove: tap(() => showWarning(false)),
   confirmRemove: tap(() => saveThenShowSquad(() => removePlayer(db, state.editId))),
+  openCreateGame: tap(() => {
+    state.form = blankGameForm();
+    goTo("createGame");
+  }),
+  leaveCreateGame: tap(() => {
+    state.form = null;
+    goTo("home");
+  }),
+  makeGame: tap(() => {
+    if (canCreateGame(state.form)) {
+      saveGameThenShowHome();
+    }
+  }),
   applyUpdate: tap(() => applyUpdate()),
   tryAgain: tap(() => window.location.reload()),
 };
@@ -177,6 +217,7 @@ async function start() {
   try {
     db = await openDatabase(self.GAMEDAY_CONFIG.storageName);
     state.players = await loadSquad(db);
+    state.games = await loadGames(db);
     draw();
   } catch (error) {
     showCannotOpen(error);

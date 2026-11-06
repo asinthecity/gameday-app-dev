@@ -4,7 +4,7 @@
 // and the screen changes only after that transaction has finished. change()
 // is what makes that easy to follow.
 
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 /** Opens the database, creating it on first use. */
 export function openDatabase(name) {
@@ -17,6 +17,9 @@ export function openDatabase(name) {
       if (event.oldVersion < 1) {
         db.createObjectStore("players", { keyPath: "id", autoIncrement: true });
         db.createObjectStore("meta", { keyPath: "key" });
+      }
+      if (event.oldVersion < 2) {
+        db.createObjectStore("games", { keyPath: "id" });
       }
     };
 

@@ -58,7 +58,7 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .c0 { background: #cfe3ff; } .c1 { background: #ffd9c2; } .c2 { background: #d7f0cf; } .c3 { background: #f5d0ee; }
 .c4 { background: #fff0a8; } .c5 { background: #cdeff0; } .c6 { background: #e1d4ff; } .c7 { background: #e6e6e6; }
 
-/* Update notice on Home */
+/* Update notice and game cards on Home */
 .card { border: 2px solid #111; border-radius: 12px; padding: 10px; background: #f1f1f1; display: flex; flex-direction: column; gap: 3px; overflow-wrap: anywhere; }
 .card b { font-size: 18px; }
 .card .btn { margin-top: 8px; }
@@ -73,12 +73,13 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 /* Forms */
 .f label { display: flex; justify-content: space-between; font-size: 14px; font-weight: 700; margin-bottom: 3px; }
 .f input { display: block; width: 100%; min-width: 0; min-height: 52px; font-family: inherit; font-size: 18px; color: #111; background: #fff; border: 2px solid #111; border-radius: 10px; padding: 10px 12px; -webkit-appearance: none; appearance: none; margin: 0; }
+.f input::-webkit-date-and-time-value { text-align: left; min-height: 1.3em; }
+/* Thicker border, less padding: the box stays the same size, so nothing moves under a finger. */
+.f.need input { border: 4px solid #b00020; padding: 8px 10px; }
+.f .nw { color: #b00020; font-weight: 800; }
 .gapbig { margin-top: 44px; }
 
 /* Remove warning */
 .scrim { position: fixed; left: 0; right: 0; top: 0; bottom: 0; z-index: 20; background: rgba(0, 0, 0, .5); display: flex; align-items: flex-end; justify-content: center; }
 .sheet { width: 100%; max-width: 393px; background: #fff; border-top: 3px solid #111; border-radius: 18px 18px 0 0; padding: 16px 12px calc(14px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 10px; }
 .sheet h2 { margin: 0 0 4px; font-size: 22px; text-align: center; overflow-wrap: anywhere; }
-
-/* Throw-away marker for the update test. */
-body { border-top: 8px solid #c00000; }

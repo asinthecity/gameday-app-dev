@@ -2,6 +2,9 @@
 // The app looks for a new version when it opens and when it comes back to the
 // front. A new version goes on only when the coach taps Update.
 
+import { openDatabase } from "./db.js";
+import { anyInProgress } from "./game-rules.js";
+import { loadGames } from "./game-store.js";
 import { updateNotice } from "./update-rules.js";
 
 const VERSION = self.GAMEDAY_VERSION;
@@ -14,13 +17,21 @@ let problem = "";
 let tellScreen = () => {};
 
 /**
- * THE PLACE FOR THE 'GAME IN PROGRESS' RULE.
- * No game can start yet. When GDA-24 adds kick-off, this must read the saved
- * game state from the database and answer true if a game is under way. It is
- * asked again at the moment of the tap, in case a game has just started.
+ * The 'game in progress' rule. It reads the saved games each time it is asked
+ * (the page's own copy could be out of date), and it is asked again at the moment
+ * of the tap. If the saved games cannot be read, it says yes: not knowing counts
+ * as in progress. The rule itself is in game-rules.js.
  */
 async function isGameInProgress() {
-  return false;
+  let db = null;
+  try {
+    db = await openDatabase(self.GAMEDAY_CONFIG.storageName);
+    return anyInProgress(await loadGames(db));
+  } catch {
+    return true;
+  } finally {
+    db?.close();
+  }
 }
 
 /** Sends the worker a message and waits for its answer. */

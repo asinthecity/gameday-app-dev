@@ -9,14 +9,22 @@ import {
   blankGameForm,
   canCreateGame,
   canDrag,
+  canReorderBench,
+  canTapLive,
+  clampRotation,
+  liveAction,
   markedAbsent,
   markedBackIn,
   movedOnto,
   needsPrePlacing,
+  rotationOf,
+  gameToResume,
+  screenForOpening,
+  withRotation,
 } from "./game-rules.js";
-import { addGame, changeGame, loadGames, movePlayer, prePlaceGame } from "./game-store.js";
+import { addGame, changeGame, endHalf, finishTestGame, loadGames, moveFieldPlayer, movePlayer, planPair, prePlaceGame, reopenHalf, reorderBench, startFirstHalf, startSecondHalf, swapPlayers, undoSwap, unplanPair } from "./game-store.js";
 import { askToKeepDataOnce } from "./persistence.js";
-import { drawLineUpActions, drawScreen } from "./screens.js";
+import { drawClock, drawLineUpActions, drawScreen } from "./screens.js";
 import { cleanName } from "./squad-rules.js";
 import { addPlayer, loadSquad, removePlayer, renamePlayer } from "./squad-store.js";
 import { applyUpdate, currentUpdateNotice, startUpdates } from "./updates.js";
@@ -25,6 +33,8 @@ const SAVE_PROBLEM = "That did not save. Please try again.";
 // After a screen change, ignore taps briefly, so the second half of a fast
 // double tap cannot land on whatever is now under the finger.
 const TAP_PAUSE_MS = 300;
+
+const WELCOME_MS = 5000;
 
 let db = null;
 let ignoreTapsUntil = 0;
@@ -42,6 +52,9 @@ const state = {
   editId: null,
   addCameFrom: "home",
   showRemoveWarning: false,
+  rotationOpen: false, // The rotation stepper sheet on the ready and game screens.
+  welcome: false, // The "Welcome back" banner after a restart. Never saved.
+  undo: null, // After Swap, for about 5 seconds: { before, eventId, until }. Never saved.
   problem: "",
   updateNotice: currentUpdateNotice(),
 };
@@ -55,7 +68,9 @@ function goTo(screen) {
   state.screen = screen;
   state.problem = "";
   state.showRemoveWarning = false;
+  state.rotationOpen = false;
   state.selectedId = null;
+  state.undo = null;
   ignoreTapsUntil = Date.now() + TAP_PAUSE_MS;
   draw();
   window.scrollTo(0, 0);
@@ -155,7 +170,8 @@ async function saveGameThenShowLineUp() {
     saving = false;
     state.form = null;
     state.gameId = gameId;
-    goTo("lineUp");
+    // A game already started cannot go back to its line-up (full resume is GDA-33).
+    goTo(screenForOpening(state.games.find((game) => game.id === gameId)));
   } catch (error) {
     saving = false;
     showCannotOpen(error);
@@ -180,7 +196,8 @@ async function openLineUp(gameId) {
     state.games = await loadGames(db);
     saving = false;
     state.gameId = gameId;
-    goTo("lineUp");
+    // A game already started cannot go back to its line-up (full resume is GDA-33).
+    goTo(screenForOpening(state.games.find((game) => game.id === gameId)));
   } catch (error) {
     saving = false;
     showCannotOpen(error);
@@ -224,6 +241,80 @@ async function saveSelectedPlayer(rule) {
 
 function saveMove(playerId, spot) {
   return saveThenShowLineUp(() => movePlayer(db, state.gameId, playerId, spot, Date.now()));
+}
+
+/**
+ * A change on the game screen (GDA-30): plan a pair, move a field player, or re-order
+ * the bench. Anything but Swap itself makes Undo go.
+ */
+function saveLive(playerId, spot) {
+  const gameId = state.gameId;
+  state.undo = null;
+  const action = liveAction(openGame(), playerId, spot);
+  if (action === "plan") {
+    return saveThenShowLineUp(() => planPair(db, gameId, playerId, spot));
+  }
+  if (action === "move") {
+    return saveThenShowLineUp(() => moveFieldPlayer(db, gameId, playerId, spot, Date.now()));
+  }
+  if (action === "reorder") {
+    return saveThenShowLineUp(() => reorderBench(db, gameId, playerId, spot.playerId));
+  }
+  draw();
+}
+
+/** Swap, then Undo: saved first, shown after. Undo stays for about 5 seconds. */
+const UNDO_MS = 5000;
+async function saveSwap() {
+  saving = true;
+  try {
+    const done = await swapPlayers(db, state.gameId, Date.now());
+    state.games = await loadGames(db);
+    state.undo = { before: done.before, eventId: done.eventId, until: Date.now() + UNDO_MS };
+  } catch (error) {
+    console.warn("Swap did not save", error);
+    saving = false;
+    state.problem = SAVE_PROBLEM;
+    draw();
+    return;
+  }
+  saving = false;
+  state.selectedId = null;
+  state.problem = "";
+  ignoreTapsUntil = Date.now() + TAP_PAUSE_MS; // Undo appears where Swap was: a double tap must not hit it.
+  draw();
+  const shown = state.undo;
+  setTimeout(() => {
+    if (state.undo === shown) {
+      state.undo = null;
+      if (state.screen === "game" && !presses.isActive()) {
+        draw();
+      }
+    }
+  }, UNDO_MS);
+}
+
+async function saveUndo() {
+  const undo = state.undo;
+  state.undo = null;
+  saving = true;
+  try {
+    await undoSwap(db, state.gameId, undo.before, undo.eventId);
+    state.games = await loadGames(db);
+  } catch (error) {
+    console.warn("Undo did not save", error);
+    saving = false;
+    state.problem = SAVE_PROBLEM;
+    draw();
+    return;
+  }
+  saving = false;
+  state.problem = "";
+  draw();
+}
+
+function saveBenchMove(playerId, targetId) {
+  return saveThenShowLineUp(() => reorderBench(db, state.gameId, playerId, targetId));
 }
 
 function openGame() {
@@ -290,21 +381,60 @@ const actions = {
       goTo("ready");
     }
   }),
+  openRotation: tap(() => {
+    state.rotationOpen = true;
+    draw();
+  }),
+  // Each tap on - or + is saved at once (NFR-2). The clock and timers keep running underneath.
+  stepRotation: (change) => {
+    const minutes = clampRotation(rotationOf(openGame()) + change);
+    changeGame(db, state.gameId, (game) => withRotation(game, minutes))
+      .then(() => loadGames(db))
+      .then((games) => {
+        state.games = games;
+        drawClock(state);
+      })
+      .catch((error) => console.warn("Could not save the rotation length", error));
+    // Show the new number straight away; the save follows within milliseconds.
+    state.games = state.games.map((game) => (game.id === state.gameId ? withRotation(game, minutes) : game));
+    drawClock(state);
+  },
+  closeRotation: tap(() => {
+    state.rotationOpen = false;
+    draw();
+  }),
   backToLineUp: tap(() => goTo("lineUp")),
+  startFirstHalf: tap(() => startGame()),
+  swap: tap(() => saveSwap()),
+  undo: tap(() => saveUndo()),
+  unpair: tap((benchId) => {
+    state.undo = null;
+    saveThenShowLineUp(() => unplanPair(db, state.gameId, benchId));
+  }),
+  // First half: opens Half Time. Second half: the temporary full-time screen (GDA-50).
+  endHalf: tap(() => saveThenGoTo(() => endHalf(db, state.gameId, Date.now()), openGame().state === "second half" ? "over" : "halfTime")),
+  // The back arrow on Half Time (throws the half-time changes away) or on the temporary full-time screen.
+  backToGame: tap(() => saveThenGoTo(() => reopenHalf(db, state.gameId, Date.now()), "game")),
+  startSecondHalf: tap(() => saveThenGoTo(() => startSecondHalf(db, state.gameId, Date.now()), "game")),
+  finishTestGame: tap(() => saveThenGoTo(() => finishTestGame(db, state.gameId), "home")),
   applyUpdate: tap(() => applyUpdate()),
   tryAgain: tap(() => window.location.reload()),
 };
 
 // Taps and drags on the line-up's circles. See drag.js.
 const presses = watchLineUpPresses({
-  canPress: () => state.screen === "lineUp" && readyForTaps(),
+  canPress: () => (state.screen === "lineUp" || state.screen === "halfTime" || state.screen === "game") && readyForTaps(),
   canDrag: (spot) => canDrag(openGame(), spot),
-  canDrop: (playerId, spot) => movedOnto(openGame(), playerId, spot) !== null,
+  canDrop: (playerId, spot) =>
+    state.screen === "game"
+      ? liveAction(openGame(), playerId, spot) !== null
+      : movedOnto(openGame(), playerId, spot) !== null || canReorderBench(openGame(), playerId, spot.playerId),
   tapped(spot) {
-    const outcome = afterTap(openGame(), state.selectedId, spot);
+    const live = state.screen === "game";
+    const outcome = live ? afterTap(openGame(), state.selectedId, spot, canTapLive) : afterTap(openGame(), state.selectedId, spot);
     state.problem = "";
     if (outcome.move) {
-      saveMove(state.selectedId, spot);
+      live ? saveLive(state.selectedId, spot) : saveMove(state.selectedId, spot);
     } else {
       state.selectedId = outcome.selectedId;
       draw();
@@ -313,10 +443,17 @@ const presses = watchLineUpPresses({
   dragStarted() {
     state.selectedId = null;
     state.problem = "";
-    drawLineUpActions(state, actions);
+    // The game screen is not redrawn here: that would remove the circle under the finger.
+    if (state.screen === "lineUp") {
+      drawLineUpActions(state, actions);
+    }
   },
   dropped(playerId, spot) {
-    if (spot) {
+    if (state.screen === "game") {
+      spot ? saveLive(playerId, spot) : draw();
+    } else if (spot && canReorderBench(openGame(), playerId, spot.playerId)) {
+      saveBenchMove(playerId, spot.playerId);
+    } else if (spot) {
       saveMove(playerId, spot);
     } else {
       draw();
@@ -336,11 +473,75 @@ function showWarning(show) {
   drawKeepingTypedName();
 }
 
+/** START 1ST HALF. The game screen appears only after the start time is safely saved. */
+async function startGame() {
+  saving = true;
+  try {
+    await startFirstHalf(db, state.gameId, Date.now());
+    state.games = await loadGames(db);
+  } catch (error) {
+    console.warn("Could not start the game", error);
+    saving = false;
+    state.problem = SAVE_PROBLEM;
+    draw();
+    return;
+  }
+  saving = false;
+  goTo("game");
+}
+
+/**
+ * End Half, its back arrow and Finish test game: save, read back, then show the
+ * next screen. The screen changes only once the change is safely stored, so the
+ * clock cannot show one thing while the saved game says another.
+ */
+async function saveThenGoTo(saveChange, screen) {
+  saving = true;
+  try {
+    await saveChange();
+    state.games = await loadGames(db);
+  } catch (error) {
+    console.warn("Could not save", error);
+    saving = false;
+    state.problem = SAVE_PROBLEM;
+    draw();
+    return;
+  }
+  saving = false;
+  goTo(screen);
+}
+
 /** A new version may be noticed at any moment. Only Home shows it, so only Home redraws. */
 function onUpdateNews() {
   if (state.screen === "home") {
     draw();
   }
+}
+
+/**
+ * GDA-33: a game under way opens straight back into the game (or the half-over
+ * screen if End Half was saved). Home and Squad are not shown until the game is
+ * closed. A game whose saved data cannot be shown falls back to Home so Ben is
+ * never stuck on a broken screen.
+ */
+function resumeGameIfAny() {
+  const resume = gameToResume(state.games);
+  if (!resume || !resume.ok) {
+    return;
+  }
+  state.gameId = resume.game.id;
+  state.screen = resume.screen;
+  if (resume.screen === "game") {
+    state.welcome = true;
+    // "Welcome back" goes after 5 seconds or at the first tap.
+    setTimeout(hideWelcome, WELCOME_MS);
+    document.addEventListener("pointerdown", hideWelcome, { once: true, capture: true });
+  }
+}
+
+function hideWelcome() {
+  state.welcome = false;
+  document.getElementById("welcome")?.remove();
 }
 
 async function start() {
@@ -349,6 +550,7 @@ async function start() {
     db = await openDatabase(self.GAMEDAY_CONFIG.storageName);
     state.players = await loadSquad(db);
     state.games = await loadGames(db);
+    resumeGameIfAny();
     draw();
   } catch (error) {
     showCannotOpen(error);
@@ -359,5 +561,12 @@ async function start() {
     askToKeepDataOnce(db);
   }
 }
+
+// The clock is worked out from the saved start time each time it is drawn, so a
+// locked phone cannot make it wrong. These only keep the number moving, and bring
+// it right the moment the app comes back to the front.
+setInterval(() => drawClock(state), 250);
+document.addEventListener("visibilitychange", () => drawClock(state));
+window.addEventListener("pageshow", () => drawClock(state));
 
 start();

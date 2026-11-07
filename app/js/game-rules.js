@@ -13,6 +13,14 @@ export const POSITION_COUNT = 9;
 
 export const NOT_STARTED = "not started";
 export const NOT_PLANNED = "not planned";
+export const PLANNED = "planned";
+
+// Where a player can be, besides a place number.
+export const BENCH = "bench";
+export const ABSENT = "absent";
+
+// The event log's first kind of event. See positionChangeEvent.
+export const POSITION_CHANGE = "position-change";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -48,11 +56,16 @@ function emptyLineUp() {
  *   uses it to skip games it already holds. Event log entries will point to it.
  * - `lineups` has one line-up per half. `positions` holds player ids, or null for
  *   an empty place. The bench is whoever is neither placed nor absent.
+ *   So a player added to the squad is on the bench with nothing to save.
+ *   `positions` is always where everyone is now. The event log, in its own store,
+ *   is how they got there.
  * - `absent` holds player ids, on the game and not on a half (GDA-18).
  * - A game with no rotation length uses 6 minutes (GDA-32 adds it).
+ *
+ * `squad` is the squad in alphabetical order. It fills the first half only.
  */
-export function newGame(form, id, createdOrder) {
-  return {
+export function newGame(form, id, createdOrder, squad) {
+  const game = {
     id,
     createdOrder,
     state: NOT_STARTED,
@@ -65,6 +78,152 @@ export function newGame(form, id, createdOrder) {
     absent: [],
     lineups: { firstHalf: emptyLineUp(), secondHalf: emptyLineUp() },
   };
+  return prePlaced(game, squad);
+}
+
+/** Copies a game with a different first-half line-up. */
+function withFirstHalf(game, changes) {
+  const { firstHalf } = game.lineups;
+  return { ...game, lineups: { ...game.lineups, firstHalf: { ...firstHalf, ...changes } } };
+}
+
+/**
+ * True until the first half has been filled. Games made before GDA-18 are saved
+ * with an empty first half marked "not planned", so they are placed the first
+ * time their line-up opens.
+ */
+export function needsPrePlacing(game) {
+  return game.lineups.firstHalf.status === NOT_PLANNED;
+}
+
+/**
+ * Fills the first half in squad order: goal, then defence, midfield and forwards,
+ * each left to right. Whoever is left is on the bench. This runs once per game:
+ * after that the line-up belongs to the coach, so it never runs again. With no
+ * players there is nothing to place, so the game waits until there are some.
+ */
+export function prePlaced(game, squad) {
+  if (!needsPrePlacing(game) || squad.length === 0) {
+    return game;
+  }
+  const positions = game.lineups.firstHalf.positions.map((_, place) => squad[place]?.id ?? null);
+  return withFirstHalf(game, { status: PLANNED, positions });
+}
+
+/** What the line-up shows. Rows keep the order of `squad`, so they are always alphabetical. */
+export function lineUpView(game, squad) {
+  const { positions } = game.lineups.firstHalf;
+  return {
+    positions: positions.map((id) => squad.find((player) => player.id === id) ?? null),
+    bench: squad.filter((player) => !positions.includes(player.id) && !game.absent.includes(player.id)),
+    absent: squad.filter((player) => game.absent.includes(player.id)),
+  };
+}
+
+function firstHalfWithout(game, playerId) {
+  const positions = game.lineups.firstHalf.positions.map((id) => (id === playerId ? null : id));
+  return withFirstHalf(game, { positions });
+}
+
+/** Absent leaves the player's position empty. Nobody moves in by themselves. */
+export function markedAbsent(game, playerId) {
+  const absent = game.absent.includes(playerId) ? game.absent : [...game.absent, playerId];
+  return { ...firstHalfWithout(game, playerId), absent };
+}
+
+/** Back in means the bench: not being placed or absent is what puts a player there. */
+export function markedBackIn(game, playerId) {
+  return { ...game, absent: game.absent.filter((id) => id !== playerId) };
+}
+
+/** A player removed from the squad leaves an empty position, or simply leaves their row. */
+export function withoutRemovedPlayer(game, playerId) {
+  return markedBackIn(firstHalfWithout(game, playerId), playerId);
+}
+
+/** Where a player is in the first half: a place number, BENCH or ABSENT. */
+export function whereIs(game, playerId) {
+  if (game.absent.includes(playerId)) {
+    return ABSENT;
+  }
+  const place = game.lineups.firstHalf.positions.indexOf(playerId);
+  return place === -1 ? BENCH : place;
+}
+
+/**
+ * A spot on the line-up is { playerId } for a player, or { place } for an empty
+ * position. This gives the player in a spot, or null if it is empty.
+ */
+function playerIn(game, spot) {
+  return spot.playerId ?? game.lineups.firstHalf.positions[spot.place] ?? null;
+}
+
+/**
+ * Moves a player onto a spot, for drag and tap alike. A player on the spot swaps
+ * with them. An empty position is simply taken, leaving the old position empty.
+ * Whoever leaves the pitch is on the bench with nothing to save, because the
+ * bench is everyone not placed and not absent.
+ *
+ * Gives { game, changes }, where changes lists everyone who moved, or null if this
+ * move is not allowed: anything involving an absent player, bench onto bench, or
+ * a player onto themselves.
+ */
+export function movedOnto(game, playerId, spot) {
+  const otherId = playerIn(game, spot);
+  const from = whereIs(game, playerId);
+  const to = otherId === null ? spot.place : whereIs(game, otherId);
+  if (from === ABSENT || to === ABSENT || from === to) {
+    return null;
+  }
+  const positions = [...game.lineups.firstHalf.positions];
+  if (from !== BENCH) {
+    positions[from] = otherId;
+  }
+  if (to !== BENCH) {
+    positions[to] = playerId;
+  }
+  const changes = [{ playerId, from, to }];
+  if (otherId !== null) {
+    changes.push({ playerId: otherId, from: to, to: from });
+  }
+  return { game: withFirstHalf(game, { positions }), changes };
+}
+
+/** Only a player who is not absent can be dragged. An empty position cannot. */
+export function canDrag(game, spot) {
+  return spot.playerId !== undefined && whereIs(game, spot.playerId) !== ABSENT;
+}
+
+/**
+ * What a tap on a spot does: gives the player selected afterwards, and whether the
+ * selected player moves onto the spot. A second tap on a player cancels. A tap on
+ * another player in the same row moves the selection. A tap that cannot be a move
+ * changes nothing, so the first player stays selected.
+ */
+export function afterTap(game, selectedId, spot) {
+  const tappedId = playerIn(game, spot);
+  if (selectedId === null) {
+    return { selectedId: tappedId, move: false };
+  }
+  if (selectedId === tappedId) {
+    return { selectedId: null, move: false };
+  }
+  if (movedOnto(game, selectedId, spot)) {
+    return { selectedId, move: true };
+  }
+  const sameRow = tappedId !== null && whereIs(game, tappedId) === whereIs(game, selectedId);
+  return { selectedId: sameRow ? tappedId : selectedId, move: false };
+}
+
+/**
+ * One record in the event log. Every event has `gameId`, `type` and `at`, the real
+ * time in milliseconds. The game clock is worked out from `at` and the half's real
+ * start time, so position time needs nothing more once the clock exists (GDA-24).
+ * `changes` is what movedOnto gives, so a swap is one event with one time for both
+ * players. `from` and `to` are place numbers or BENCH.
+ */
+export function positionChangeEvent(gameId, changes, at) {
+  return { gameId, type: POSITION_CHANGE, at, half: "firstHalf", changes };
 }
 
 /** The number for a new game: one more than the highest so far. */

@@ -3,10 +3,20 @@
 // what is really stored.
 
 import { openDatabase } from "./db.js";
-import { blankGameForm, canCreateGame } from "./game-rules.js";
-import { addGame, loadGames } from "./game-store.js";
+import { watchLineUpPresses } from "./drag.js";
+import {
+  afterTap,
+  blankGameForm,
+  canCreateGame,
+  canDrag,
+  markedAbsent,
+  markedBackIn,
+  movedOnto,
+  needsPrePlacing,
+} from "./game-rules.js";
+import { addGame, changeGame, loadGames, movePlayer, prePlaceGame } from "./game-store.js";
 import { askToKeepDataOnce } from "./persistence.js";
-import { drawScreen } from "./screens.js";
+import { drawLineUpActions, drawScreen } from "./screens.js";
 import { cleanName } from "./squad-rules.js";
 import { addPlayer, loadSquad, removePlayer, renamePlayer } from "./squad-store.js";
 import { applyUpdate, currentUpdateNotice, startUpdates } from "./updates.js";
@@ -18,6 +28,7 @@ const TAP_PAUSE_MS = 300;
 
 let db = null;
 let ignoreTapsUntil = 0;
+let ignoreReadyUntil = 0;
 let saving = false;
 let listScroll = 0; // Where the Squad list was, for coming back to it.
 
@@ -26,6 +37,8 @@ const state = {
   players: [],
   games: [],
   form: null, // What is typed on the New game screen, until it is saved or left.
+  gameId: null, // The game whose line-up is open.
+  selectedId: null, // The player selected on the line-up. Never saved.
   editId: null,
   addCameFrom: "home",
   showRemoveWarning: false,
@@ -42,6 +55,7 @@ function goTo(screen) {
   state.screen = screen;
   state.problem = "";
   state.showRemoveWarning = false;
+  state.selectedId = null;
   ignoreTapsUntil = Date.now() + TAP_PAUSE_MS;
   draw();
   window.scrollTo(0, 0);
@@ -55,10 +69,18 @@ function rememberListScroll() {
   listScroll = document.querySelector(".list").scrollTop;
 }
 
-/** Wraps a tap handler so it is ignored during a save or just after a screen change. */
+function readyForTaps() {
+  return !saving && Date.now() >= ignoreTapsUntil;
+}
+
+/**
+ * Wraps a tap handler so it is ignored during a save, just after a screen change,
+ * or while another finger is on a player: a button must not redraw the screen
+ * under a drag.
+ */
 function tap(handler) {
   return (...args) => {
-    if (saving || Date.now() < ignoreTapsUntil) {
+    if (!readyForTaps() || presses.isActive()) {
       return;
     }
     handler(...args);
@@ -103,6 +125,7 @@ async function saveThenShowSquad(saveChange) {
   }
   try {
     state.players = await loadSquad(db);
+    state.games = await loadGames(db); // Removing a player changes games too.
     saving = false;
     goTo("squad");
     if (playerToShow !== undefined) {
@@ -114,11 +137,12 @@ async function saveThenShowSquad(saveChange) {
   }
 }
 
-/** Saves a new game. Home appears only after it is safely stored. */
-async function saveGameThenShowHome() {
+/** Saves a new game. Its line-up appears only after it is safely stored. */
+async function saveGameThenShowLineUp() {
   saving = true;
+  let gameId;
   try {
-    await addGame(db, state.form);
+    gameId = await addGame(db, state.form);
   } catch (error) {
     console.warn("Save failed", error);
     saving = false;
@@ -130,11 +154,80 @@ async function saveGameThenShowHome() {
     state.games = await loadGames(db);
     saving = false;
     state.form = null;
-    goTo("home");
+    state.gameId = gameId;
+    goTo("lineUp");
   } catch (error) {
     saving = false;
     showCannotOpen(error);
   }
+}
+
+/** Opens a game's line-up from Home, first placing the squad if the game is from before GDA-18. */
+async function openLineUp(gameId) {
+  saving = true;
+  try {
+    if (needsPrePlacing(state.games.find((game) => game.id === gameId))) {
+      await prePlaceGame(db, gameId);
+    }
+  } catch (error) {
+    console.warn("Save failed", error);
+    saving = false;
+    state.problem = SAVE_PROBLEM;
+    draw();
+    return;
+  }
+  try {
+    state.games = await loadGames(db);
+    saving = false;
+    state.gameId = gameId;
+    goTo("lineUp");
+  } catch (error) {
+    saving = false;
+    showCannotOpen(error);
+  }
+}
+
+/** Saves a change to the line-up. The screen changes only after it is safely stored. */
+async function saveThenShowLineUp(saveChange) {
+  saving = true;
+  try {
+    await saveChange();
+  } catch (error) {
+    console.warn("Save failed", error);
+    saving = false;
+    state.problem = SAVE_PROBLEM;
+    draw(); // A selected player stays selected, so trying again is one tap.
+    return;
+  }
+  try {
+    state.games = await loadGames(db);
+    saving = false;
+    state.selectedId = null;
+    state.problem = "";
+    draw();
+  } catch (error) {
+    saving = false;
+    showCannotOpen(error);
+  }
+}
+
+/**
+ * Absent and Back in: a rule from game-rules.js applied to the selected player.
+ * The bottom button becomes Ready for kick-off under the finger, so that one button
+ * pauses briefly: a fast double tap must not go on to tap it too. The circles do
+ * not pause, because the next step in a late change is tapping a bench player.
+ */
+async function saveSelectedPlayer(rule) {
+  await saveThenShowLineUp(() => changeGame(db, state.gameId, (game) => rule(game, state.selectedId)));
+  ignoreReadyUntil = Date.now() + TAP_PAUSE_MS;
+}
+
+function saveMove(playerId, spot) {
+  return saveThenShowLineUp(() => movePlayer(db, state.gameId, playerId, spot, Date.now()));
+}
+
+function openGame() {
+  return state.games.find((game) => game.id === state.gameId);
 }
 
 const actions = {
@@ -186,12 +279,50 @@ const actions = {
   }),
   makeGame: tap(() => {
     if (canCreateGame(state.form)) {
-      saveGameThenShowHome();
+      saveGameThenShowLineUp();
     }
   }),
+  openLineUp: tap((gameId) => openLineUp(gameId)),
+  markAbsent: tap(() => saveSelectedPlayer(markedAbsent)),
+  markBackIn: tap(() => saveSelectedPlayer(markedBackIn)),
+  readyForKickOff: tap(() => {
+    if (Date.now() >= ignoreReadyUntil) {
+      goTo("ready");
+    }
+  }),
+  backToLineUp: tap(() => goTo("lineUp")),
   applyUpdate: tap(() => applyUpdate()),
   tryAgain: tap(() => window.location.reload()),
 };
+
+// Taps and drags on the line-up's circles. See drag.js.
+const presses = watchLineUpPresses({
+  canPress: () => state.screen === "lineUp" && readyForTaps(),
+  canDrag: (spot) => canDrag(openGame(), spot),
+  canDrop: (playerId, spot) => movedOnto(openGame(), playerId, spot) !== null,
+  tapped(spot) {
+    const outcome = afterTap(openGame(), state.selectedId, spot);
+    state.problem = "";
+    if (outcome.move) {
+      saveMove(state.selectedId, spot);
+    } else {
+      state.selectedId = outcome.selectedId;
+      draw();
+    }
+  },
+  dragStarted() {
+    state.selectedId = null;
+    state.problem = "";
+    drawLineUpActions(state, actions);
+  },
+  dropped(playerId, spot) {
+    if (spot) {
+      saveMove(playerId, spot);
+    } else {
+      draw();
+    }
+  },
+});
 
 function openAdd(cameFrom) {
   state.addCameFrom = cameFrom;

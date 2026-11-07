@@ -4,7 +4,7 @@
 // and the screen changes only after that transaction has finished. change()
 // is what makes that easy to follow.
 
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 /** Opens the database, creating it on first use. */
 export function openDatabase(name) {
@@ -20,6 +20,13 @@ export function openDatabase(name) {
       }
       if (event.oldVersion < 2) {
         db.createObjectStore("games", { keyPath: "id" });
+      }
+      if (event.oldVersion < 3) {
+        // The event log: what happened and when, one record per event, never
+        // rewritten. The id counts up, so it is also the order things happened.
+        // Every later kind of event (goals, half start and end) goes here too.
+        const events = db.createObjectStore("events", { keyPath: "id", autoIncrement: true });
+        events.createIndex("gameId", "gameId");
       }
     };
 

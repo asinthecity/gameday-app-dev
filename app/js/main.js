@@ -11,6 +11,11 @@ import {
   canDrag,
   canReorderBench,
   canTapLive,
+  canAddGoal,
+  canRemoveLastGoal,
+  lastGoal,
+  THEM,
+  US,
   clampRotation,
   liveAction,
   markedAbsent,
@@ -22,14 +27,17 @@ import {
   screenForOpening,
   withRotation,
 } from "./game-rules.js";
-import { addGame, changeGame, endHalf, finishTestGame, loadGames, moveFieldPlayer, movePlayer, planPair, prePlaceGame, reopenHalf, reorderBench, startFirstHalf, startSecondHalf, swapPlayers, undoSwap, unplanPair } from "./game-store.js";
+import { addGame, addGoal, removeGoal, changeGame, endHalf, fullTime, loadGames, moveFieldPlayer, movePlayer, planPair, prePlaceGame, reopenHalf, reorderBench, startFirstHalf, startSecondHalf, swapPlayers, undoSwap, unplanPair } from "./game-store.js";
+import { shareCsv } from "./share-file.js";
 import { askToKeepDataOnce } from "./persistence.js";
 import { drawClock, drawLineUpActions, drawScreen } from "./screens.js";
+import { csvFileName, recordToCsv } from "./record-rules.js";
 import { cleanName } from "./squad-rules.js";
 import { addPlayer, loadSquad, removePlayer, renamePlayer } from "./squad-store.js";
 import { applyUpdate, currentUpdateNotice, startUpdates } from "./updates.js";
 
 const SAVE_PROBLEM = "That did not save. Please try again.";
+const FULL_TIME_PROBLEM = "Not saved. The game is still open. Tap FULL TIME to try again.";
 // After a screen change, ignore taps briefly, so the second half of a fast
 // double tap cannot land on whatever is now under the finger.
 const TAP_PAUSE_MS = 300;
@@ -54,8 +62,12 @@ const state = {
   showRemoveWarning: false,
   rotationOpen: false, // The rotation stepper sheet on the ready and game screens.
   welcome: false, // The "Welcome back" banner after a restart. Never saved.
+  goalToast: null, // After a goal, for about 5 seconds: { goalId, text, until }. Never saved.
+  goalSheet: false, // The "Who scored?" sheet.
+  removeOpen: false, // The "Remove last goal?" confirm.
   undo: null, // After Swap, for about 5 seconds: { before, eventId, until }. Never saved.
   problem: "",
+  fileProblemFor: null, // The finished game whose Save file just failed.
   updateNotice: currentUpdateNotice(),
 };
 
@@ -71,6 +83,10 @@ function goTo(screen) {
   state.rotationOpen = false;
   state.selectedId = null;
   state.undo = null;
+  state.goalToast = null;
+  state.goalSheet = false;
+  state.removeOpen = false;
+  state.fileProblemFor = null;
   ignoreTapsUntil = Date.now() + TAP_PAUSE_MS;
   draw();
   window.scrollTo(0, 0);
@@ -313,6 +329,66 @@ async function saveUndo() {
   draw();
 }
 
+/**
+ * A goal: saved first, shown after (the score is counted from the saved goals).
+ * `scorerId` is a player id, or null for "Not sure" and for a goal against. The toast
+ * with Undo then shows for about 5 seconds; it is taken off the page without a redraw.
+ */
+async function saveGoal(side, scorerId) {
+  const game = openGame();
+  state.goalSheet = false;
+  if (!game || !canAddGoal(game)) {
+    draw();
+    return;
+  }
+  const goal = { id: crypto.randomUUID(), side, scorerId };
+  saving = true;
+  try {
+    await addGoal(db, state.gameId, goal);
+    state.games = await loadGames(db);
+  } catch (error) {
+    console.warn("Goal did not save", error);
+    saving = false;
+    state.problem = SAVE_PROBLEM;
+    draw();
+    return;
+  }
+  saving = false;
+  state.problem = "";
+  const name = state.players.find((player) => player.id === scorerId)?.name;
+  const text = side === THEM ? "Goal against" : `Goal: ${name ?? "Not sure"}`;
+  const shown = { goalId: goal.id, text, until: Date.now() + UNDO_MS };
+  state.goalToast = shown;
+  ignoreTapsUntil = Date.now() + TAP_PAUSE_MS; // The toast appears near the buttons: a double tap must not hit Undo.
+  draw();
+  setTimeout(() => {
+    if (state.goalToast === shown) {
+      state.goalToast = null;
+      document.getElementById("goalToast")?.remove();
+    }
+  }, UNDO_MS);
+}
+
+/** Undo (the toast) or Remove last goal (the confirm): saves the removal, then draws the corrected score. */
+async function saveGoalRemoval(goalId) {
+  state.goalToast = null;
+  state.removeOpen = false;
+  saving = true;
+  try {
+    await removeGoal(db, state.gameId, goalId);
+    state.games = await loadGames(db);
+  } catch (error) {
+    console.warn("Goal removal did not save", error);
+    saving = false;
+    state.problem = SAVE_PROBLEM;
+    draw();
+    return;
+  }
+  saving = false;
+  state.problem = "";
+  draw();
+}
+
 function saveBenchMove(playerId, targetId) {
   return saveThenShowLineUp(() => reorderBench(db, state.gameId, playerId, targetId));
 }
@@ -406,6 +482,38 @@ const actions = {
   backToLineUp: tap(() => goTo("lineUp")),
   startFirstHalf: tap(() => startGame()),
   swap: tap(() => saveSwap()),
+  goalUs: tap(() => {
+    if (canAddGoal(openGame())) {
+      state.goalSheet = true;
+      draw();
+    }
+  }),
+  chooseScorer: tap((playerId) => saveGoal(US, playerId)),
+  closeGoalSheet: tap(() => {
+    state.goalSheet = false;
+    draw();
+  }),
+  goalAgainst: tap(() => saveGoal(THEM, null)),
+  undoGoal: tap(() => state.goalToast && saveGoalRemoval(state.goalToast.goalId)),
+  openRemoveGoal: tap(() => {
+    if (canRemoveLastGoal(openGame())) {
+      state.removeOpen = true;
+      draw();
+    }
+  }),
+  closeRemoveGoal: tap(() => {
+    state.removeOpen = false;
+    draw();
+  }),
+  confirmRemoveGoal: tap(() => {
+    const goal = lastGoal(openGame());
+    if (goal && canRemoveLastGoal(openGame())) {
+      saveGoalRemoval(goal.id);
+    } else {
+      state.removeOpen = false;
+      draw();
+    }
+  }),
   undo: tap(() => saveUndo()),
   unpair: tap((benchId) => {
     state.undo = null;
@@ -416,7 +524,8 @@ const actions = {
   // The back arrow on Half Time (throws the half-time changes away) or on the temporary full-time screen.
   backToGame: tap(() => saveThenGoTo(() => reopenHalf(db, state.gameId, Date.now()), "game")),
   startSecondHalf: tap(() => saveThenGoTo(() => startSecondHalf(db, state.gameId, Date.now()), "game")),
-  finishTestGame: tap(() => saveThenGoTo(() => finishTestGame(db, state.gameId), "home")),
+  fullTime: tap(() => saveThenGoTo(() => fullTime(db, state.gameId), "saved", FULL_TIME_PROBLEM)),
+  saveFile: tap((gameId) => saveFile(gameId)),
   applyUpdate: tap(() => applyUpdate()),
   tryAgain: tap(() => window.location.reload()),
 };
@@ -495,7 +604,7 @@ async function startGame() {
  * next screen. The screen changes only once the change is safely stored, so the
  * clock cannot show one thing while the saved game says another.
  */
-async function saveThenGoTo(saveChange, screen) {
+async function saveThenGoTo(saveChange, screen, problem = SAVE_PROBLEM) {
   saving = true;
   try {
     await saveChange();
@@ -503,12 +612,31 @@ async function saveThenGoTo(saveChange, screen) {
   } catch (error) {
     console.warn("Could not save", error);
     saving = false;
-    state.problem = SAVE_PROBLEM;
+    state.problem = problem;
     draw();
     return;
   }
   saving = false;
   goTo(screen);
+}
+
+/**
+ * Save file (Saved screen and Home): the CSV for one finished game, from its stored
+ * record, through the phone's share / save panel. A failure never touches the game.
+ */
+async function saveFile(gameId) {
+  const game = state.games.find((g) => g.id === gameId);
+  if (!game?.record) {
+    return;
+  }
+  state.fileProblemFor = null;
+  try {
+    await shareCsv(recordToCsv(game.record), csvFileName(game.record));
+  } catch (error) {
+    console.warn("Could not save the file", error);
+    state.fileProblemFor = gameId;
+  }
+  draw();
 }
 
 /** A new version may be noticed at any moment. Only Home shows it, so only Home redraws. */

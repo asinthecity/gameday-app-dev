@@ -569,16 +569,8 @@ export function isHalfTime(game) {
 }
 
 /**
- * Finish test game (temporary, removed with GDA-50): closes the game. It keeps no
- * record; the game just stops being in progress and leaves Home.
- */
-export function finishedGame(game) {
-  return { ...game, state: FINISHED };
-}
-
-/**
  * Which screen a game in progress opens on: Half Time after the first half's End Half,
- * the temporary full-time screen after the second half's, otherwise the game.
+ * the Full Time screen after the second half's, otherwise the game.
  */
 export function screenForOpening(game) {
   if (!isInProgress(game)) {
@@ -780,4 +772,66 @@ export function swapEvent(gameId, changes, at, half = "firstHalf") {
 /** True if this player has had their bench turn this game (GDA-27). No mark means not yet. */
 export function hasHadTurn(game, playerId) {
   return Boolean(game.hadTurn?.[playerId]);
+}
+
+// ---- Goals (GDA-37, 38, 39, 40) ----
+// `game.goals` is a list, oldest first. Each goal is { id, side, scorerId, half }:
+// side is "us" or "them"; scorerId is a player id, or null for "Not sure" and for goals
+// against; half is "firstHalf" or "secondHalf" (so the record, GDA-46, can show it).
+// The score is never stored: it is counted from this list, so it can never disagree
+// with it. Games saved before goals existed have no list and score 0-0.
+export const US = "us";
+export const THEM = "them";
+
+/** The goals of a game, oldest first. */
+export function goalsOf(game) {
+  return game.goals ?? [];
+}
+
+/** The score, counted from the goals: { us, them }. Never below 0. */
+export function scoreOf(game) {
+  const goals = goalsOf(game);
+  return { us: goals.filter((goal) => goal.side === US).length, them: goals.filter((goal) => goal.side === THEM).length };
+}
+
+/** "2 - 1" style text for the score, used in the remove confirm. */
+export function scoreText(score) {
+  return `${score.us}-${score.them}`;
+}
+
+/** Goals can be added only while a half is running (not before kick-off, at Half Time, after End Half or Full Time). */
+export function canAddGoal(game) {
+  return (game.state === FIRST_HALF || game.state === SECOND_HALF) && !isHalfEnded(game);
+}
+
+/** The player ids on the field right now, in position order. Only these can be offered as scorer. */
+export function fieldPlayerIds(game) {
+  return activePositions(game).filter((id) => id !== null && id !== undefined);
+}
+
+/** Adds a goal. `goal` is { id, side, scorerId }. Gives the game unchanged if goals are not allowed now. */
+export function goalAdded(game, goal) {
+  if (!canAddGoal(game)) {
+    return game;
+  }
+  const side = goal.side === THEM ? THEM : US;
+  const scorerId = side === US && fieldPlayerIds(game).includes(goal.scorerId) ? goal.scorerId : null;
+  const half = game.state === SECOND_HALF ? "secondHalf" : "firstHalf";
+  return { ...game, goals: [...goalsOf(game), { id: goal.id, side, scorerId, half }] };
+}
+
+/** Takes away the goal with this id (Undo on the toast). An id that is not there changes nothing. */
+export function goalRemoved(game, goalId) {
+  return { ...game, goals: goalsOf(game).filter((goal) => goal.id !== goalId) };
+}
+
+/** The most recent goal, or null if there are none. */
+export function lastGoal(game) {
+  const goals = goalsOf(game);
+  return goals.length > 0 ? goals[goals.length - 1] : null;
+}
+
+/** "Remove last goal" works in any half and at Half Time, but not after Full Time, and needs a goal to remove. */
+export function canRemoveLastGoal(game) {
+  return isInProgress(game) && lastGoal(game) !== null;
 }

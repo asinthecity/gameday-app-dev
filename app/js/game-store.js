@@ -2,7 +2,8 @@
 // fully saved or not changed at all. See game-rules.js for what a game holds.
 
 import { change, read } from "./db.js";
-import { SECOND_HALF, lineupKey, startedSecondHalf, endedHalf, reopenedHalf, benchReordered, fieldMoved, pairPlanned, pairRemoved, swapEvent, swapUndone, swapped, finishedGame, gamesInOrder, halfEndCancelledEvent, halfEndEvent, halfStartEvent, movedOnto, newGame, nextCreatedOrder, positionChangeEvent, prePlaced, startedFirstHalf, withBenchOrder } from "./game-rules.js";
+import { SECOND_HALF, goalAdded, goalRemoved, lineupKey, startedSecondHalf, endedHalf, reopenedHalf, benchReordered, fieldMoved, pairPlanned, pairRemoved, swapEvent, swapUndone, swapped, gamesInOrder, halfEndCancelledEvent, halfEndEvent, halfStartEvent, movedOnto, newGame, nextCreatedOrder, positionChangeEvent, prePlaced, startedFirstHalf, withBenchOrder } from "./game-rules.js";
+import { buildRecord, gameAtFullTime } from "./record-rules.js";
 import { squadInOrder } from "./squad-rules.js";
 
 /** Every game, in the order Home shows them. */
@@ -218,7 +219,45 @@ export function startSecondHalf(db, gameId, at) {
   return changeHalf(db, gameId, (game) => startedSecondHalf(game, at), () => halfStartEvent(gameId, at, "secondHalf"));
 }
 
-/** Finish test game (temporary, goes with GDA-50): closes the game and keeps no record. */
-export function finishTestGame(db, gameId) {
-  return changeGame(db, gameId, finishedGame);
+/**
+ * FULL TIME (GDA-46, GDA-50): builds the record from the saved game and its event log
+ * and stores it with the closed game, all in ONE transaction. Finishes only once it is
+ * stored, so the Saved screen can never show for a record that does not exist. If
+ * anything is wrong nothing changes and the game stays open. A game already closed
+ * (a double tap) is left exactly as it is: one record only.
+ */
+export function fullTime(db, gameId) {
+  return change(db, ["games", "events", "players"], (tx) => {
+    const games = tx.objectStore("games");
+    games.get(gameId).onsuccess = (found) => {
+      const game = found.target.result;
+      if (!game) {
+        tx.abort();
+        return;
+      }
+      if (game.record) {
+        return; // Already closed.
+      }
+      tx.objectStore("players").getAll().onsuccess = (players) => {
+        tx.objectStore("events").index("gameId").getAll(gameId).onsuccess = (events) => {
+          const record = buildRecord(game, squadInOrder(players.target.result), events.target.result);
+          if (record) {
+            games.put(gameAtFullTime(game, record));
+          } else {
+            tx.abort();
+          }
+        };
+      };
+    };
+  });
+}
+
+/** Saves a goal on the game at once. Each tap is one transaction, so a goal is saved or not at all. */
+export function addGoal(db, gameId, goal) {
+  return changeGame(db, gameId, (game) => goalAdded(game, goal));
+}
+
+/** Saves the removal of one goal (Undo, or Remove last goal) at once. */
+export function removeGoal(db, gameId, goalId) {
+  return changeGame(db, gameId, (game) => goalRemoved(game, goalId));
 }

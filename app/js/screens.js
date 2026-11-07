@@ -4,7 +4,8 @@
 // Names only ever reach the page as plain text (never as HTML), so a name
 // containing < or & just shows as typed.
 
-import { FINISHED, startedAtOf, endedAtOf, benchSeconds, benchTimerText, canCreateGame, clockText, isBenchLate, ringFraction, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, hasHadTurn, rotationOf, MIN_ROTATION, MAX_ROTATION } from "./game-rules.js";
+import { hasRecord, scorerSummary, csvFileName } from "./record-rules.js";
+import { FINISHED, startedAtOf, endedAtOf, benchSeconds, benchTimerText, canCreateGame, clockText, isBenchLate, ringFraction, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, hasHadTurn, rotationOf, MIN_ROTATION, MAX_ROTATION, scoreOf, scoreText, canAddGoal, canRemoveLastGoal, fieldPlayerIds, lastGoal, US, goalsOf } from "./game-rules.js";
 import { canSaveName, initialsFor } from "./squad-rules.js";
 
 /** Makes one element. Props starting "on" are tap or typing handlers. */
@@ -57,12 +58,29 @@ function gameCard(game, actions) {
   );
 }
 
+const FILE_PROBLEM = "Could not make the file. The game itself is saved. Try Save file again.";
+
+/** A finished game on Home: the result and one Save file button. No history screen. */
+function finishedCard(game, state, actions) {
+  const failed = state.fileProblemFor === game.id;
+  return h(
+    "div",
+    { class: "card finished", "data-game": game.id },
+    h("b", {}, `vs ${game.opposition} \u00b7 ${game.record.us} - ${game.record.them}`),
+    h("div", {}, `${formatGameDate(game.date)} \u00b7 Finished`),
+    failed ? h("p", { class: "problem", role: "alert" }, FILE_PROBLEM) : null,
+    h("button", { class: "btn saveFile", onclick: () => actions.saveFile(game.id) }, "Save file")
+  );
+}
+
 function homeScreen(state, actions) {
   const hasPlayers = state.players.length > 0;
   const createButton = hasPlayers
     ? h("button", { class: "btn pri big", onclick: actions.openCreateGame }, "+ Create game")
     : null;
   const cards = state.games.filter((game) => game.state !== FINISHED).map((game) => gameCard(game, actions));
+  // Finished games with a record keep one Save file button. Old test games (no record) stay hidden.
+  const finished = state.games.filter(hasRecord).map((game) => finishedCard(game, state, actions));
   const squadPart = hasPlayers
     ? [h("button", { class: "btn", onclick: actions.openSquad }, `Squad (${state.players.length})`)]
     : [
@@ -79,6 +97,7 @@ function homeScreen(state, actions) {
         problemLine(state.problem),
         createButton,
         ...cards,
+        ...finished,
         ...squadPart
       ),
     ],
@@ -415,9 +434,24 @@ function rotationSheet(state, game, actions) {
   );
 }
 
-/** The clock bar at the top of the game screens: the half on the left, the time in the middle. */
-function clockBar(text, half = "1ST HALF") {
-  return h("div", { class: "clk" }, h("span", { class: "hf" }, half), h("b", { id: "clock" }, text));
+/**
+ * The score for the top band (GDA-40): "US 2 - 1 THEM", counted from the saved goals,
+ * always labelled. With `actions` it is a button (tap = Remove last goal, GDA-39);
+ * without, it is plain text (before kick-off, nothing to remove).
+ */
+function scoreBox(game, actions) {
+  const score = scoreOf(game);
+  const side = (label, n, id) => h("span", { class: "s" }, h("small", {}, label), h("span", { id }, String(n)));
+  const parts = [side("US", score.us, "scoreUs"), h("span", { class: "dash" }, "-"), side("THEM", score.them, "scoreThem")];
+  if (!actions) {
+    return h("div", { class: "score", id: "score" }, ...parts);
+  }
+  return h("button", { class: "score", id: "score", "aria-label": `Score, us ${score.us}, them ${score.them}. Tap to remove the last goal`, onclick: actions.openRemoveGoal }, ...parts);
+}
+
+/** The bar at the top of the game screens: the score on the left, the half and the time on the right. */
+function clockBar(text, half, game, actions) {
+  return h("div", { class: "clk" }, scoreBox(game, actions), h("div", { class: "ck" }, h("span", { class: "hf" }, half), h("b", { id: "clock" }, text)));
 }
 
 /** Before kick-off: look, but not touch. The game has not started and nothing here is saved. */
@@ -428,7 +462,7 @@ function readyScreen(state, actions) {
     fixed: true,
     noMove: true,
     nodes: [
-      clockBar("0:00"),
+      clockBar("0:00", "1ST HALF", game, null),
       rotationStrip(game, actions),
       h(
         "div",
@@ -468,7 +502,7 @@ function gameScreen(state, actions) {
     noMove: true,
     nodes: [
       state.welcome ? h("div", { class: "welcome", id: "welcome" }, "Welcome back") : null,
-      clockBar(clockText(startedAtOf(game), Date.now()), game.state === "second half" ? "2ND HALF" : "1ST HALF"),
+      clockBar(clockText(startedAtOf(game), Date.now()), game.state === "second half" ? "2ND HALF" : "1ST HALF", game, actions),
       rotationStrip(game, actions),
       h("div", { class: "strip time", id: "timeStrip", hidden: true }, h("span", { class: "big" }, "TIME")),
       h("div", { class: "lu" }, ...pitchAndBench(view, state, true, view.bench.length > 6, true)),
@@ -477,15 +511,75 @@ function gameScreen(state, actions) {
         "div",
         { class: "acts" },
         problemLine(state.problem),
-        h("button", { class: "btn eh", id: "endHalf", onclick: actions.endHalf }, "End Half")
+        h(
+          "div",
+          { class: "gr" },
+          h("button", { class: "btn pri", id: "goalUs", onclick: actions.goalUs }, "GOAL - US"),
+          h("button", { class: "btn", id: "goalThem", onclick: actions.goalAgainst }, "Goal against"),
+          h("button", { class: "btn eh", id: "endHalf", onclick: actions.endHalf }, "End Half")
+        )
       ),
+      goalToast(state, actions),
       rotationSheet(state, game, actions),
+      goalSheet(state, game, actions),
+      removeGoalSheet(state, game, actions),
     ].filter(Boolean),
     after: () => {
       drawClock(state);
       drawPairLines(state);
     },
   };
+}
+
+/** The toast after a goal: what happened, and Undo for about 5 seconds (GDA-37/38/39). Floats, so nothing moves. */
+function goalToast(state, actions) {
+  const toast = state.goalToast;
+  if (!toast || Date.now() >= toast.until) {
+    return null;
+  }
+  return h("div", { class: "toast", id: "goalToast" }, h("span", {}, toast.text), h("button", { id: "goalUndo", onclick: actions.undoGoal }, "Undo"));
+}
+
+/** "Who scored?": the players on the field now, plus Not sure. Cancel or a tap outside adds nothing. */
+function goalSheet(state, game, actions) {
+  if (!state.goalSheet || !canAddGoal(game)) {
+    return null;
+  }
+  const names = fieldPlayerIds(game).map((id) => state.players.find((player) => player.id === id)).filter(Boolean);
+  return h(
+    "div",
+    { class: "scrim goal", id: "goalSheet", onclick: (event) => event.target === event.currentTarget && actions.closeGoalSheet() },
+    h(
+      "div",
+      { class: "sheet" },
+      h("h2", {}, "Who scored?"),
+      h("div", { class: "grid" }, ...names.map((player) => h("button", { class: "btn", "data-scorer": player.id, onclick: () => actions.chooseScorer(player.id) }, player.name)), h("button", { class: "btn", id: "notSure", onclick: () => actions.chooseScorer(null) }, "Not sure")),
+      h("button", { class: "btn", id: "goalCancel", onclick: actions.closeGoalSheet }, "Cancel")
+    )
+  );
+}
+
+/** The one confirm for Remove last goal: names the goal and the new score. */
+function removeGoalSheet(state, game, actions) {
+  const goal = lastGoal(game);
+  if (!state.removeOpen || !goal) {
+    return null;
+  }
+  const score = scoreOf(game);
+  const after = { us: score.us - (goal.side === US ? 1 : 0), them: score.them - (goal.side === US ? 0 : 1) };
+  const scorer = state.players.find((player) => player.id === goal.scorerId)?.name;
+  const what = goal.side === US ? (scorer ? `${scorer}'s goal for us.` : "A goal for us (scorer not sure).") : "A goal against us.";
+  return h(
+    "div",
+    { class: "scrim goal", id: "removeSheet", onclick: (event) => event.target === event.currentTarget && actions.closeRemoveGoal() },
+    h(
+      "div",
+      { class: "sheet" },
+      h("h2", {}, "Remove last goal?"),
+      h("p", { class: "rmtext" }, what, h("br"), h("b", {}, `Score goes from ${scoreText(score)} to ${scoreText(after)}.`)),
+      h("div", { class: "pair" }, h("button", { class: "btn", id: "removeCancel", onclick: actions.closeRemoveGoal }, "Cancel"), h("button", { class: "btn pri", id: "removeConfirm", onclick: actions.confirmRemoveGoal }, "Remove goal"))
+    )
+  );
 }
 
 /**
@@ -622,19 +716,48 @@ function drawBenchTimers(game, now) {
 }
 
 /**
- * Temporary (GDA-50 replaces it): the second half's End Half screen with the
- * stopped clock, a back arrow and Finish test game. Remove with GDA-50.
+ * Full Time (GDA-50): shown after the second half's End Half. FULL TIME saves the
+ * record and closes the game for good. Back returns to the game (for a last goal).
  */
 function halfOverScreen(state, actions) {
   const game = openGame(state);
+  const score = scoreOf(game);
+  const nameOf = (id) => state.players.find((p) => p.id === id)?.name ?? null;
+  const { named, unsure } = scorerSummary(goalsOf(game).map((g) => ({ side: g.side, scorer: g.side === US && g.scorerId !== null ? nameOf(g.scorerId) : null })));
   return {
     nodes: [
-      header("", actions.backToGame),
+      header("Full Time", actions.backToGame),
       h(
         "div",
         { class: "body" },
-        h("div", { class: "stop", id: "stopped" }, clockText(startedAtOf(game), endedAtOf(game))),
-        h("button", { class: "btn pri big", onclick: actions.finishTestGame }, "Finish test game")
+        h("div", { class: "lbl" }, `FINAL SCORE v ${game.opposition}`),
+        h("div", { class: "bigscore", id: "finalScore" }, `${score.us} - ${score.them}`),
+        h("div", { class: "card", id: "scorers" }, h("b", {}, "Scorers"), h("div", {}, named || "No goals for us"), h("div", {}, `Not sure ${unsure}`)),
+        h("p", { class: "final" }, "Cannot be reopened. Need a last goal? Tap Back first."),
+        problemLine(state.problem),
+        h("button", { class: "btn pri big", id: "fullTime", onclick: actions.fullTime }, "FULL TIME")
+      ),
+    ],
+  };
+}
+
+/** Saved (GDA-50): the record is stored. Save file offers the CSV; Done goes Home. */
+function savedScreen(state, actions) {
+  const game = state.games.find((g) => g.id === state.gameId);
+  const record = game?.record;
+  return {
+    nodes: [
+      header("Saved"),
+      h(
+        "div",
+        { class: "body" },
+        h("div", { class: "lbl" }, `Game saved v ${game?.opposition ?? ""}`),
+        h("div", { class: "bigscore", id: "finalScore" }, record ? `${record.us} - ${record.them}` : ""),
+        record ? h("div", { class: "fname" }, `File name: ${csvFileName(record)}`) : null,
+        h("p", {}, "Your game is safe on this phone. No swap, goal or Undo can be reached now. You can save the file later from Home."),
+        state.fileProblemFor === game?.id ? h("p", { class: "problem", role: "alert" }, FILE_PROBLEM) : null,
+        h("button", { class: "btn pri big saveFile", onclick: () => actions.saveFile(game.id) }, state.fileProblemFor === game?.id ? "Save file again" : "Save file"),
+        h("button", { class: "btn big", id: "done", onclick: actions.goHome }, "Done")
       ),
     ],
   };
@@ -653,9 +776,10 @@ function halfTimeScreen(state, actions) {
     fixed: true,
     noMove: true,
     nodes: [
-      h("div", { class: "hdr ht" }, h("button", { class: "back", "aria-label": "Back", onclick: actions.backToGame }, "\u2039"), h("h1", {}, "HALF TIME")),
+      h("div", { class: "hdr ht" }, h("button", { class: "back", "aria-label": "Back", onclick: actions.backToGame }, "\u2039"), h("h1", {}, "HALF TIME"), scoreBox(game, canRemoveLastGoal(game) ? actions : null)),
       h("div", { class: "lu" }, ...pitchAndBench(view, state, true, view.bench.length > 6)),
       h("div", { class: "acts" }, problemLine(state.problem), h("button", { class: "btn pri", id: "startSecond", onclick: actions.startSecondHalf }, "Start 2nd Half")),
+      removeGoalSheet(state, game, actions),
     ],
   };
 }
@@ -685,6 +809,7 @@ const SCREENS = {
   game: gameScreen,
   halfTime: halfTimeScreen,
   over: halfOverScreen,
+  saved: savedScreen,
   cannotOpen: cannotOpenScreen,
 };
 

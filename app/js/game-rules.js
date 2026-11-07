@@ -324,7 +324,20 @@ export function startedFirstHalf(game, at) {
   if (game.state !== NOT_STARTED) {
     return game;
   }
-  return { ...game, state: FIRST_HALF, firstHalfStartedAt: at };
+  return withKeeperMark({ ...game, state: FIRST_HALF, firstHalfStartedAt: at });
+}
+
+/**
+ * GDA-28: any time in goal counts as a bench turn. Gives the player now in goal the
+ * turn mark (setting it again adds nothing; an empty goal marks nobody). Called
+ * wherever someone can arrive in goal: kick-off, Start 2nd Half, a move, a Swap.
+ */
+function withKeeperMark(game) {
+  const keeper = activePositions(game)[0];
+  if (keeper === null || keeper === undefined || game.hadTurn?.[keeper]) {
+    return game;
+  }
+  return { ...game, hadTurn: { ...game.hadTurn, [keeper]: true } };
 }
 
 /** The event log entry for a half starting, at the real time `at`. */
@@ -509,7 +522,7 @@ export function startedSecondHalf(game, at) {
     return game;
   }
   const { benchOrderAtEndHalf, ...rest } = game;
-  return { ...rest, state: SECOND_HALF, secondHalfStartedAt: at, benchSince: {}, plannedPairs: [] };
+  return withKeeperMark({ ...rest, state: SECOND_HALF, secondHalfStartedAt: at, benchSince: {}, plannedPairs: [] });
 }
 
 /** End Half in the second half: saves the time. The full-time screen is GDA-50. */
@@ -711,7 +724,7 @@ export function fieldMoved(game, playerId, spot) {
   }
   const moved = movedOnto(game, playerId, spot);
   const pairs = pairsOf(game).map((pair) => (pair.fieldId === null && pair.place === spot.place ? { ...pair, fieldId: playerId, place: null } : pair));
-  return { game: { ...moved.game, plannedPairs: pairs }, changes: moved.changes };
+  return { game: withKeeperMark({ ...moved.game, plannedPairs: pairs }), changes: moved.changes };
 }
 
 /**
@@ -747,7 +760,7 @@ export function swapped(game, at) {
   if (changes.length === 0) {
     return null;
   }
-  return { game: { ...withFirstHalf(game, { positions }), benchOrder: order, benchSince, hadTurn, plannedPairs: [] }, changes };
+  return { game: withKeeperMark({ ...withFirstHalf(game, { positions }), benchOrder: order, benchSince, hadTurn, plannedPairs: [] }), changes };
 }
 
 /**

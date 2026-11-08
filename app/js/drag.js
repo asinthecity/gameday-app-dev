@@ -16,7 +16,9 @@ export function nearestTarget(targets, x, y) {
   let best = null;
   let bestDistance = DROP_RADIUS * DROP_RADIUS;
   for (const target of targets) {
-    const distance = (target.x - x) ** 2 + (target.y - y) ** 2;
+    // A whole row (ABSENT, bench) counts as hit anywhere inside it.
+    const inside = target.box && x >= target.box.left && x <= target.box.right && y >= target.box.top && y <= target.box.bottom;
+    const distance = inside ? 0 : (target.x - x) ** 2 + (target.y - y) ** 2;
     if (distance < bestDistance) {
       bestDistance = distance;
       best = target;
@@ -32,11 +34,14 @@ export function movedFarEnough(startX, startY, x, y) {
 
 /** Reads what screens.js put on a slot: { playerId } or, for an empty position, { place }. */
 function spotOf(slot) {
+  if (slot.dataset.zone) {
+    return { zone: slot.dataset.zone }; // A whole row: "absent" or "bench" (GDA-62).
+  }
   return slot.dataset.player !== undefined ? { playerId: Number(slot.dataset.player) } : { place: Number(slot.dataset.place) };
 }
 
 function centreOf(slot) {
-  const box = slot.querySelector(".ci").getBoundingClientRect();
+  const box = (slot.querySelector(".ci") ?? slot).getBoundingClientRect();
   return { x: box.left + box.width / 2, y: box.top + box.height / 2 };
 }
 
@@ -63,9 +68,9 @@ export function watchLineUpPresses(rules) {
     document.querySelector(".slot.sel")?.classList.remove("sel");
     press.slot.classList.add("src");
     // Measured after dragStarted, which can change the height of the bottom bar.
-    press.targets = [...document.querySelectorAll("[data-player], [data-place]")]
+    press.targets = [...document.querySelectorAll("[data-player], [data-place], [data-zone]")]
       .filter((slot) => slot !== press.slot)
-      .map((slot) => ({ slot, spot: spotOf(slot), ...centreOf(slot) }))
+      .map((slot) => ({ slot, spot: spotOf(slot), box: slot.dataset.zone ? slot.getBoundingClientRect() : null, ...centreOf(slot) }))
       .filter((target) => rules.canDrop(press.spot.playerId, target.spot));
     ghost.replaceChildren(press.slot.querySelector(".av").cloneNode(true));
     const start = centreOf(press.slot);
@@ -103,7 +108,7 @@ export function watchLineUpPresses(rules) {
     if (press || !rules.canPress() || (event.pointerType === "mouse" && event.button !== 0)) {
       return;
     }
-    const slot = event.target.closest?.("[data-player], [data-place]");
+    const slot = event.target.closest?.("[data-player], [data-place], [data-zone]");
     if (!slot) {
       return;
     }

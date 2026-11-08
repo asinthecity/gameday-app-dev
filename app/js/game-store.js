@@ -2,7 +2,7 @@
 // fully saved or not changed at all. See game-rules.js for what a game holds.
 
 import { change, read } from "./db.js";
-import { SECOND_HALF, goalAdded, goalRemoved, lineupKey, startedSecondHalf, endedHalf, reopenedHalf, benchReordered, fieldMoved, pairPlanned, pairRemoved, swapEvent, swapUndone, swapped, gamesInOrder, halfEndCancelledEvent, halfEndEvent, halfStartEvent, movedOnto, newGame, nextCreatedOrder, positionChangeEvent, prePlaced, startedFirstHalf, withBenchOrder } from "./game-rules.js";
+import { lineUpMoved, SECOND_HALF, goalAdded, goalRemoved, lineupKey, startedSecondHalf, endedHalf, reopenedHalf, benchReordered, fieldMoved, pairPlanned, pairRemoved, swapEvent, swapUndone, swapped, gamesInOrder, halfEndCancelledEvent, halfEndEvent, halfStartEvent, movedOnto, newGame, nextCreatedOrder, positionChangeEvent, prePlaced, startedFirstHalf, withBenchOrder } from "./game-rules.js";
 import { buildRecord, gameAtFullTime } from "./record-rules.js";
 import { squadInOrder } from "./squad-rules.js";
 
@@ -54,10 +54,13 @@ export function movePlayer(db, gameId, playerId, spot, at) {
         // Complete the bench order first: a game saved before GDA-61 has none.
         const saved = event.target.result;
         const ready = saved ? withBenchOrder(saved, squadInOrder(players.target.result)) : null;
-        const moved = ready ? movedOnto(ready, playerId, spot) : null;
+        const moved = ready ? lineUpMoved(ready, playerId, spot, squadInOrder(players.target.result)) : null;
         if (moved) {
           games.put(moved.game);
-          tx.objectStore("events").add(positionChangeEvent(gameId, moved.changes, at, lineupKey(ready)));
+          // Marking absent or back in logs nothing, as the Absent button does not.
+          if (moved.changes.length > 0) {
+            tx.objectStore("events").add(positionChangeEvent(gameId, moved.changes, at, lineupKey(ready)));
+          }
         } else {
           tx.abort();
         }

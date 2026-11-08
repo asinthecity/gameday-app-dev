@@ -26,9 +26,9 @@ function h(tag, props = {}, ...children) {
   return element;
 }
 
-function header(title, onBack, right = null) {
+function header(title, onBack, right = null, extra = null) {
   const back = onBack ? h("button", { class: "back", "aria-label": "Back", onclick: onBack }, "‹") : null;
-  return h("div", { class: "hdr" }, back, h("h1", {}, title), right);
+  return h("div", { class: "hdr" }, back, h("h1", {}, title), right, extra);
 }
 
 function problemLine(text) {
@@ -336,9 +336,10 @@ function emptySlot(place, canMove, state) {
   );
 }
 
-function lineUpRow(title, rowClass, players, state, canMove, benchTimers = false) {
+function lineUpRow(title, rowClass, players, state, canMove, benchTimers = false, zone = null) {
   const slots = players.map((player) => playerSlot(player, state, canMove, false, benchTimers));
-  return h("div", { class: rowClass }, h("span", { class: "t" }, title), ...slots);
+  // `zone` makes the whole row a drop target (GDA-62): "absent" or "bench", line-up screen only.
+  return h("div", { class: rowClass, ...(zone ? { "data-zone": zone } : {}) }, h("span", { class: "t" }, title), ...slots);
 }
 
 /** The bottom button. While a player is selected it acts on them instead. */
@@ -376,7 +377,7 @@ function pitchAndBench(view, state, canMove, crowded, live = false) {
     const rowClass = view.bench.length > 6 ? "row live many" : "row live";
     return view.bench.length > 0 ? [pitch, lineUpRow("BENCH", rowClass, view.bench, state, canMove, true)] : [pitch];
   }
-  return [pitch, lineUpRow("BENCH", "row", view.bench, state, canMove)];
+  return [pitch, lineUpRow("BENCH", "row", view.bench, state, canMove, false, state.screen === "lineUp" ? "bench" : null)];
 }
 
 function openGame(state) {
@@ -394,31 +395,31 @@ function lineUpScreen(state, actions) {
     fixed: true,
     noMove: true,
     nodes: [
-      header("1st-half line-up", actions.goHome, h("span", { class: "tag" }, game.formation)),
+      header("1st-half line-up", actions.goHome, h("span", { class: "tag" }, game.formation), cogButton(actions)),
       h(
         "div",
         { class: "lu" },
         ...pitchAndBench(view, state, true, view.bench.length > 6 || view.absent.length > 6),
-        view.absent.length > 0 ? lineUpRow("ABSENT", "row ab", view.absent, state, true) : null
+        // GDA-62: always there, below the bench, even when empty (then slim).
+        lineUpRow("ABSENT", view.absent.length > 0 ? "row ab" : "row ab empty", view.absent, state, true, false, "absent")
       ),
       h("div", { class: "acts" }, ...lineUpActions(view, state, actions)),
+      gameDetailsSheet(state, game, actions),
     ],
   };
 }
 
-/** The row under the clock with the rotation chip. Tapping the chip opens the stepper. */
-function rotationStrip(game, actions) {
-  // The swap message (GDA-35) shares the strip with the chip; drawClock fills it in and hides it when empty.
-  return h(
-    "div",
-    { class: "strip", id: "rotStrip" },
-    h("button", { class: "chip", id: "rotChip", onclick: actions.openRotation }, `${rotationOf(game)} min`),
-    h("div", { class: "sl", id: "swapMsg", hidden: true })
-  );
+/** The settings cog (GDA-64): opens the Game details sheet. Sits at the far edge, away from the game buttons. */
+function cogButton(actions) {
+  return h("button", { class: "cog", id: "cog", "aria-label": "Game details", onclick: actions.openRotation }, "\u2699");
 }
 
-/** The stepper sheet, drawn only while open. Done is the only way to close it. */
-function rotationSheet(state, game, actions) {
+/**
+ * The Game details sheet (GDA-64), drawn only while open: the rotation length stepper,
+ * opposition and date as read-only text, and Done. Each tap on - or + is saved at once;
+ * Done only closes the sheet.
+ */
+function gameDetailsSheet(state, game, actions) {
   if (!state.rotationOpen) {
     return null;
   }
@@ -428,7 +429,11 @@ function rotationSheet(state, game, actions) {
     h(
       "div",
       { class: "sheet" },
+      h("h2", {}, "Game details"),
+      h("div", { class: "lbl" }, "Rotation length"),
       rotationStepper(() => rotationOf(openGame(state)), actions.stepRotation),
+      h("div", { class: "ro", id: "detOpp" }, `Opposition: ${game.opposition}`),
+      h("div", { class: "ro", id: "detDate" }, `Date: ${formatGameDate(game.date)}`),
       h("button", { class: "btn pri", id: "rotDone", onclick: actions.closeRotation }, "Done")
     )
   );
@@ -450,8 +455,8 @@ function scoreBox(game, actions) {
 }
 
 /** The bar at the top of the game screens: the score on the left, the half and the time on the right. */
-function clockBar(text, half, game, actions) {
-  return h("div", { class: "clk" }, scoreBox(game, actions), h("div", { class: "ck" }, h("span", { class: "hf" }, half), h("b", { id: "clock" }, text)));
+function clockBar(text, half, game, actions, cogActions) {
+  return h("div", { class: "clk" }, scoreBox(game, actions), h("div", { class: "ck" }, h("span", { class: "hf" }, half), h("b", { id: "clock" }, text)), cogButton(cogActions));
 }
 
 /** Before kick-off: look, but not touch. The game has not started and nothing here is saved. */
@@ -462,8 +467,7 @@ function readyScreen(state, actions) {
     fixed: true,
     noMove: true,
     nodes: [
-      clockBar("0:00", "1ST HALF", game, null),
-      rotationStrip(game, actions),
+      clockBar("0:00", "1ST HALF", game, null, actions),
       h(
         "div",
         { class: "lu" },
@@ -482,7 +486,7 @@ function readyScreen(state, actions) {
           h("button", { class: "btn pri", onclick: actions.startFirstHalf }, "START 1ST HALF")
         )
       ),
-      rotationSheet(state, game, actions),
+      gameDetailsSheet(state, game, actions),
     ].filter(Boolean),
   };
 }
@@ -502,11 +506,9 @@ function gameScreen(state, actions) {
     noMove: true,
     nodes: [
       state.welcome ? h("div", { class: "welcome", id: "welcome" }, "Welcome back") : null,
-      clockBar(clockText(startedAtOf(game), Date.now()), game.state === "second half" ? "2ND HALF" : "1ST HALF", game, actions),
-      rotationStrip(game, actions),
-      h("div", { class: "strip time", id: "timeStrip", hidden: true }, h("span", { class: "big" }, "TIME")),
+      clockBar(clockText(startedAtOf(game), Date.now()), game.state === "second half" ? "2ND HALF" : "1ST HALF", game, actions, actions),
+      swapStrip(game, state, actions),
       h("div", { class: "lu" }, ...pitchAndBench(view, state, true, view.bench.length > 6, true)),
-      swapRow(game, state, actions),
       h(
         "div",
         { class: "acts" },
@@ -520,7 +522,7 @@ function gameScreen(state, actions) {
         )
       ),
       goalToast(state, actions),
-      rotationSheet(state, game, actions),
+      gameDetailsSheet(state, game, actions),
       goalSheet(state, game, actions),
       removeGoalSheet(state, game, actions),
     ].filter(Boolean),
@@ -583,18 +585,23 @@ function removeGoalSheet(state, game, actions) {
 }
 
 /**
- * Above End Half: the Swap button while pairs are planned, or the Undo bar for about
- * 5 seconds after a Swap. Nothing when neither applies. (GDA-27 and GDA-35 add their
- * parts of the game screen next to this row; this row is the only one GDA-30 owns.)
+ * The one fixed-height strip under the clock (GDA-63). It holds, one at a time, the Swap
+ * Time message (drawSwapMessage fills it in), "Swap done / Undo" for about 5 seconds after
+ * a Swap, or TIME when the half is over (drawClock shows it). The Swap button sits beside
+ * the message or TIME while pairs are planned. The height never changes, so the pitch and
+ * bench never move. The rules for Swap, Undo and the message are unchanged.
  */
-function swapRow(game, state, actions) {
-  if (pairsOf(game).length > 0) {
-    return h("div", { class: "swr" }, h("button", { class: "btn pri swp", id: "swap", onclick: actions.swap }, "Swap"));
-  }
-  if (state.undo && Date.now() < state.undo.until) {
-    return h("div", { class: "swr" }, h("div", { class: "undo", id: "undo" }, h("span", {}, "Swap done"), h("button", { onclick: actions.undo }, "Undo")));
-  }
-  return null;
+function swapStrip(game, state, actions) {
+  const planned = pairsOf(game).length > 0;
+  const undoShown = !planned && state.undo && Date.now() < state.undo.until;
+  return h(
+    "div",
+    { class: "strip", id: "strip" },
+    h("div", { class: "sl", id: "swapMsg", hidden: true }),
+    h("div", { class: "sl time", id: "timeStrip", hidden: true }, h("span", { class: "big" }, "TIME")),
+    undoShown ? h("div", { class: "undo", id: "undo" }, h("span", {}, "Swap done"), h("button", { onclick: actions.undo }, "Undo")) : null,
+    planned ? h("button", { class: "btn pri swp", id: "swap", onclick: actions.swap }, "Swap") : null
+  );
 }
 
 let lastActions = null;
@@ -648,15 +655,11 @@ export function drawClock(state) {
     const now = Date.now();
     clock.textContent = clockText(startedAtOf(game), now);
     const timeUp = isTimeUp(startedAtOf(game), now);
-    const stripChanged = document.getElementById("timeStrip").hidden === timeUp;
-    document.getElementById("timeStrip").hidden = !timeUp;
-    document.getElementById("rotStrip").hidden = timeUp; // The TIME strip takes its place.
+    document.getElementById("timeStrip").hidden = !timeUp; // TIME takes the message's place in the same strip.
     document.getElementById("endHalf").classList.toggle("pri", timeUp);
     drawBenchTimers(game, now);
-    const msgChanged = drawSwapMessage(game, state.players, now, timeUp);
-    if (stripChanged || msgChanged) {
-      drawPairLines(state); // The strip changes the height above, so the lines move with it.
-    }
+    drawSwapMessage(game, state.players, now, timeUp);
+    // The strip never changes height, so the pair lines never need redrawing here.
   }
 }
 
@@ -667,14 +670,14 @@ export function drawClock(state) {
  * colour alone. Gives true when the strip changed height, so the pair lines can follow.
  */
 function drawSwapMessage(game, squad, now, timeUp) {
-  const strip = document.getElementById("rotStrip");
+  const strip = document.getElementById("strip");
   const box = document.getElementById("swapMsg");
   const message = timeUp ? null : swapMessage(game, squad, now);
   const wasShown = !box.hidden;
   if (!message) {
     box.hidden = true;
     box.textContent = "";
-    strip.className = "strip";
+    strip.className = timeUp ? "strip timeup" : "strip";
     return wasShown;
   }
   const name = (id) => squad.find((player) => player.id === id)?.name ?? "";
@@ -776,10 +779,11 @@ function halfTimeScreen(state, actions) {
     fixed: true,
     noMove: true,
     nodes: [
-      h("div", { class: "hdr ht" }, h("button", { class: "back", "aria-label": "Back", onclick: actions.backToGame }, "\u2039"), h("h1", {}, "HALF TIME"), scoreBox(game, canRemoveLastGoal(game) ? actions : null)),
+      h("div", { class: "hdr ht" }, h("button", { class: "back", "aria-label": "Back", onclick: actions.backToGame }, "\u2039"), h("h1", {}, "HALF TIME"), scoreBox(game, canRemoveLastGoal(game) ? actions : null), cogButton(actions)),
       h("div", { class: "lu" }, ...pitchAndBench(view, state, true, view.bench.length > 6)),
       h("div", { class: "acts" }, problemLine(state.problem), h("button", { class: "btn pri", id: "startSecond", onclick: actions.startSecondHalf }, "Start 2nd Half")),
       removeGoalSheet(state, game, actions),
+      gameDetailsSheet(state, game, actions),
     ],
   };
 }

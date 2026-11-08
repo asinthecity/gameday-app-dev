@@ -208,6 +208,9 @@ export function whereIs(game, playerId) {
  * position. This gives the player in a spot, or null if it is empty.
  */
 function playerIn(game, spot) {
+  if (spot.zone) {
+    return null; // The ABSENT or BENCH row itself (GDA-62): no player in it.
+  }
   return spot.playerId ?? activePositions(game)[spot.place] ?? null;
 }
 
@@ -241,6 +244,38 @@ export function movedOnto(game, playerId, spot) {
   }
   const moved = withFirstHalf(game, { positions });
   return { game: { ...moved, benchOrder: benchAfterMove(game.benchOrder ?? [], playerId, otherId, from, to) }, changes };
+}
+
+/**
+ * The line-up screen's move (GDA-62): like movedOnto, but ABSENT is allowed, from anywhere
+ * to anywhere, before kick-off. A spot can also be a whole row: { zone: "absent" } or
+ * { zone: "bench" }.
+ * - Onto the ABSENT row (or a player in it): marks absent. Nothing else moves.
+ * - An absent player onto the bench row or a bench player: back in, at the end of the bench.
+ * - An absent player onto an empty position: takes it. Onto a player: takes it and that
+ *   player goes to the bench (never to ABSENT, so nobody is marked absent by accident).
+ * Gives { game, changes } like movedOnto (changes is empty when only absence changed),
+ * or null if the move is not allowed. After kick-off it is exactly movedOnto.
+ */
+export function lineUpMoved(game, playerId, spot, squad) {
+  if (game.state !== NOT_STARTED) {
+    return spot.zone ? null : movedOnto(game, playerId, spot);
+  }
+  const from = whereIs(game, playerId);
+  const targetId = playerIn(game, spot);
+  const toAbsent = spot.zone === "absent" || (targetId !== null && whereIs(game, targetId) === ABSENT);
+  if (toAbsent) {
+    return from === ABSENT ? null : { game: markedAbsent(game, playerId), changes: [] };
+  }
+  if (from !== ABSENT) {
+    return spot.zone ? null : movedOnto(game, playerId, spot);
+  }
+  // An absent player coming back in: bench first (order completed so they land at the end).
+  const back = withBenchOrder(markedBackIn(game, playerId), squad);
+  if (spot.zone === "bench" || (targetId !== null && whereIs(back, targetId) === BENCH)) {
+    return { game: back, changes: [] };
+  }
+  return movedOnto(back, playerId, spot);
 }
 
 /**
@@ -280,7 +315,8 @@ export function benchReordered(game, playerId, targetId) {
 
 /** Only a player who is not absent can be dragged. An empty position cannot. */
 export function canDrag(game, spot) {
-  return spot.playerId !== undefined && whereIs(game, spot.playerId) !== ABSENT;
+  // Before kick-off an absent player can be dragged too (GDA-62).
+  return spot.playerId !== undefined && (game.state === NOT_STARTED || whereIs(game, spot.playerId) !== ABSENT);
 }
 
 /**

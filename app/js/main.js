@@ -21,6 +21,7 @@ import {
   markedAbsent,
   markedBackIn,
   movedOnto,
+  lineUpMoved,
   needsPrePlacing,
   rotationOf,
   gameToResume,
@@ -537,10 +538,10 @@ const presses = watchLineUpPresses({
   canDrop: (playerId, spot) =>
     state.screen === "game"
       ? liveAction(openGame(), playerId, spot) !== null
-      : movedOnto(openGame(), playerId, spot) !== null || canReorderBench(openGame(), playerId, spot.playerId),
+      : lineUpMoved(openGame(), playerId, spot, state.players) !== null || canReorderBench(openGame(), playerId, spot.playerId),
   tapped(spot) {
     const live = state.screen === "game";
-    const outcome = live ? afterTap(openGame(), state.selectedId, spot, canTapLive) : afterTap(openGame(), state.selectedId, spot);
+    const outcome = live ? afterTap(openGame(), state.selectedId, spot, canTapLive) : afterTap(openGame(), state.selectedId, spot, (game, id, target) => lineUpMoved(game, id, target, state.players) !== null);
     state.problem = "";
     if (outcome.move) {
       live ? saveLive(state.selectedId, spot) : saveMove(state.selectedId, spot);

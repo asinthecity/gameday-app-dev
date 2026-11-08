@@ -33,6 +33,8 @@ const APP_FILES = [
   "./js/persistence.js",
   "./js/record-rules.js",
   "./js/share-file.js",
+  "./js/sheet-rules.js",
+  "./js/sheet-send.js",
   "./js/screens.js",
   "./js/squad-rules.js",
   "./js/squad-store.js",

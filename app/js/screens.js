@@ -6,6 +6,7 @@
 
 import { hasRecord, scorerSummary, csvFileName } from "./record-rules.js";
 import { FINISHED, startedAtOf, endedAtOf, benchSeconds, benchTimerText, canCreateGame, clockText, isBenchLate, ringFraction, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, hasHadTurn, rotationOf, MIN_ROTATION, MAX_ROTATION, scoreOf, scoreText, canAddGoal, canRemoveLastGoal, fieldPlayerIds, lastGoal, US, goalsOf } from "./game-rules.js";
+import { canDeleteGame, sheetStatus } from "./sheet-rules.js";
 import { canSaveName, initialsFor } from "./squad-rules.js";
 
 /** Makes one element. Props starting "on" are tap or typing handlers. */
@@ -54,13 +55,37 @@ function gameCard(game, actions) {
     h("b", {}, `vs ${game.opposition}`),
     h("div", {}, `${formatGameDate(game.date)} · ${formatKickOff(game.kickOff)}`),
     h("div", {}, game.venue),
-    h("button", { class: "btn", onclick: () => actions.openLineUp(game.id) }, "Line-up")
+    h("button", { class: "btn", onclick: () => actions.openLineUp(game.id) }, "Line-up"),
+    // Delete sits apart from the Line-up button, and only before START 1ST HALF (GDA-66).
+    canDeleteGame(game) ? h("button", { class: "btn del deleteGame", onclick: () => actions.askDelete(game.id) }, "Delete") : null
   );
 }
 
 const FILE_PROBLEM = "Could not make the file. The game itself is saved. Try Save file again.";
 
-/** A finished game on Home: the result and one Save file button. No history screen. */
+/** The Sheet line on a finished game (GDA-47): Sent / Sending / Not sent yet + Send now / Sheet not set up. */
+function sheetLine(game, state, actions) {
+  const status = sheetStatus(game, state.sheetSettings, state.sendingId, state.sheetProblem[game.id]);
+  if (!status) {
+    return [];
+  }
+  const line = (text) => h("div", { class: "sheetStatus", "data-status": status.kind }, h("b", {}, text));
+  if (status.kind === "sent") {
+    return [line("Sent to the Sheet")];
+  }
+  if (status.kind === "sending") {
+    return [line("Sending\u2026")];
+  }
+  if (status.kind === "notSetUp") {
+    return [line("Sheet not set up"), h("button", { class: "btn", onclick: actions.openSheetSettings }, "Sheet settings")];
+  }
+  return [
+    h("div", { class: "sheetStatus err", "data-status": "notSent" }, h("b", {}, status.checkSettings ? "Not sent yet - check Sheet settings" : "Not sent yet")),
+    h("button", { class: "btn pri sendNow", onclick: () => actions.sendNow(game.id) }, "Send now"),
+  ];
+}
+
+/** A finished game on Home: the result, its Sheet status and one Save file button. No history screen. */
 function finishedCard(game, state, actions) {
   const failed = state.fileProblemFor === game.id;
   return h(
@@ -68,9 +93,53 @@ function finishedCard(game, state, actions) {
     { class: "card finished", "data-game": game.id },
     h("b", {}, `vs ${game.opposition} \u00b7 ${game.record.us} - ${game.record.them}`),
     h("div", {}, `${formatGameDate(game.date)} \u00b7 Finished`),
+    ...sheetLine(game, state, actions),
     failed ? h("p", { class: "problem", role: "alert" }, FILE_PROBLEM) : null,
     h("button", { class: "btn saveFile", onclick: () => actions.saveFile(game.id) }, "Save file")
   );
+}
+
+/** "Delete the game v Eagles on Sun 15 Nov?" with one confirm (GDA-66). */
+function deleteSheet(state, actions) {
+  const game = state.games.find((g) => g.id === state.deleteId);
+  if (!game) {
+    return null;
+  }
+  return h(
+    "div",
+    { class: "scrim", id: "deleteConfirm" },
+    h(
+      "div",
+      { class: "sheet" },
+      h("h2", {}, `Delete the game v ${game.opposition} on ${formatGameDate(game.date)}? This can't be undone.`),
+      h("button", { class: "btn del", id: "confirmDelete", onclick: actions.confirmDelete }, "Delete"),
+      h("button", { class: "btn", id: "cancelDelete", onclick: actions.cancelDelete }, "Cancel")
+    )
+  );
+}
+
+/** Sheet settings (GDA-47): the script's web address and secret, kept only on this phone. */
+function sheetSettingsScreen(state, actions) {
+  const settings = state.sheetDraft ?? state.sheetSettings ?? {};
+  const field = (id, label, value, type) => {
+    const input = h("input", { id, type, autocomplete: "off", autocapitalize: "off", autocorrect: "off", spellcheck: "false" });
+    input.value = value ?? "";
+    return h("div", { class: "f" }, h("label", { for: id }, h("span", {}, label)), input);
+  };
+  return {
+    nodes: [
+      header("Sheet settings", actions.goHome),
+      h(
+        "div",
+        { class: "body" },
+        field("sheetUrl", "Sheet web address", settings.url, "text"),
+        field("sheetSecret", "Secret", settings.secret, "password"),
+        problemLine(state.problem),
+        state.sheetSaved ? h("p", { id: "sheetSaved" }, 'Saved. Games marked "Sheet not set up" now show Send now.') : null,
+        h("button", { class: "btn pri big", id: "saveSheet", onclick: actions.saveSheetSettings }, "Save")
+      ),
+    ],
+  };
 }
 
 function homeScreen(state, actions) {
@@ -98,9 +167,11 @@ function homeScreen(state, actions) {
         createButton,
         ...cards,
         ...finished,
-        ...squadPart
+        ...squadPart,
+        h("button", { class: "btn sheetSettings", onclick: actions.openSheetSettings }, "Sheet settings")
       ),
-    ],
+      deleteSheet(state, actions),
+    ].filter(Boolean),
   };
 }
 
@@ -814,6 +885,7 @@ const SCREENS = {
   halfTime: halfTimeScreen,
   over: halfOverScreen,
   saved: savedScreen,
+  sheetSettings: sheetSettingsScreen,
   cannotOpen: cannotOpenScreen,
 };
 

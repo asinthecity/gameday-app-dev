@@ -9,6 +9,7 @@ import { BENCH, FINISHED, SECOND_HALF, SWAP, POSITION_CHANGE, goalsOf, scoreOf, 
 
 export const NOT_SURE = "Not sure";
 export const BENCH_NAME = "Bench";
+export const ABSENT_NAME = "Absent";
 
 /** The position names Ben's Sheet uses. Places in 3-3-2: 0 goal, 1-3 defence, 4-6 midfield, 7-8 attack. */
 export function positionName(place) {
@@ -79,7 +80,7 @@ export function halfPosition({ start, groups }) {
 
 /**
  * The record for a game that has reached Full Time. `squad` is [{ id, name }];
- * `events` is the game's event log. Players marked absent are left out (GDA-49 is later).
+ * `events` is the game's event log. Players marked absent get a normal row with "Absent" in both halves (GDA-49).
  * Gives null if the game is not in its second half with the half ended.
  */
 export function buildRecord(game, squad, events) {
@@ -87,8 +88,8 @@ export function buildRecord(game, squad, events) {
   if (!ended || typeof game.firstHalfEndedAt !== "number") {
     return null;
   }
-  const playing = squad.filter((p) => !game.absent.includes(p.id));
-  const ids = playing.map((p) => p.id);
+  const isAbsent = (p) => game.absent.includes(p.id);
+  const ids = squad.filter((p) => !isAbsent(p)).map((p) => p.id);
   const first = timeInPositions(game.lineups.firstHalf.positions, ids, events, "firstHalf", game.firstHalfStartedAt, game.firstHalfEndedAt);
   const second = timeInPositions(game.lineups.secondHalf.positions, ids, events, "secondHalf", game.secondHalfStartedAt, game.secondHalfEndedAt);
   const goals = goalsOf(game);
@@ -101,18 +102,22 @@ export function buildRecord(game, squad, events) {
     us: score.us,
     them: score.them,
     goals: goals.map((g) => ({ side: g.side, scorer: g.side === US && g.scorerId !== null ? nameOf(g.scorerId) : null, half: g.half })),
-    players: playing.map((p) => ({
+    // Everyone in the squad, once. Absent players keep their row (0 goals as they never played).
+    players: squad.map((p) => ({
       name: p.name,
-      firstHalf: halfPosition(first.get(p.id)),
-      secondHalf: halfPosition(second.get(p.id)),
+      firstHalf: isAbsent(p) ? ABSENT_NAME : halfPosition(first.get(p.id)),
+      secondHalf: isAbsent(p) ? ABSENT_NAME : halfPosition(second.get(p.id)),
       goals: goals.filter((g) => g.side === US && g.scorerId === p.id).length,
     })),
   };
 }
 
-/** The game, closed for good with its record stored on it. Full Time is final. */
+/**
+ * The game, closed for good with its record stored on it. Full Time is final.
+ * `toSend` marks it for the season Sheet (GDA-47); games finished before that have no mark.
+ */
 export function gameAtFullTime(game, record) {
-  return { ...game, state: FINISHED, record };
+  return { ...game, state: FINISHED, record, toSend: true };
 }
 
 /** "Alex 2 · Morgan 1" and the "Not sure" count, for the Full Time screen. `goals` is [{ side, scorer }]. */

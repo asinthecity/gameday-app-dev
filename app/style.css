@@ -220,3 +220,8 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .row.ab.empty { min-height: 22px; padding-bottom: 14px; }
 .row.ab.empty:after { content: "drag a player here"; display: block; width: 100%; text-align: center; font-size: 12px; color: #666; }
 [data-zone].drop { outline: 4px solid #ffd400; outline-offset: 0; }
+
+/* Sheet status on a finished game, and Delete on a game not started (GDA-47, GDA-66) */
+.sheetStatus { margin-top: 4px; }
+.sheetStatus.err { color: #b00020; }
+.btn.sheetSettings { margin-top: 6px; }

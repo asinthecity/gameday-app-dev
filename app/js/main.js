@@ -2,7 +2,7 @@
 // save it, read the saved data back, then draw. So the screen only ever shows
 // what is really stored.
 
-import { openDatabase } from "./db.js";
+import { getMeta, openDatabase, setMeta } from "./db.js";
 import { watchLineUpPresses } from "./drag.js";
 import {
   afterTap,
@@ -28,7 +28,9 @@ import {
   screenForOpening,
   withRotation,
 } from "./game-rules.js";
-import { addGame, addGoal, removeGoal, changeGame, endHalf, fullTime, loadGames, moveFieldPlayer, movePlayer, planPair, prePlaceGame, reopenHalf, reorderBench, startFirstHalf, startSecondHalf, swapPlayers, undoSwap, unplanPair } from "./game-store.js";
+import { deleteGame, markSentToSheet, addGame, addGoal, removeGoal, changeGame, endHalf, fullTime, loadGames, moveFieldPlayer, movePlayer, planPair, prePlaceGame, reopenHalf, reorderBench, startFirstHalf, startSecondHalf, swapPlayers, undoSwap, unplanPair } from "./game-store.js";
+import { cleanSheetSettings, canSend, SETTINGS_KEY } from "./sheet-rules.js";
+import { sendGameToSheet } from "./sheet-send.js";
 import { shareCsv } from "./share-file.js";
 import { askToKeepDataOnce } from "./persistence.js";
 import { drawClock, drawLineUpActions, drawScreen } from "./screens.js";
@@ -69,6 +71,12 @@ const state = {
   undo: null, // After Swap, for about 5 seconds: { before, eventId, until }. Never saved.
   problem: "",
   fileProblemFor: null, // The finished game whose Save file just failed.
+  sheetSettings: null, // { url, secret } for the season Sheet. Stored only on this phone.
+  sheetDraft: null, // What is typed on Sheet settings when a message is shown. Never saved.
+  sheetSaved: false, // "Saved" note on the Sheet settings screen.
+  sendingId: null, // The game being sent to the Sheet right now. Never saved.
+  sheetProblem: {}, // gameId -> "secret" after the script refused the secret. Never saved.
+  deleteId: null, // The not-started game being asked about ("Delete?"). Never saved.
   updateNotice: currentUpdateNotice(),
 };
 
@@ -88,6 +96,9 @@ function goTo(screen) {
   state.goalSheet = false;
   state.removeOpen = false;
   state.fileProblemFor = null;
+  state.sheetSaved = false;
+  state.sheetDraft = null;
+  state.deleteId = null;
   ignoreTapsUntil = Date.now() + TAP_PAUSE_MS;
   draw();
   window.scrollTo(0, 0);
@@ -525,7 +536,53 @@ const actions = {
   // The back arrow on Half Time (throws the half-time changes away) or on the temporary full-time screen.
   backToGame: tap(() => saveThenGoTo(() => reopenHalf(db, state.gameId, Date.now()), "game")),
   startSecondHalf: tap(() => saveThenGoTo(() => startSecondHalf(db, state.gameId, Date.now()), "game")),
-  fullTime: tap(() => saveThenGoTo(() => fullTime(db, state.gameId), "saved", FULL_TIME_PROBLEM)),
+  fullTime: tap(async () => {
+    const gameId = state.gameId;
+    await saveThenGoTo(() => fullTime(db, gameId), "saved", FULL_TIME_PROBLEM);
+    // One try only, after the game is safely saved. Never waits for it, never retries (GDA-47).
+    if (state.games.find((g) => g.id === gameId)?.toSend) {
+      sendToSheet(gameId);
+    }
+  }),
+  sendNow: tap((gameId) => sendToSheet(gameId)),
+  openSheetSettings: tap(() => goTo("sheetSettings")),
+  saveSheetSettings: tap(async () => {
+    const cleaned = cleanSheetSettings(document.getElementById("sheetUrl").value, document.getElementById("sheetSecret").value);
+    if (!cleaned.ok) {
+      // Keep what was typed, so a message does not wipe the box.
+      state.sheetDraft = { url: document.getElementById("sheetUrl").value, secret: document.getElementById("sheetSecret").value };
+      state.problem = cleaned.message;
+      draw();
+      return;
+    }
+    try {
+      await setMeta(db, SETTINGS_KEY, cleaned.settings);
+    } catch (error) {
+      console.warn("Could not save the Sheet settings", error);
+      state.problem = SAVE_PROBLEM;
+      draw();
+      return;
+    }
+    state.sheetSettings = cleaned.settings;
+    state.sheetProblem = {};
+    state.problem = "";
+    state.sheetSaved = true;
+    state.sheetDraft = null;
+    draw();
+  }),
+  askDelete: tap((gameId) => {
+    state.deleteId = gameId;
+    draw();
+  }),
+  cancelDelete: tap(() => {
+    state.deleteId = null;
+    draw();
+  }),
+  confirmDelete: tap(() => {
+    const gameId = state.deleteId;
+    state.deleteId = null;
+    saveThenGoTo(() => deleteGame(db, gameId), "home");
+  }),
   saveFile: tap((gameId) => saveFile(gameId)),
   applyUpdate: tap(() => applyUpdate()),
   tryAgain: tap(() => window.location.reload()),
@@ -622,6 +679,37 @@ async function saveThenGoTo(saveChange, screen, problem = SAVE_PROBLEM) {
 }
 
 /**
+ * Sends one finished game to the season Sheet. It counts as sent only when Google's reply
+ * says so, and only then is it marked in the saved game. A second tap while sending is
+ * ignored. Sending the same game again is safe: the script knows the game ID.
+ */
+async function sendToSheet(gameId) {
+  const game = state.games.find((g) => g.id === gameId);
+  if (!game || state.sendingId || !canSend(game, state.sheetSettings)) {
+    return;
+  }
+  state.sendingId = gameId;
+  delete state.sheetProblem[gameId];
+  draw();
+  const result = await sendGameToSheet(state.sheetSettings, game);
+  state.sendingId = null;
+  if (result.ok) {
+    try {
+      await markSentToSheet(db, gameId);
+      state.games = await loadGames(db);
+    } catch (error) {
+      console.warn("Could not mark the game as sent", error);
+    }
+  } else if (result.reason === "secret") {
+    state.sheetProblem[gameId] = "secret";
+  }
+  // Only Home shows the Sheet status, so only redraw if we are there.
+  if (state.screen === "home") {
+    draw();
+  }
+}
+
+/**
  * Save file (Saved screen and Home): the CSV for one finished game, from its stored
  * record, through the phone's share / save panel. A failure never touches the game.
  */
@@ -679,6 +767,7 @@ async function start() {
     db = await openDatabase(self.GAMEDAY_CONFIG.storageName);
     state.players = await loadSquad(db);
     state.games = await loadGames(db);
+    state.sheetSettings = (await getMeta(db, SETTINGS_KEY)) ?? null;
     resumeGameIfAny();
     draw();
   } catch (error) {

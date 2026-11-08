@@ -4,6 +4,7 @@
 import { change, read } from "./db.js";
 import { lineUpMoved, SECOND_HALF, goalAdded, goalRemoved, lineupKey, startedSecondHalf, endedHalf, reopenedHalf, benchReordered, fieldMoved, pairPlanned, pairRemoved, swapEvent, swapUndone, swapped, gamesInOrder, halfEndCancelledEvent, halfEndEvent, halfStartEvent, movedOnto, newGame, nextCreatedOrder, positionChangeEvent, prePlaced, startedFirstHalf, withBenchOrder } from "./game-rules.js";
 import { buildRecord, gameAtFullTime } from "./record-rules.js";
+import { canDeleteGame } from "./sheet-rules.js";
 import { squadInOrder } from "./squad-rules.js";
 
 /** Every game, in the order Home shows them. */
@@ -263,4 +264,31 @@ export function addGoal(db, gameId, goal) {
 /** Saves the removal of one goal (Undo, or Remove last goal) at once. */
 export function removeGoal(db, gameId, goalId) {
   return changeGame(db, gameId, (game) => goalRemoved(game, goalId));
+}
+
+/** Marks a game as sent, once Google has confirmed it. Only a game marked "to send" can be marked. */
+export function markSentToSheet(db, gameId) {
+  return changeGame(db, gameId, (game) => (game.toSend ? { ...game, sentToSheet: true } : game));
+}
+
+/**
+ * Deletes ONE game that has not started (GDA-66), with its event log, in one transaction.
+ * A game that has started or finished is refused (nothing changes). Nothing is sent anywhere.
+ */
+export function deleteGame(db, gameId) {
+  return change(db, ["games", "events"], (tx) => {
+    const games = tx.objectStore("games");
+    games.get(gameId).onsuccess = (found) => {
+      const game = found.target.result;
+      if (!game || !canDeleteGame(game)) {
+        tx.abort();
+        return;
+      }
+      games.delete(gameId);
+      const events = tx.objectStore("events");
+      events.index("gameId").getAllKeys(gameId).onsuccess = (keys) => {
+        keys.target.result.forEach((key) => events.delete(key));
+      };
+    };
+  });
 }

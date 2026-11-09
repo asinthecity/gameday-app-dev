@@ -42,11 +42,11 @@ export function cleanSheetSettings(urlText, secretText) {
 
 /**
  * The Sheet rows for a game: the game ID first, then the file's columns in order
- * (date, opposition, our score, their score, player, 1st half, 2nd half, goals).
+ * (date, opposition, our score, their score, player, 1st half, 2nd half, goals, bench order).
  * No heading row. Every player of the game is in it (absent ones too).
  */
 export function sheetRows(record, gameId) {
-  return record.players.map((p) => [gameId, record.date, record.opposition, record.us, record.them, p.name, p.firstHalf, p.secondHalf, p.goals]);
+  return record.players.map((p) => [gameId, record.date, record.opposition, record.us, record.them, p.name, p.firstHalf, p.secondHalf, p.goals, p.benchOrder ?? ""]);
 }
 
 /** The text posted to the script. One game, all its rows, in one go. */

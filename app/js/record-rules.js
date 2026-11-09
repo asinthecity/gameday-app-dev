@@ -108,6 +108,8 @@ export function buildRecord(game, squad, events) {
       firstHalf: isAbsent(p) ? ABSENT_NAME : halfPosition(first.get(p.id)),
       secondHalf: isAbsent(p) ? ABSENT_NAME : halfPosition(second.get(p.id)),
       goals: goals.filter((g) => g.side === US && g.scorerId === p.id).length,
+      // GDA-56: the bench-order number, or blank if never off the bench (absent players too).
+      benchOrder: isAbsent(p) ? "" : game.benchNumbers?.[p.id] ?? "",
     })),
   };
 }
@@ -146,11 +148,11 @@ export function csvCell(value) {
 /**
  * The CSV text: one row per player, NO heading row (the headings sit once at the top of
  * the season Sheet), fixed column order: date, opposition, us, them, player, position
- * 1st half, position 2nd half, goals. The game fields repeat on every row.
+ * 1st half, position 2nd half, goals, bench order (GDA-56; blank for older games). The game fields repeat on every row.
  */
 export function recordToCsv(record) {
   return record.players
-    .map((p) => [record.date, record.opposition, record.us, record.them, p.name, p.firstHalf, p.secondHalf, p.goals].map(csvCell).join(",") + "\n")
+    .map((p) => [record.date, record.opposition, record.us, record.them, p.name, p.firstHalf, p.secondHalf, p.goals, p.benchOrder ?? ""].map(csvCell).join(",") + "\n")
     .join("");
 }
 

@@ -360,20 +360,7 @@ export function startedFirstHalf(game, at) {
   if (game.state !== NOT_STARTED) {
     return game;
   }
-  return withKeeperMark({ ...game, state: FIRST_HALF, firstHalfStartedAt: at });
-}
-
-/**
- * GDA-28: any time in goal counts as a bench turn. Gives the player now in goal the
- * turn mark (setting it again adds nothing; an empty goal marks nobody). Called
- * wherever someone can arrive in goal: kick-off, Start 2nd Half, a move, a Swap.
- */
-function withKeeperMark(game) {
-  const keeper = activePositions(game)[0];
-  if (keeper === null || keeper === undefined || game.hadTurn?.[keeper]) {
-    return game;
-  }
-  return { ...game, hadTurn: { ...game.hadTurn, [keeper]: true } };
+  return { ...game, state: FIRST_HALF, firstHalfStartedAt: at };
 }
 
 /** The event log entry for a half starting, at the real time `at`. */
@@ -550,7 +537,7 @@ export function reopenedFirstHalf(game) {
 /**
  * Start 2nd Half (GDA-31): the second half's clock starts at once from `at`. Bench
  * timers start again from 0:00 for everyone on the bench (benchSince is cleared, so
- * they fall back to the half's start). Turn marks (hadTurn) are left alone. Gives the
+ * they fall back to the half's start). Bench numbers (benchNumbers) are left alone. Gives the
  * game back unchanged if it is not at Half Time, so a double tap starts it once.
  */
 export function startedSecondHalf(game, at) {
@@ -558,7 +545,7 @@ export function startedSecondHalf(game, at) {
     return game;
   }
   const { benchOrderAtEndHalf, ...rest } = game;
-  return withKeeperMark({ ...rest, state: SECOND_HALF, secondHalfStartedAt: at, benchSince: {}, plannedPairs: [] });
+  return { ...rest, state: SECOND_HALF, secondHalfStartedAt: at, benchSince: {}, plannedPairs: [] };
 }
 
 /** End Half in the second half: saves the time. The full-time screen is GDA-50. */
@@ -752,7 +739,7 @@ export function fieldMoved(game, playerId, spot) {
   }
   const moved = movedOnto(game, playerId, spot);
   const pairs = pairsOf(game).map((pair) => (pair.fieldId === null && pair.place === spot.place ? { ...pair, fieldId: playerId, place: null } : pair));
-  return { game: withKeeperMark({ ...moved.game, plannedPairs: pairs }), changes: moved.changes };
+  return { game: { ...moved.game, plannedPairs: pairs }, changes: moved.changes };
 }
 
 /**
@@ -767,7 +754,10 @@ export function swapped(game, at) {
   const positions = [...activePositions(game)];
   let order = [...(game.benchOrder ?? [])];
   const benchSince = { ...game.benchSince };
-  const hadTurn = { ...game.hadTurn }; // Turn marks (GDA-27): one per player, for the whole game.
+  // Bench numbers (GDA-56): { playerId: 1, 2, 3... } in the order players first came off the bench.
+  // Kept for the whole game; a player keeps their first number. Pairs are handled in strip order.
+  const benchNumbers = { ...game.benchNumbers };
+  let nextNumber = Math.max(0, ...Object.values(benchNumbers)) + 1;
   const changes = [];
   for (const pair of pairsOf(game)) {
     const place = pair.fieldId !== null ? positions.indexOf(pair.fieldId) : pair.place;
@@ -778,7 +768,9 @@ export function swapped(game, at) {
     positions[place] = pair.benchId;
     order = benchAfterMove(order, pair.benchId, pair.fieldId, BENCH, place);
     delete benchSince[pair.benchId];
-    hadTurn[pair.benchId] = true; // Back on from the bench: earns the mark (setting it again adds nothing).
+    if (!benchNumbers[pair.benchId]) {
+      benchNumbers[pair.benchId] = nextNumber++; // First time off the bench: takes the next number.
+    }
     changes.push({ playerId: pair.benchId, from: BENCH, to: place });
     if (pair.fieldId !== null) {
       benchSince[pair.fieldId] = at;
@@ -788,16 +780,16 @@ export function swapped(game, at) {
   if (changes.length === 0) {
     return null;
   }
-  return { game: withKeeperMark({ ...withFirstHalf(game, { positions }), benchOrder: order, benchSince, hadTurn, plannedPairs: [] }), changes };
+  return { game: { ...withFirstHalf(game, { positions }), benchOrder: order, benchSince, benchNumbers, plannedPairs: [] }, changes };
 }
 
 /**
  * Undo after Swap: puts back the players, the bench order, the bench times and the
- * planned pairs and the turn marks, from `before`, the game as it was just before Swap.
+ * planned pairs and the bench numbers, from `before`, the game as it was just before Swap.
  */
 export function swapUndone(game, before) {
   const restored = withFirstHalf(game, { positions: before.lineups[lineupKey(before)].positions });
-  return { ...restored, benchOrder: before.benchOrder, benchSince: before.benchSince, hadTurn: before.hadTurn ?? {}, plannedPairs: before.plannedPairs ?? [] };
+  return { ...restored, benchOrder: before.benchOrder, benchSince: before.benchSince, benchNumbers: before.benchNumbers ?? {}, plannedPairs: before.plannedPairs ?? [] };
 }
 
 /** The event log entry for a Swap: one event, one time, all the players who moved. */
@@ -805,9 +797,9 @@ export function swapEvent(gameId, changes, at, half = "firstHalf") {
   return { gameId, type: SWAP, at, half, changes };
 }
 
-/** True if this player has had their bench turn this game (GDA-27). No mark means not yet. */
-export function hasHadTurn(game, playerId) {
-  return Boolean(game.hadTurn?.[playerId]);
+/** The player's bench-order number (GDA-56), or null if they have not come off the bench. */
+export function benchNumberOf(game, playerId) {
+  return game.benchNumbers?.[playerId] ?? null;
 }
 
 // ---- Goals (GDA-37, 38, 39, 40) ----

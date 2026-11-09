@@ -5,7 +5,7 @@
 // containing < or & just shows as typed.
 
 import { hasRecord, scorerSummary, csvFileName } from "./record-rules.js";
-import { FINISHED, startedAtOf, endedAtOf, benchSeconds, benchTimerText, canCreateGame, clockText, isBenchLate, ringFraction, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, hasHadTurn, rotationOf, MIN_ROTATION, MAX_ROTATION, scoreOf, scoreText, canAddGoal, canRemoveLastGoal, fieldPlayerIds, lastGoal, US, goalsOf } from "./game-rules.js";
+import { FINISHED, startedAtOf, endedAtOf, benchSeconds, benchTimerText, canCreateGame, clockText, isBenchLate, ringFraction, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationOf, MIN_ROTATION, MAX_ROTATION, scoreOf, scoreText, canAddGoal, canRemoveLastGoal, fieldPlayerIds, lastGoal, US, goalsOf } from "./game-rules.js";
 import { archiveWarning, canDeleteGame, sheetStatus } from "./sheet-rules.js";
 import { canSaveName, initialsFor } from "./squad-rules.js";
 
@@ -436,11 +436,9 @@ function createGameScreen(state, actions) {
  */
 function playerSlot(player, state, canMove, isKeeper = false, benchTimer = false) {
   const planned = state.screen === "game" && pairsOf(openGame(state)).some((pair) => pair.benchId === player.id || pair.fieldId === player.id);
-  // The 'had a turn' tick (GDA-27): shown on field and bench circles during a game. A shape, not just colour.
-  const turnMark =
-    (state.screen === "game" || state.screen === "halfTime") && hasHadTurn(openGame(state), player.id)
-      ? h("span", { class: "turn", "aria-label": "Has had a bench turn", title: "Has had a bench turn" }, "\u2713")
-      : null;
+  // The bench-order number (GDA-56): shown on field and bench circles during a game. A number, not just colour.
+  const number = (state.screen === "game" || state.screen === "halfTime") ? benchNumberOf(openGame(state), player.id) : null;
+  const turnMark = number ? h("span", { class: "turn", "aria-label": `Bench order ${number}`, title: `Bench order ${number}` }, String(number)) : null;
   return h(
     "div",
     {

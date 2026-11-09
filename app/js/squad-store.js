@@ -52,7 +52,7 @@ export function renamePlayer(db, id, name) {
 
 /** Takes the player out of the squad and out of every game not yet started, in one transaction. */
 export function removePlayer(db, id) {
-  return change(db, ["players", "games"], (tx) => {
+  return change(db, ["players", "games", "photos"], (tx) => {
     const players = tx.objectStore("players");
     const games = tx.objectStore("games");
     players.get(id).onsuccess = (event) => {
@@ -62,6 +62,7 @@ export function removePlayer(db, id) {
         return;
       }
       players.put({ ...player, active: false });
+      tx.objectStore("photos").delete(id); // The photo goes with the player (GDA-52).
       games.getAll().onsuccess = (found) => {
         found.target.result
           .filter((game) => game.state === NOT_STARTED && sameTeam(game, player))

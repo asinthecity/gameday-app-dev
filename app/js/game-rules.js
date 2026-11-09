@@ -563,7 +563,13 @@ export function startedSecondHalf(game, at) {
     return game;
   }
   const { benchOrderAtEndHalf, ...rest } = game;
-  return { ...rest, state: SECOND_HALF, secondHalfStartedAt: at, benchSince: {}, plannedPairs: [] };
+  // Bench time (GDA-29): the first half's bench time carries on. Everyone who was on the bench when the
+  // half ended gets that last stint added now; the half-time break itself adds nothing (it stops at End Half).
+  const benchTotals = { ...game.benchTotals };
+  for (const id of benchOrderAtEndHalf ?? []) {
+    benchTotals[id] = benchTotalSeconds(game, id, at);
+  }
+  return { ...rest, state: SECOND_HALF, secondHalfStartedAt: at, benchSince: {}, benchTotals, plannedPairs: [] };
 }
 
 /** End Half in the second half: saves the time. The full-time screen is GDA-50. */
@@ -775,6 +781,8 @@ export function swapped(game, at) {
   // Bench numbers (GDA-56): { playerId: 1, 2, 3... } in the order players first came off the bench.
   // Kept for the whole game; a player keeps their first number. Pairs are handled in strip order.
   const benchNumbers = { ...game.benchNumbers };
+  // Bench time (GDA-29): seconds of finished bench stints, per player. A stint is added when the player goes on.
+  const benchTotals = { ...game.benchTotals };
   let nextNumber = Math.max(0, ...Object.values(benchNumbers)) + 1;
   const changes = [];
   for (const pair of pairsOf(game)) {
@@ -785,6 +793,7 @@ export function swapped(game, at) {
     }
     positions[place] = pair.benchId;
     order = benchAfterMove(order, pair.benchId, pair.fieldId, BENCH, place);
+    benchTotals[pair.benchId] = (benchTotals[pair.benchId] ?? 0) + benchSeconds(game, pair.benchId, at);
     delete benchSince[pair.benchId];
     if (!benchNumbers[pair.benchId]) {
       benchNumbers[pair.benchId] = nextNumber++; // First time off the bench: takes the next number.
@@ -798,7 +807,7 @@ export function swapped(game, at) {
   if (changes.length === 0) {
     return null;
   }
-  return { game: { ...withFirstHalf(game, { positions }), benchOrder: order, benchSince, benchNumbers, plannedPairs: [] }, changes };
+  return { game: { ...withFirstHalf(game, { positions }), benchOrder: order, benchSince, benchNumbers, benchTotals, plannedPairs: [] }, changes };
 }
 
 /**
@@ -807,12 +816,31 @@ export function swapped(game, at) {
  */
 export function swapUndone(game, before) {
   const restored = withFirstHalf(game, { positions: before.lineups[lineupKey(before)].positions });
-  return { ...restored, benchOrder: before.benchOrder, benchSince: before.benchSince, benchNumbers: before.benchNumbers ?? {}, plannedPairs: before.plannedPairs ?? [] };
+  return { ...restored, benchOrder: before.benchOrder, benchSince: before.benchSince, benchNumbers: before.benchNumbers ?? {}, benchTotals: before.benchTotals ?? {}, plannedPairs: before.plannedPairs ?? [] };
 }
 
 /** The event log entry for a Swap: one event, one time, all the players who moved. */
 export function swapEvent(gameId, changes, at, half = "firstHalf") {
   return { gameId, type: SWAP, at, half, changes };
+}
+
+/**
+ * Bench time this game (GDA-29), in seconds, across both halves: the finished stints
+ * (`benchTotals`) plus the stint the player is in now, if they are on the bench. Worked out
+ * from saved times every time, so it is right after a reload or with the app closed (real
+ * time keeps counting, like the bench timers). At Half Time the bench is the one saved at
+ * End Half, and the stint stops there, so the break adds nothing.
+ */
+export function benchTotalSeconds(game, playerId, now) {
+  const benchNow = isHalfTime(game) ? game.benchOrderAtEndHalf ?? game.benchOrder : game.benchOrder;
+  const current = (benchNow ?? []).includes(playerId) ? benchSeconds(game, playerId, now) : 0;
+  return (game.benchTotals?.[playerId] ?? 0) + current;
+}
+
+/** "4m": whole minutes, rounded down. Under a minute gives "" (nothing shown). */
+export function benchTotalText(seconds) {
+  const minutes = Math.floor(seconds / 60);
+  return minutes >= 1 ? `${minutes}m` : "";
 }
 
 /** The player's bench-order number (GDA-56), or null if they have not come off the bench. */

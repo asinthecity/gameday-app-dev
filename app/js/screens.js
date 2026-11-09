@@ -5,7 +5,7 @@
 // containing < or & just shows as typed.
 
 import { hasRecord, scorerSummary, csvFileName } from "./record-rules.js";
-import { FINISHED, startedAtOf, endedAtOf, benchSeconds, benchTimerText, canCreateGame, clockText, isBenchLate, ringFraction, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationOf, halfOf, MIN_ROTATION, NOT_STARTED, scoreOf, scoreText, canAddGoal, canRemoveLastGoal, fieldPlayerIds, lastGoal, US, goalsOf } from "./game-rules.js";
+import { FINISHED, startedAtOf, endedAtOf, benchSeconds, benchTotalSeconds, benchTotalText, benchTimerText, canCreateGame, clockText, isBenchLate, ringFraction, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationOf, halfOf, MIN_ROTATION, NOT_STARTED, scoreOf, scoreText, canAddGoal, canRemoveLastGoal, fieldPlayerIds, lastGoal, US, goalsOf } from "./game-rules.js";
 import { checkFormation, pitchRows } from "./formation-rules.js";
 import { archiveWarning, canDeleteGame, sheetStatus } from "./sheet-rules.js";
 import { canSaveName, initialsFor } from "./squad-rules.js";
@@ -38,8 +38,19 @@ function problemLine(text) {
   return text ? h("p", { class: "problem", role: "alert" }, text) : null;
 }
 
-function avatar(player) {
+/** The player's photo if they have one (GDA-52), otherwise their coloured initials. */
+function avatar(player, photos = currentPhotos) {
+  const photo = photos[player.id];
+  if (photo) {
+    return h("div", { class: "av pic" }, h("img", { src: photo, alt: "", draggable: false }));
+  }
   return h("div", { class: "av c" + player.colour }, initialsFor(player.name));
+}
+
+// Photos by player id, kept on this phone. main.js sets them before each draw.
+let currentPhotos = {};
+export function setPhotos(photos) {
+  currentPhotos = photos;
 }
 
 function updateCard(notice, actions) {
@@ -394,6 +405,22 @@ function addScreen(state, actions) {
   };
 }
 
+/** The current photo (or initials) with Add / Replace / Remove photo (GDA-52). */
+function photoBlock(player, actions) {
+  const has = Boolean(currentPhotos[player.id]);
+  // A plain file picker: on an iPhone it offers Take photo and Photo library.
+  const picker = h("input", { type: "file", accept: "image/*", id: "photoFile", hidden: true, onchange: () => actions.photoPicked(picker.files[0]) });
+  return h(
+    "div",
+    { class: "photoBlock" },
+    h("div", { class: "photoBig" }, avatar(player)),
+    h("button", { class: "btn", id: "photoBtn", onclick: () => picker.click() }, has ? "Replace photo" : "Add photo"),
+    has ? h("button", { class: "btn del", id: "photoRemove", onclick: actions.removePhoto }, "Remove photo") : null,
+    picker,
+    h("p", { class: "photoNote" }, "Stays on this phone only.")
+  );
+}
+
 function editScreen(state, actions) {
   const player = state.players.find((candidate) => candidate.id === state.editId);
   const warning = state.showRemoveWarning
@@ -415,6 +442,7 @@ function editScreen(state, actions) {
       h(
         "div",
         { class: "body" },
+        photoBlock(player, actions),
         ...nameForm(player.name, actions.saveRename),
         problemLine(state.problem),
         h("button", { class: "btn gapbig", onclick: actions.askRemove }, "Remove from squad")
@@ -532,11 +560,14 @@ function createGameScreen(state, actions) {
  * here: drag.js reads data-player and data-place, so a tap and a drag take one
  * path. Slots without them, on the before-kick-off screen, do nothing.
  */
-function playerSlot(player, state, canMove, isKeeper = false, benchTimer = false) {
+function playerSlot(player, state, canMove, isKeeper = false, benchTimer = false, onPitch = false) {
   const planned = state.screen === "game" && pairsOf(openGame(state)).some((pair) => pair.benchId === player.id || pair.fieldId === player.id);
   // The bench-order number (GDA-56): shown on field and bench circles during a game. A number, not just colour.
   const number = (state.screen === "game" || state.screen === "halfTime") ? benchNumberOf(openGame(state), player.id) : null;
   const turnMark = number ? h("span", { class: "turn", "aria-label": `Bench order ${number}`, title: `Bench order ${number}` }, String(number)) : null;
+  // Bench time so far (GDA-29): pitch circles only, nothing under a minute. Changes only at a Swap or half start, so it needs no tick.
+  const benchText = onPitch && (state.screen === "game" || state.screen === "halfTime") ? benchTotalText(benchTotalSeconds(openGame(state), player.id, Date.now())) : "";
+  const benchPill = benchText ? h("span", { class: "bt", "aria-label": `Bench time ${benchText}`, title: `Bench time ${benchText}` }, benchText) : null;
   return h(
     "div",
     {
@@ -550,6 +581,7 @@ function playerSlot(player, state, canMove, isKeeper = false, benchTimer = false
       avatar(player),
       benchTimer ? ring() : null,
       benchTimer ? h("span", { class: "tm" }) : null,
+      benchPill,
       turnMark,
       isKeeper ? h("span", { class: "gk" }, "\u{1F9E4}") : null
     ),
@@ -605,7 +637,7 @@ function pitchAndBench(view, state, canMove, crowded, live = false) {
       { class: places.length >= 4 ? `line across${places.length}` : "line" },
       ...places.map((place) => {
         const player = view.positions[place];
-        return player ? playerSlot(player, state, canMove, place === 0) : emptySlot(place, canMove, state);
+        return player ? playerSlot(player, state, canMove, place === 0, false, true) : emptySlot(place, canMove, state);
       })
     );
   // GDA-22: one row per line of the game's shape, attack at the top and goal at the bottom.

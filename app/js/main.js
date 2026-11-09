@@ -36,7 +36,10 @@ import { cleanSheetSettings, canSend, SETTINGS_KEY } from "./sheet-rules.js";
 import { sendGameToSheet } from "./sheet-send.js";
 import { shareCsv } from "./share-file.js";
 import { askToKeepDataOnce } from "./persistence.js";
-import { drawClock, drawLineUpActions, drawPitch, drawScreen } from "./screens.js";
+import { drawClock, drawLineUpActions, drawPitch, drawScreen, setPhotos } from "./screens.js";
+import { shrinkPhoto } from "./photo-image.js";
+import { PHOTO_PROBLEM } from "./photo-rules.js";
+import { loadPhotos, removePhoto, savePhoto } from "./photo-store.js";
 import { csvFileName, recordToCsv } from "./record-rules.js";
 import { cleanName } from "./squad-rules.js";
 import { addPlayer, loadSquad, removePlayer, renamePlayer } from "./squad-store.js";
@@ -66,6 +69,7 @@ const state = {
   gameId: null, // The game whose line-up is open.
   selectedId: null, // The player selected on the line-up. Never saved.
   editId: null,
+  photos: {}, // playerId -> small photo, kept on this phone only (GDA-52).
   addCameFrom: "home",
   showRemoveWarning: false,
   rotationOpen: false, // The rotation stepper sheet on the ready and game screens.
@@ -111,6 +115,8 @@ async function loadEverything() {
   state.firstTeamId = firstTeamIdOf(teams);
   rememberFirstTeamId(state.firstTeamId);
   state.players = await squadNow();
+  state.photos = await loadPhotos(db);
+  setPhotos(state.photos);
   state.games = await gamesNow();
   state.sheetSettings = sheetOf(currentTeam(), state.legacySheet, state.firstTeamId);
 }
@@ -203,6 +209,37 @@ function drawKeepingTypedName() {
   const box = document.getElementById("nm");
   box.value = typed;
   box.dispatchEvent(new Event("input")); // Keeps Save available or unavailable to match.
+}
+
+/**
+ * Adds, replaces (file) or removes (null) the edited player's photo (GDA-52). Only the photo is
+ * written, so a failure shows one message and leaves the player, squad and games as they were.
+ */
+async function changePhoto(file) {
+  if (!file || saving) {
+    return; // The picker was cancelled: nothing changes.
+  }
+  const playerId = state.editId;
+  saving = true;
+  try {
+    const next = { ...state.photos };
+    if (file === "remove") {
+      await removePhoto(db, playerId);
+      delete next[playerId];
+    } else {
+      const data = await shrinkPhoto(file);
+      await savePhoto(db, playerId, data);
+      next[playerId] = data;
+    }
+    state.photos = next;
+    setPhotos(next);
+    state.problem = "";
+  } catch (error) {
+    console.warn("Photo not saved", error);
+    state.problem = PHOTO_PROBLEM;
+  }
+  saving = false;
+  drawKeepingTypedName();
 }
 
 /**
@@ -503,6 +540,8 @@ const actions = {
     showWarning(true);
   }),
   cancelRemove: tap(() => showWarning(false)),
+  photoPicked: (file) => changePhoto(file),
+  removePhoto: tap(() => changePhoto("remove")),
   confirmRemove: tap(() => saveThenShowSquad(() => removePlayer(db, state.editId))),
   openCreateGame: tap(() => {
     // GDA-22: the game takes the team's half length. A rotation longer than it is lowered, with a note.

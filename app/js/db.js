@@ -6,7 +6,7 @@
 
 import { firstTeam, withTeamId } from "./team-rules.js";
 
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 /** Opens the database, creating it on first use. */
 export function openDatabase(name) {
@@ -61,6 +61,10 @@ export function openDatabase(name) {
             }
           });
         });
+      }
+      if (event.oldVersion < 5) {
+        // Player photos (GDA-52). Adds one empty store, keyed by player id. Nothing else is touched.
+        db.createObjectStore("photos", { keyPath: "playerId" });
       }
     }
 

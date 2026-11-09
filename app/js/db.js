@@ -4,15 +4,27 @@
 // and the screen changes only after that transaction has finished. change()
 // is what makes that easy to follow.
 
-const DB_VERSION = 3;
+import { firstTeam, withTeamId } from "./team-rules.js";
+
+const DB_VERSION = 4;
 
 /** Opens the database, creating it on first use. */
 export function openDatabase(name) {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(name, DB_VERSION);
+    let upgradeFailed = false;
 
     request.onupgradeneeded = (event) => {
       const db = request.result;
+      try {
+        upgrade(db, request.transaction, event.oldVersion);
+      } catch (error) {
+        failUpgrade(error);
+      }
+    };
+
+    function upgrade(db, tx, oldVersion) {
+      const event = { oldVersion };
       // Later versions add a new "if" below. Never edit a step already published.
       if (event.oldVersion < 1) {
         db.createObjectStore("players", { keyPath: "id", autoIncrement: true });
@@ -28,7 +40,50 @@ export function openDatabase(name) {
         const events = db.createObjectStore("events", { keyPath: "id", autoIncrement: true });
         events.createIndex("gameId", "gameId");
       }
-    };
+      if (event.oldVersion < 4) {
+        // Teams (GDA-70). Adds data only: one team, and a teamId on each player and game.
+        // Nothing else is changed or deleted, and the old Sheet setting stays where it is.
+        const teams = db.createObjectStore("teams", { keyPath: "id", autoIncrement: true });
+        const meta = tx.objectStore("meta");
+        meta.get("sheetSettings").onsuccess = guarded((found) => {
+          teams.add(firstTeam(found.target.result?.value)).onsuccess = guarded((added) => {
+            const teamId = added.target.result;
+            meta.put({ key: "currentTeamId", value: teamId }); // The chosen team.
+            for (const storeName of ["players", "games"]) {
+              tx.objectStore(storeName).openCursor().onsuccess = guarded((step) => {
+                const cursor = step.target.result;
+                if (cursor) {
+                  cursor.update(withTeamId(cursor.value, teamId));
+                  // UPGRADE-STEP-DONE (the browser check breaks the upgrade here on purpose)
+                  cursor.continue();
+                }
+              });
+            }
+          });
+        });
+      }
+    }
+
+    // Any mistake inside an upgrade step (including the ones that run a moment later,
+    // inside a database callback) undoes the whole upgrade.
+    function guarded(step) {
+      return (event) => {
+        try {
+          step(event);
+        } catch (error) {
+          failUpgrade(error);
+        }
+      };
+    }
+    function failUpgrade(error) {
+      console.warn("Upgrade failed", error);
+      upgradeFailed = true;
+      try {
+        request.transaction.abort(); // The browser puts the database back exactly as it was.
+      } catch {
+        // Already undone.
+      }
+    }
 
     request.onsuccess = () => {
       const db = request.result;
@@ -36,7 +91,15 @@ export function openDatabase(name) {
       db.onversionchange = () => db.close();
       resolve(db);
     };
-    request.onerror = () => reject(request.error);
+    request.onerror = () => {
+      if (upgradeFailed) {
+        const problem = new Error("The saved data could not be upgraded");
+        problem.upgradeFailed = true;
+        reject(problem);
+      } else {
+        reject(request.error);
+      }
+    };
     request.onblocked = () => reject(new Error("Database is in use by an older page"));
   });
 }

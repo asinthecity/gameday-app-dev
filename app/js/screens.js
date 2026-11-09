@@ -8,6 +8,7 @@ import { hasRecord, scorerSummary, csvFileName } from "./record-rules.js";
 import { FINISHED, startedAtOf, endedAtOf, benchSeconds, benchTimerText, canCreateGame, clockText, isBenchLate, ringFraction, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationOf, MIN_ROTATION, MAX_ROTATION, scoreOf, scoreText, canAddGoal, canRemoveLastGoal, fieldPlayerIds, lastGoal, US, goalsOf } from "./game-rules.js";
 import { archiveWarning, canDeleteGame, sheetStatus } from "./sheet-rules.js";
 import { canSaveName, initialsFor } from "./squad-rules.js";
+import { UPGRADE_FAILED_MESSAGE } from "./team-rules.js";
 
 /** Makes one element. Props starting "on" are tap or typing handlers. */
 function h(tag, props = {}, ...children) {
@@ -201,6 +202,12 @@ function sheetSettingsScreen(state, actions) {
 }
 
 function homeScreen(state, actions) {
+  // The saved data could not be upgraded and was left as it was: say so, and never show an empty squad.
+  if (state.upgradeFailed) {
+    return {
+      nodes: [header("Game Day"), h("div", { class: "body" }, h("div", { class: "problem upgradeFailed" }, UPGRADE_FAILED_MESSAGE))],
+    };
+  }
   const hasPlayers = state.players.length > 0;
   const createButton = hasPlayers
     ? h("button", { class: "btn pri big", onclick: actions.openCreateGame }, "+ Create game")

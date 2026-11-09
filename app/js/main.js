@@ -810,7 +810,15 @@ async function start() {
     resumeGameIfAny();
     draw();
   } catch (error) {
-    showCannotOpen(error);
+    if (error.upgradeFailed) {
+      // The upgrade was undone, so the saved data is as it was. Say so on Home.
+      state.upgradeFailed = true;
+      state.screen = "home";
+      draw();
+      db = null;
+    } else {
+      showCannotOpen(error);
+    }
   }
   // Neither of these may hold up or stop the app.
   startUpdates(onUpdateNews);

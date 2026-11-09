@@ -36,7 +36,7 @@ import { cleanSheetSettings, canSend, SETTINGS_KEY } from "./sheet-rules.js";
 import { sendGameToSheet } from "./sheet-send.js";
 import { shareCsv } from "./share-file.js";
 import { askToKeepDataOnce } from "./persistence.js";
-import { drawClock, drawLineUpActions, drawPitch, drawScreen, setPhotos } from "./screens.js";
+import { drawClock, drawLineUpActions, drawPairLines, drawPitch, drawScreen, setPhotos } from "./screens.js";
 import { shrinkPhoto } from "./photo-image.js";
 import { PHOTO_PROBLEM } from "./photo-rules.js";
 import { loadPhotos, removePhoto, savePhoto } from "./photo-store.js";
@@ -1002,5 +1002,7 @@ async function start() {
 setInterval(() => drawClock(state), 250);
 document.addEventListener("visibilitychange", () => drawClock(state));
 window.addEventListener("pageshow", () => drawClock(state));
+// GDA-80: the planned-swap lines follow the circles when the window changes size or turns.
+window.addEventListener("resize", () => drawPairLines(state));
 
 start();

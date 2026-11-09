@@ -5,7 +5,8 @@
 // containing < or & just shows as typed.
 
 import { hasRecord, scorerSummary, csvFileName } from "./record-rules.js";
-import { FINISHED, startedAtOf, endedAtOf, benchSeconds, benchTotalSeconds, benchTotalText, benchTimerText, canCreateGame, clockText, isBenchLate, ringFraction, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationOf, halfOf, MIN_ROTATION, NOT_STARTED, scoreOf, scoreText, canAddGoal, canRemoveLastGoal, fieldPlayerIds, lastGoal, US, goalsOf } from "./game-rules.js";
+import { trimmedLine } from "./drag.js";
+import { FINISHED, startedAtOf, endedAtOf, benchSeconds, benchTimerText, canCreateGame, clockText, isBenchLate, ringFraction, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationOf, halfOf, MIN_ROTATION, NOT_STARTED, scoreOf, scoreText, canAddGoal, canRemoveLastGoal, fieldPlayerIds, lastGoal, US, goalsOf } from "./game-rules.js";
 import { checkFormation, pitchRows } from "./formation-rules.js";
 import { archiveWarning, canDeleteGame, sheetStatus } from "./sheet-rules.js";
 import { canSaveName, initialsFor } from "./squad-rules.js";
@@ -584,10 +585,11 @@ function playerSlot(player, state, canMove, isKeeper = false, benchTimer = false
   // The bench-order number (GDA-56): shown on field and bench circles during a game. A number, not just colour.
   const number = (state.screen === "game" || state.screen === "halfTime") ? benchNumberOf(openGame(state), player.id) : null;
   const turnMark = number ? h("span", { class: "turn", "aria-label": `Bench order ${number}`, title: `Bench order ${number}` }, String(number)) : null;
-  // Bench time so far (GDA-29): pitch circles only, nothing under a minute. Changes only at a Swap or half start, so it needs no tick.
-  const benchText = onPitch && (state.screen === "game" || state.screen === "halfTime") ? benchTotalText(benchTotalSeconds(openGame(state), player.id, Date.now())) : "";
-  const benchPill = benchText ? h("span", { class: "bt", "aria-label": `Bench time ${benchText}`, title: `Bench time ${benchText}` }, benchText) : null;
-  // GDA-75: a planned swap is shown by tags on the circles, not by lines across the pitch.
+  // GDA-80: a pitch circle of someone who has been on the bench shows one thin frozen ring per stint (this half),
+  // each at how full the bench ring was when they came on. Nobody benched, no rings. (Replaces the "4m" label of GDA-29.)
+  const stints = onPitch && (state.screen === "game" || state.screen === "halfTime") ? openGame(state).benchStints?.[player.id] : undefined;
+  const frozen = stints ? frozenRings(stints, rotationOf(openGame(state))) : null;
+  // A planned swap: OFF and ON tags on the circles (GDA-75), and a dotted line between them (GDA-80, drawPairLines).
   const planTag = plannedOff ? h("span", { class: "pt" }, "OFF") : plannedOn ? h("span", { class: "pt" }, "ON") : null;
   // The keeper's "GK" sits after the name (a separate span, so the name itself stays just the name).
   const nameLine = isKeeper ? h("div", { class: "nr" }, h("div", { class: "nm" }, player.name), h("span", { class: "gk" }, "GK")) : h("div", { class: "nm" }, player.name);
@@ -598,7 +600,7 @@ function playerSlot(player, state, canMove, isKeeper = false, benchTimer = false
       ...(canMove ? { "data-player": player.id } : {}),
       ...(benchTimer ? { "data-bench": player.id } : {}), // Marks a timer circle; it is not draggable.
     },
-    h("div", { class: "ci" }, avatar(player), benchTimer ? ring() : null, benchPill, turnMark, planTag),
+    h("div", { class: "ci" }, avatar(player), benchTimer ? ring() : null, frozen, turnMark, planTag),
     nameLine,
     benchTimer ? h("div", { class: "tm" }) : null // Bench time under the name; drawBenchTimers fills it.
   );
@@ -613,6 +615,31 @@ function ring() {
     '<svg class="rg" viewBox="0 0 52 52">' +
     '<circle class="r0" cx="26" cy="26" r="23"></circle>' +
     '<circle class="r1" cx="26" cy="26" r="23" transform="rotate(-90 26 26)"></circle></svg>';
+  return holder.firstChild;
+}
+
+/**
+ * The frozen rings on a pitch circle (GDA-80), oldest innermost. They sit just outside the circle, so the
+ * keeper's green edge and the dashed OFF outline (both hugging the circle) stay readable inside them.
+ * A stint that ended late (past the rotation length, when the bench ring was red) stays red. At most
+ * MAX_FROZEN_RINGS are drawn, keeping the latest: three still clear a neighbour at 3 across; more is just noise.
+ */
+const MAX_FROZEN_RINGS = 3;
+const FIRST_RING_RADIUS = 33.5;
+const RING_STEP = 3.6;
+function frozenRings(stints, rotation) {
+  let rings = "";
+  stints.slice(-MAX_FROZEN_RINGS).forEach((seconds, i) => {
+    const r = FIRST_RING_RADIUS + i * RING_STEP;
+    const length = 2 * Math.PI * r;
+    const late = isBenchLate(seconds, rotation) ? " late" : "";
+    rings +=
+      `<circle class="r0" cx="50" cy="50" r="${r}"></circle>` +
+      `<circle class="r1${late}" cx="50" cy="50" r="${r}" transform="rotate(-90 50 50)" stroke-dasharray="${(ringFraction(seconds, rotation) * length).toFixed(1)} ${length.toFixed(1)}"></circle>`;
+  });
+  // Parsed as HTML so the browser puts the SVG parts in the right namespace.
+  const holder = document.createElement("div");
+  holder.innerHTML = `<svg class="fz" viewBox="0 0 100 100" role="img" aria-label="Times on the bench: ${stints.map(benchTimerText).join(", ")}">${rings}</svg>`;
   return holder.firstChild;
 }
 
@@ -715,8 +742,11 @@ function formationBox(game, actions) {
     id: "formation",
     type: "text",
     value: game.formation,
-    inputmode: "numeric",
+    // GDA-71: a plain text keyboard, because the iPhone number keyboard has no "-".
+    inputmode: "text",
     autocomplete: "off",
+    autocapitalize: "off",
+    autocorrect: "off",
     spellcheck: "false",
     "aria-label": "Formation, defence to attack",
     disabled: locked,
@@ -981,9 +1011,11 @@ function swapStrip(game, state, actions) {
 let lastActions = null;
 
 /**
- * Draws the remove-pair cross (x) for each planned pair, at the top of the bench, above the
- * bench circle (GDA-75: no lines across the pitch any more; the OFF and ON tags show the pair).
- * Worked out from where the circles really are.
+ * Draws a dotted line for each planned pair, from the bench circle to the field player
+ * (or empty position), with a cross where the line leaves the bench (GDA-80: the lines are
+ * back, next to the OFF and ON tags). Worked out from where the circles really are, so it
+ * follows a pair when its child moves position. Called after every draw and on resize.
+ * The line look is the same as the drag line (see .dl in style.css).
  */
 export function drawPairLines(state, actions = lastActions) {
   const area = document.querySelector(".lu");
@@ -993,20 +1025,39 @@ export function drawPairLines(state, actions = lastActions) {
     return;
   }
   const box = area.getBoundingClientRect();
+  const centre = (slot) => {
+    const c = slot.querySelector(".ci").getBoundingClientRect();
+    return { x: c.left + c.width / 2 - box.left, y: c.top + c.height / 2 - box.top };
+  };
   const edge = (area.querySelector(".row.live")?.getBoundingClientRect().top ?? box.bottom) - box.top;
+  let lines = "";
   const crosses = h("div", { class: "px" });
   for (const pair of pairsOf(game)) {
     const from = area.querySelector(`.row.live [data-player="${pair.benchId}"]`);
     if (!from) {
       continue;
     }
-    const c = from.querySelector(".ci").getBoundingClientRect();
-    const x = Math.max(22, Math.min(box.width - 22, c.left + c.width / 2 - box.left));
+    const to = area.querySelector(pair.fieldId !== null ? `.pitch [data-player="${pair.fieldId}"]` : `.pitch [data-place="${pair.place}"]`);
+    const a = centre(from);
+    const b = to ? centre(to) : null;
+    if (b) {
+      // The line stops at the edge of each circle, not over the initials or photo.
+      const radius = (slot) => slot.querySelector(".av").getBoundingClientRect().width / 2 + 2;
+      const cut = trimmedLine(a, b, radius(from), radius(to));
+      if (cut) {
+        lines += `<line class="dl" x1="${cut.x1}" y1="${cut.y1}" x2="${cut.x2}" y2="${cut.y2}" stroke-dasharray="3 7"></line>`;
+      }
+    }
+    const along = !b || b.y === a.y ? 0.5 : (edge - a.y) / (b.y - a.y);
+    const x = Math.max(22, Math.min(box.width - 22, b ? a.x + (b.x - a.x) * along : a.x));
     crosses.append(
       h("button", { class: "xx", "aria-label": "Remove pair", style: `left:${x}px;top:${edge}px`, onclick: () => actions.unpair(pair.benchId) }, h("span", {}, "\u00d7"))
     );
   }
-  area.append(crosses);
+  // Parsed as HTML so the browser puts the SVG parts in the right namespace.
+  const holder = document.createElement("div");
+  holder.innerHTML = `<svg class="pl">${lines}</svg>`;
+  area.append(holder.firstChild, crosses);
 }
 
 /** Moves the clock, the TIME strip and the End Half colour on, without redrawing the screen. Safe at any moment. */

@@ -2,7 +2,7 @@
 // fully saved or not changed at all. See game-rules.js for what a game holds.
 
 import { change, read } from "./db.js";
-import { lineUpMoved, SECOND_HALF, goalAdded, goalRemoved, lineupKey, startedSecondHalf, endedHalf, reopenedHalf, benchReordered, fieldMoved, pairPlanned, pairRemoved, swapEvent, swapUndone, swapped, gamesInOrder, halfEndCancelledEvent, halfEndEvent, halfStartEvent, movedOnto, newGame, nextCreatedOrder, positionChangeEvent, prePlaced, startedFirstHalf, withBenchOrder } from "./game-rules.js";
+import { isInProgress, benchStints, lineUpMoved, SECOND_HALF, goalAdded, goalRemoved, lineupKey, startedSecondHalf, endedHalf, reopenedHalf, benchReordered, fieldMoved, pairPlanned, pairRemoved, swapEvent, swapUndone, swapped, gamesInOrder, halfEndCancelledEvent, halfEndEvent, halfStartEvent, movedOnto, newGame, nextCreatedOrder, positionChangeEvent, prePlaced, startedFirstHalf, withBenchOrder } from "./game-rules.js";
 import { buildRecord, gameAtFullTime } from "./record-rules.js";
 import { canDeleteGame, gameArchived } from "./sheet-rules.js";
 import { squadInOrder } from "./squad-rules.js";
@@ -15,8 +15,27 @@ function squadOf(allPlayers, game) {
 
 /** The games of ONE team, in the order Home shows them. */
 export function loadGames(db, teamId, firstTeamId) {
-  return read(db, ["games"], (tx, answer) => {
-    tx.objectStore("games").getAll().onsuccess = (event) => answer(gamesInOrder(ofTeam(event.target.result, teamId, firstTeamId)));
+  return read(db, ["games", "events"], (tx, answer) => {
+    tx.objectStore("games").getAll().onsuccess = (event) => {
+      const games = gamesInOrder(ofTeam(event.target.result, teamId, firstTeamId));
+      // GDA-80: a game under way also carries `benchStints`, worked out from its saved events
+      // for the frozen bench rings. It is only added to the copy in memory; nothing new is saved.
+      const running = games.filter(isInProgress);
+      if (running.length === 0) {
+        answer(games);
+        return;
+      }
+      let waiting = running.length;
+      for (const game of running) {
+        tx.objectStore("events").index("gameId").getAll(game.id).onsuccess = (found) => {
+          game.benchStints = benchStints(game, found.target.result);
+          waiting -= 1;
+          if (waiting === 0) {
+            answer(games);
+          }
+        };
+      }
+    };
   });
 }
 

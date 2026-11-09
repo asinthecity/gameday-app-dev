@@ -837,6 +837,39 @@ export function benchTotalSeconds(game, playerId, now) {
   return (game.benchTotals?.[playerId] ?? 0) + current;
 }
 
+/**
+ * The frozen bench rings (GDA-80): for each player who has come on from the bench in the half being
+ * played, a list with one entry per stint on the bench, oldest first: how many seconds it lasted, up
+ * to the moment they came on. Worked out from the saved event log (swaps and instant moves), so nothing
+ * extra is stored and Undo (which deletes the swap's event) takes the ring away again. A stint starts
+ * when the player went to the bench in this half, or at the half's start. Players who never came on
+ * from the bench have no entry. `events` are this game's events, any order.
+ */
+export function benchStints(game, events) {
+  const half = lineupKey(game);
+  const start = startedAtOf(game);
+  if (typeof start !== "number") {
+    return {};
+  }
+  const live = events
+    .filter((e) => (e.type === SWAP || e.type === POSITION_CHANGE) && e.half === half && e.at >= start)
+    .sort((a, b) => a.at - b.at || (a.id ?? 0) - (b.id ?? 0));
+  const benchedAt = {}; // playerId -> when the current stint began
+  const stints = {};
+  for (const event of live) {
+    for (const change of event.changes) {
+      if (change.to === BENCH && change.from !== BENCH) {
+        benchedAt[change.playerId] = event.at;
+      } else if (change.from === BENCH && typeof change.to === "number") {
+        const seconds = Math.max(0, Math.floor((event.at - (benchedAt[change.playerId] ?? start)) / 1000));
+        (stints[change.playerId] ??= []).push(seconds);
+        delete benchedAt[change.playerId];
+      }
+    }
+  }
+  return stints;
+}
+
 /** "4m": whole minutes, rounded down. Under a minute gives "" (nothing shown). */
 export function benchTotalText(seconds) {
   const minutes = Math.floor(seconds / 60);

@@ -6,6 +6,8 @@
 
 // The floating circle sits this far above the thumb, so the thumb does not hide it.
 export const GHOST_LIFT = 36;
+// The floating circle is 56px wide (see #ghost in style.css).
+const GHOST_RADIUS = 28;
 // How close to a circle's centre the floating circle must be to count as "on" it.
 export const DROP_RADIUS = 46;
 // A press that moves this far is a drag. Less than this it is still a tap.
@@ -25,6 +27,20 @@ export function nearestTarget(targets, x, y) {
     }
   }
   return best;
+}
+
+/**
+ * A line between two circle centres, shortened so it starts at the edge of the first circle and
+ * ends at the edge of the second (radii r1, r2). Gives null when the circles touch or overlap.
+ */
+export function trimmedLine(a, b, r1, r2) {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const length = Math.hypot(dx, dy);
+  if (length <= r1 + r2) {
+    return null;
+  }
+  return { x1: a.x + (dx / length) * r1, y1: a.y + (dy / length) * r1, x2: b.x - (dx / length) * r2, y2: b.y - (dy / length) * r2 };
 }
 
 /** True once a finger has moved far enough from where it went down. */
@@ -74,6 +90,10 @@ export function watchLineUpPresses(rules) {
       .filter((target) => rules.canDrop(press.spot.playerId, target.spot));
     ghost.replaceChildren(press.slot.querySelector(".av").cloneNode(true));
     const start = centreOf(press.slot);
+    press.start = start;
+    press.startRadius = (press.slot.querySelector(".av") ?? press.slot).getBoundingClientRect().width / 2 + 2;
+    line.setAttribute("x2", start.x); // No line until the circle has moved clear of its start
+    line.setAttribute("y2", start.y);
     line.setAttribute("x1", start.x);
     line.setAttribute("y1", start.y);
     layer.hidden = false;
@@ -82,8 +102,11 @@ export function watchLineUpPresses(rules) {
   function moveDrag(x, y) {
     const ghostY = y - press.lift;
     ghost.style.transform = `translate(${x}px,${ghostY}px)`;
-    line.setAttribute("x2", x);
-    line.setAttribute("y2", ghostY);
+    // The line runs from the edge of the circle being dragged to the edge of the floating circle (radius half of 56).
+    const cut = trimmedLine(press.start, { x, y: ghostY }, press.startRadius, GHOST_RADIUS);
+    for (const [name, value] of Object.entries(cut ?? { x1: 0, y1: 0, x2: 0, y2: 0 })) {
+      line.setAttribute(name, value);
+    }
     const best = nearestTarget(press.targets, x, ghostY);
     if (best !== press.hit) {
       press.hit?.slot.classList.remove("drop");
@@ -105,6 +128,13 @@ export function watchLineUpPresses(rules) {
   }
 
   document.addEventListener("pointerdown", (event) => {
+    // GDA-72: if the phone loses a touch (app switch, system swipe, a press whose circle was redrawn),
+    // no pointerup or pointercancel ever arrives and `press` would stay set for good: every circle and every
+    // button then ignores taps (isActive) until the app is reopened. A new FIRST finger cannot belong to the
+    // old press, so the old one is dropped here. A second finger (not primary) is still ignored.
+    if (press && event.isPrimary !== false) {
+      finish(false);
+    }
     if (press || !rules.canPress() || (event.pointerType === "mouse" && event.button !== 0)) {
       return;
     }
@@ -155,6 +185,15 @@ export function watchLineUpPresses(rules) {
     }
   });
 
+  // The app going to the background mid-press also loses the touch. Let go cleanly.
+  const letGo = () => {
+    if (press) {
+      finish(false);
+    }
+  };
+  document.addEventListener("visibilitychange", () => document.visibilityState === "hidden" && letGo());
+  window.addEventListener("pagehide", letGo);
+
   // Guards so the page cannot scroll, zoom or select text on the line-up. These
   // must not be passive, or preventDefault is ignored.
   const guarded = () => document.body.classList.contains("nomove");
@@ -170,5 +209,14 @@ export function watchLineUpPresses(rules) {
     );
   }
 
-  return { isActive: () => press !== null };
+  return {
+    isActive() {
+      // A press that never became a drag and whose circle has been redrawn away can never finish (its
+      // pointerup goes to the removed circle, not to the page), so it must not block the buttons.
+      if (press && !press.dragging && !press.slot.isConnected) {
+        press = null;
+      }
+      return press !== null;
+    },
+  };
 }

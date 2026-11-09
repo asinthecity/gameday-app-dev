@@ -5,21 +5,16 @@
 // goals and final line-ups) and the event log (every position change with its time).
 // It is stored on the game itself, in the same save that closes the game.
 
+import { OLD_FORMATION, positionNameIn } from "./formation-rules.js";
 import { BENCH, FINISHED, SECOND_HALF, SWAP, POSITION_CHANGE, goalsOf, scoreOf, US } from "./game-rules.js";
 
 export const NOT_SURE = "Not sure";
 export const BENCH_NAME = "Bench";
 export const ABSENT_NAME = "Absent";
 
-/** The position names Ben's Sheet uses. Places in 3-3-2: 0 goal, 1-3 defence, 4-6 midfield, 7-8 attack. */
-export function positionName(place) {
-  if (place === 0) {
-    return "Goal";
-  }
-  if (place <= 3) {
-    return "Defence";
-  }
-  return place <= 6 ? "Midfield" : "Attack";
+/** The position names Ben's Sheet uses, worked out from the game's shape (GDA-22). Games with no shape saved are 3-3-2. */
+export function positionName(place, formation = OLD_FORMATION) {
+  return positionNameIn(formation, place);
 }
 
 /**
@@ -30,14 +25,14 @@ export function positionName(place) {
  * Only changes made while the half was running count: Half Time changes before the
  * 2nd half starts are already part of its start line-up.
  */
-function timeInPositions(finalPositions, playerIds, events, half, startedAt, endedAt) {
+function timeInPositions(finalPositions, playerIds, events, half, startedAt, endedAt, formation) {
   const where = new Map(playerIds.map((id) => [id, finalPositions.includes(id) ? finalPositions.indexOf(id) : BENCH]));
   const used = new Map(playerIds.map((id) => [id, {}]));
   const credit = (from, to) => {
     for (const [id, place] of where) {
       if (place !== BENCH) {
         const group = used.get(id);
-        const name = positionName(place);
+        const name = positionName(place, formation);
         group[name] = { ms: (group[name]?.ms ?? 0) + Math.max(0, to - from), since: Math.min(group[name]?.since ?? Infinity, from) };
       }
     }
@@ -64,14 +59,14 @@ function timeInPositions(finalPositions, playerIds, events, half, startedAt, end
  * otherwise the pitch position played longest; an exact tie goes to the position they
  * started the half in (or, if they started on the bench, the one they reached first).
  */
-export function halfPosition({ start, groups }) {
+export function halfPosition({ start, groups }, formation) {
   const names = Object.keys(groups);
   if (names.length === 0) {
     return BENCH_NAME;
   }
   const most = Math.max(...names.map((n) => groups[n].ms));
   const tied = names.filter((n) => groups[n].ms === most);
-  const startName = start === BENCH ? null : positionName(start);
+  const startName = start === BENCH ? null : positionName(start, formation);
   if (startName && tied.includes(startName)) {
     return startName;
   }
@@ -90,8 +85,8 @@ export function buildRecord(game, squad, events) {
   }
   const isAbsent = (p) => game.absent.includes(p.id);
   const ids = squad.filter((p) => !isAbsent(p)).map((p) => p.id);
-  const first = timeInPositions(game.lineups.firstHalf.positions, ids, events, "firstHalf", game.firstHalfStartedAt, game.firstHalfEndedAt);
-  const second = timeInPositions(game.lineups.secondHalf.positions, ids, events, "secondHalf", game.secondHalfStartedAt, game.secondHalfEndedAt);
+  const first = timeInPositions(game.lineups.firstHalf.positions, ids, events, "firstHalf", game.firstHalfStartedAt, game.firstHalfEndedAt, game.formation);
+  const second = timeInPositions(game.lineups.secondHalf.positions, ids, events, "secondHalf", game.secondHalfStartedAt, game.secondHalfEndedAt, game.formation);
   const goals = goalsOf(game);
   const nameOf = (id) => squad.find((p) => p.id === id)?.name ?? NOT_SURE;
   const score = scoreOf(game);
@@ -105,8 +100,8 @@ export function buildRecord(game, squad, events) {
     // Everyone in the squad, once. Absent players keep their row (0 goals as they never played).
     players: squad.map((p) => ({
       name: p.name,
-      firstHalf: isAbsent(p) ? ABSENT_NAME : halfPosition(first.get(p.id)),
-      secondHalf: isAbsent(p) ? ABSENT_NAME : halfPosition(second.get(p.id)),
+      firstHalf: isAbsent(p) ? ABSENT_NAME : halfPosition(first.get(p.id), game.formation),
+      secondHalf: isAbsent(p) ? ABSENT_NAME : halfPosition(second.get(p.id), game.formation),
       goals: goals.filter((g) => g.side === US && g.scorerId === p.id).length,
       // GDA-56: the bench-order number, or blank if never off the bench (absent players too).
       benchOrder: isAbsent(p) ? "" : game.benchNumbers?.[p.id] ?? "",

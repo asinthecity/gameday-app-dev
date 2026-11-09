@@ -2,7 +2,7 @@
 // save it, read the saved data back, then draw. So the screen only ever shows
 // what is really stored.
 
-import { getMeta, openDatabase, setMeta } from "./db.js";
+import { getMeta, openDatabase } from "./db.js";
 import { watchLineUpPresses } from "./drag.js";
 import {
   afterTap,
@@ -24,6 +24,9 @@ import {
   lineUpMoved,
   needsPrePlacing,
   rotationOf,
+  halfOf,
+  withFormation,
+  NOT_STARTED,
   gameToResume,
   screenForOpening,
   withRotation,
@@ -33,10 +36,12 @@ import { cleanSheetSettings, canSend, SETTINGS_KEY } from "./sheet-rules.js";
 import { sendGameToSheet } from "./sheet-send.js";
 import { shareCsv } from "./share-file.js";
 import { askToKeepDataOnce } from "./persistence.js";
-import { drawClock, drawLineUpActions, drawScreen } from "./screens.js";
+import { drawClock, drawLineUpActions, drawPitch, drawScreen } from "./screens.js";
 import { csvFileName, recordToCsv } from "./record-rules.js";
 import { cleanName } from "./squad-rules.js";
 import { addPlayer, loadSquad, removePlayer, renamePlayer } from "./squad-store.js";
+import { addTeam, deleteTeam, loadTeams, switchTeam, updateTeam } from "./team-store.js";
+import { rememberFirstTeamId, canSwitchTeams, cleanTeamForm, deleteRefusal, firstTeamIdOf, sheetOf } from "./team-rules.js";
 import { applyUpdate, currentUpdateNotice, startUpdates } from "./updates.js";
 
 const SAVE_PROBLEM = "That did not save. Please try again.";
@@ -71,7 +76,13 @@ const state = {
   undo: null, // After Swap, for about 5 seconds: { before, eventId, until }. Never saved.
   problem: "",
   fileProblemFor: null, // The finished game whose Save file just failed.
-  sheetSettings: null, // { url, secret } for the season Sheet. Stored only on this phone.
+  teams: [], // Every team, oldest first (GDA-68).
+  currentTeamId: null, // The team Home, Squad and Sheet settings show.
+  firstTeamId: null, // What a record with no team ID belongs to.
+  legacySheet: null, // The old shared Sheet setting, read only for the first team if it has none.
+  teamForm: null, // The Add / Team settings form: { mode, values, errors }. Never saved until Save.
+  deleteTeamOpen: false, // The "Delete team?" confirm. Never saved.
+  sheetSettings: null, // { url, secret } of the CURRENT team. Stored only on this phone.
   sheetDraft: null, // What is typed on Sheet settings when a message is shown. Never saved.
   sheetSaved: false, // "Saved" note on the Sheet settings screen.
   sendingId: null, // The game being sent to the Sheet right now. Never saved.
@@ -82,6 +93,44 @@ const state = {
   deleteId: null, // The not-started game being asked about ("Delete?"). Never saved.
   updateNotice: currentUpdateNotice(),
 };
+
+// The current team's squad and games (never another team's).
+const squadNow = () => loadSquad(db, state.currentTeamId, state.firstTeamId);
+const gamesNow = () => loadGames(db, state.currentTeamId, state.firstTeamId);
+
+/** The current team's record, or undefined. */
+function currentTeam() {
+  return state.teams.find((team) => team.id === state.currentTeamId);
+}
+
+/** Reads teams, then the current team's squad, games and Sheet settings. */
+async function loadEverything() {
+  const { teams, currentTeamId } = await loadTeams(db);
+  state.teams = teams;
+  state.currentTeamId = currentTeamId;
+  state.firstTeamId = firstTeamIdOf(teams);
+  rememberFirstTeamId(state.firstTeamId);
+  state.players = await squadNow();
+  state.games = await gamesNow();
+  state.sheetSettings = sheetOf(currentTeam(), state.legacySheet, state.firstTeamId);
+}
+
+/** Saves a team change, reloads everything, then shows Home. A failed save shows a message and keeps the form. */
+async function saveTeamThenHome(save) {
+  saving = true;
+  try {
+    await save();
+    await loadEverything();
+    saving = false;
+    state.teamForm = null;
+    goTo("home");
+  } catch (error) {
+    console.warn("Team change failed", error);
+    saving = false;
+    state.problem = SAVE_PROBLEM;
+    draw();
+  }
+}
 
 function draw() {
   state.updateNotice = currentUpdateNotice();
@@ -105,6 +154,7 @@ function goTo(screen) {
   state.menuId = null;
   state.topMenuOpen = false;
   state.archiveId = null;
+  state.deleteTeamOpen = false;
   ignoreTapsUntil = Date.now() + TAP_PAUSE_MS;
   draw();
   window.scrollTo(0, 0);
@@ -173,8 +223,8 @@ async function saveThenShowSquad(saveChange) {
     return;
   }
   try {
-    state.players = await loadSquad(db);
-    state.games = await loadGames(db); // Removing a player changes games too.
+    state.players = await squadNow();
+    state.games = await gamesNow(); // Removing a player changes games too.
     saving = false;
     goTo("squad");
     if (playerToShow !== undefined) {
@@ -191,7 +241,7 @@ async function saveGameThenShowLineUp() {
   saving = true;
   let gameId;
   try {
-    gameId = await addGame(db, state.form);
+    gameId = await addGame(db, state.form, currentTeam(), state.firstTeamId);
   } catch (error) {
     console.warn("Save failed", error);
     saving = false;
@@ -200,7 +250,7 @@ async function saveGameThenShowLineUp() {
     return;
   }
   try {
-    state.games = await loadGames(db);
+    state.games = await gamesNow();
     saving = false;
     state.form = null;
     state.gameId = gameId;
@@ -227,7 +277,7 @@ async function openLineUp(gameId) {
     return;
   }
   try {
-    state.games = await loadGames(db);
+    state.games = await gamesNow();
     saving = false;
     state.gameId = gameId;
     // A game already started cannot go back to its line-up (full resume is GDA-33).
@@ -251,7 +301,7 @@ async function saveThenShowLineUp(saveChange) {
     return;
   }
   try {
-    state.games = await loadGames(db);
+    state.games = await gamesNow();
     saving = false;
     state.selectedId = null;
     state.problem = "";
@@ -303,7 +353,7 @@ async function saveSwap() {
   saving = true;
   try {
     const done = await swapPlayers(db, state.gameId, Date.now());
-    state.games = await loadGames(db);
+    state.games = await gamesNow();
     state.undo = { before: done.before, eventId: done.eventId, until: Date.now() + UNDO_MS };
   } catch (error) {
     console.warn("Swap did not save", error);
@@ -334,7 +384,7 @@ async function saveUndo() {
   saving = true;
   try {
     await undoSwap(db, state.gameId, undo.before, undo.eventId);
-    state.games = await loadGames(db);
+    state.games = await gamesNow();
   } catch (error) {
     console.warn("Undo did not save", error);
     saving = false;
@@ -363,7 +413,7 @@ async function saveGoal(side, scorerId) {
   saving = true;
   try {
     await addGoal(db, state.gameId, goal);
-    state.games = await loadGames(db);
+    state.games = await gamesNow();
   } catch (error) {
     console.warn("Goal did not save", error);
     saving = false;
@@ -394,7 +444,7 @@ async function saveGoalRemoval(goalId) {
   saving = true;
   try {
     await removeGoal(db, state.gameId, goalId);
-    state.games = await loadGames(db);
+    state.games = await gamesNow();
   } catch (error) {
     console.warn("Goal removal did not save", error);
     saving = false;
@@ -439,7 +489,7 @@ const actions = {
   saveNew: tap(() => {
     const name = nameTyped();
     if (name) {
-      saveThenShowSquad(() => addPlayer(db, name));
+      saveThenShowSquad(() => addPlayer(db, name, state.currentTeamId, state.firstTeamId));
     }
   }),
   saveRename: tap(() => {
@@ -455,7 +505,14 @@ const actions = {
   cancelRemove: tap(() => showWarning(false)),
   confirmRemove: tap(() => saveThenShowSquad(() => removePlayer(db, state.editId))),
   openCreateGame: tap(() => {
+    // GDA-22: the game takes the team's half length. A rotation longer than it is lowered, with a note.
+    const half = currentTeam().halfMinutes;
     state.form = blankGameForm();
+    state.form.halfMinutes = half;
+    if (state.form.rotationMinutes > half) {
+      state.form.rotationNote = `Rotation lowered to ${half} min to fit the half.`;
+      state.form.rotationMinutes = clampRotation(state.form.rotationMinutes, half);
+    }
     goTo("createGame");
   }),
   leaveCreateGame: tap(() => {
@@ -481,9 +538,9 @@ const actions = {
   }),
   // Each tap on - or + is saved at once (NFR-2). The clock and timers keep running underneath.
   stepRotation: (change) => {
-    const minutes = clampRotation(rotationOf(openGame()) + change);
+    const minutes = clampRotation(rotationOf(openGame()) + change, halfOf(openGame()));
     changeGame(db, state.gameId, (game) => withRotation(game, minutes))
-      .then(() => loadGames(db))
+      .then(() => gamesNow())
       .then((games) => {
         state.games = games;
         drawClock(state);
@@ -492,6 +549,21 @@ const actions = {
     // Show the new number straight away; the save follows within milliseconds.
     state.games = state.games.map((game) => (game.id === state.gameId ? withRotation(game, minutes) : game));
     drawClock(state);
+  },
+  // GDA-22: a valid typed shape. Only before kick-off. Same places, so nobody moves. It is also the team's last-used shape.
+  setFormation: (formation) => {
+    const game = openGame();
+    if (!game || game.state !== NOT_STARTED || state.screen !== "lineUp") {
+      return;
+    }
+    state.games = state.games.map((g) => (g.id === game.id ? withFormation(g, formation) : g));
+    drawPitch(state);
+    changeGame(db, game.id, (g) => (g.state === NOT_STARTED ? withFormation(g, formation) : g))
+      .then(() => updateTeam(db, state.currentTeamId, { formation }))
+      .then(() => {
+        state.teams = state.teams.map((team) => (team.id === state.currentTeamId ? { ...team, formation } : team));
+      })
+      .catch((error) => console.warn("Could not save the formation", error));
   },
   closeRotation: tap(() => {
     state.rotationOpen = false;
@@ -552,6 +624,62 @@ const actions = {
   }),
   sendNow: tap((gameId) => sendToSheet(gameId)),
   openSheetSettings: tap(() => goTo("sheetSettings")),
+  // ---- Teams (GDA-68) ----
+  switchTeam: tap(async (id) => {
+    if (!canSwitchTeams(state.games)) {
+      return; // Locked while a game is in progress.
+    }
+    if (id === state.currentTeamId) {
+      state.topMenuOpen = false;
+      draw();
+      return;
+    }
+    await saveTeamThenHome(() => switchTeam(db, id));
+  }),
+  openAddTeam: tap(() => {
+    if (!canSwitchTeams(state.games)) {
+      return;
+    }
+    state.teamForm = { mode: "add", values: { name: "", size: "9", minutes: "25" }, errors: {} };
+    goTo("teamForm");
+  }),
+  openTeamSettings: tap(() => {
+    const team = currentTeam();
+    state.teamForm = { mode: "edit", values: { name: team.name, size: String(team.playersPerSide), minutes: String(team.halfMinutes) }, errors: {} };
+    goTo("teamForm");
+  }),
+  saveTeam: tap(() => {
+    const typed = { name: document.getElementById("teamName").value, size: document.getElementById("teamSize").value, minutes: document.getElementById("teamMinutes").value };
+    const cleaned = cleanTeamForm(typed.name, typed.size, typed.minutes);
+    if (!cleaned.ok) {
+      state.teamForm = { ...state.teamForm, values: typed, errors: cleaned.errors };
+      draw();
+      return;
+    }
+    if (state.teamForm.mode === "add") {
+      saveTeamThenHome(() => addTeam(db, cleaned.values));
+    } else {
+      saveTeamThenHome(() => updateTeam(db, state.currentTeamId, cleaned.values));
+    }
+  }),
+  cancelTeamForm: tap(() => {
+    state.teamForm = null;
+    goTo("home");
+  }),
+  askDeleteTeam: tap(() => {
+    state.deleteTeamOpen = true;
+    draw();
+  }),
+  cancelDeleteTeam: tap(() => {
+    state.deleteTeamOpen = false;
+    draw();
+  }),
+  confirmDeleteTeam: tap(() => {
+    if (deleteRefusal(state.teams, state.games)) {
+      return;
+    }
+    saveTeamThenHome(() => deleteTeam(db, state.currentTeamId));
+  }),
   saveSheetSettings: tap(async () => {
     const cleaned = cleanSheetSettings(document.getElementById("sheetUrl").value, document.getElementById("sheetSecret").value);
     if (!cleaned.ok) {
@@ -562,7 +690,7 @@ const actions = {
       return;
     }
     try {
-      await setMeta(db, SETTINGS_KEY, cleaned.settings);
+      await updateTeam(db, state.currentTeamId, { sheet: cleaned.settings }); // Each team has its own.
     } catch (error) {
       console.warn("Could not save the Sheet settings", error);
       state.problem = SAVE_PROBLEM;
@@ -570,6 +698,7 @@ const actions = {
       return;
     }
     state.sheetSettings = cleaned.settings;
+    state.teams = state.teams.map((team) => (team.id === state.currentTeamId ? { ...team, sheet: cleaned.settings } : team));
     state.sheetProblem = {};
     state.problem = "";
     state.sheetSaved = true;
@@ -684,7 +813,7 @@ async function startGame() {
   saving = true;
   try {
     await startFirstHalf(db, state.gameId, Date.now());
-    state.games = await loadGames(db);
+    state.games = await gamesNow();
   } catch (error) {
     console.warn("Could not start the game", error);
     saving = false;
@@ -705,7 +834,7 @@ async function saveThenGoTo(saveChange, screen, problem = SAVE_PROBLEM) {
   saving = true;
   try {
     await saveChange();
-    state.games = await loadGames(db);
+    state.games = await gamesNow();
   } catch (error) {
     console.warn("Could not save", error);
     saving = false;
@@ -724,18 +853,20 @@ async function saveThenGoTo(saveChange, screen, problem = SAVE_PROBLEM) {
  */
 async function sendToSheet(gameId) {
   const game = state.games.find((g) => g.id === gameId);
-  if (!game || state.sendingId || !canSend(game, state.sheetSettings)) {
+  // A game is sent with its own team's address and secret.
+  const sheet = sheetOf(state.teams.find((team) => team.id === (game?.teamId ?? state.firstTeamId)), state.legacySheet, state.firstTeamId);
+  if (!game || state.sendingId || !canSend(game, sheet)) {
     return;
   }
   state.sendingId = gameId;
   delete state.sheetProblem[gameId];
   draw();
-  const result = await sendGameToSheet(state.sheetSettings, game);
+  const result = await sendGameToSheet(sheet, game);
   state.sendingId = null;
   if (result.ok) {
     try {
       await markSentToSheet(db, gameId);
-      state.games = await loadGames(db);
+      state.games = await gamesNow();
     } catch (error) {
       console.warn("Could not mark the game as sent", error);
     }
@@ -804,9 +935,8 @@ async function start() {
   document.documentElement.dataset.version = self.GAMEDAY_VERSION;
   try {
     db = await openDatabase(self.GAMEDAY_CONFIG.storageName);
-    state.players = await loadSquad(db);
-    state.games = await loadGames(db);
-    state.sheetSettings = (await getMeta(db, SETTINGS_KEY)) ?? null;
+    state.legacySheet = (await getMeta(db, SETTINGS_KEY)) ?? null;
+    await loadEverything();
     resumeGameIfAny();
     draw();
   } catch (error) {

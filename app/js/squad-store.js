@@ -10,20 +10,22 @@
 import { change, read } from "./db.js";
 import { NOT_STARTED, withoutRemovedPlayer } from "./game-rules.js";
 import { colourForNewPlayer, squadInOrder } from "./squad-rules.js";
+import { ofTeam, sameTeam, withTeamId } from "./team-rules.js";
 
-/** The squad, in the order it is shown. */
-export function loadSquad(db) {
+/** The squad of ONE team, in the order it is shown. */
+export function loadSquad(db, teamId, firstTeamId) {
   return read(db, ["players"], (tx, answer) => {
-    tx.objectStore("players").getAll().onsuccess = (event) => answer(squadInOrder(event.target.result));
+    tx.objectStore("players").getAll().onsuccess = (event) => answer(squadInOrder(ofTeam(event.target.result, teamId, firstTeamId)));
   });
 }
 
 /** Finishes with the new player's id, once the player is saved. */
-export function addPlayer(db, name) {
+export function addPlayer(db, name, teamId, firstTeamId) {
   return change(db, ["players"], (tx, answer) => {
     const players = tx.objectStore("players");
-    players.count().onsuccess = (event) => {
-      const player = { name, colour: colourForNewPlayer(event.target.result), active: true };
+    players.getAll().onsuccess = (event) => {
+      const count = ofTeam(event.target.result, teamId, firstTeamId).length;
+      const player = withTeamId({ name, colour: colourForNewPlayer(count), active: true }, teamId);
       players.add(player).onsuccess = (added) => answer(added.target.result);
     };
   });
@@ -62,7 +64,7 @@ export function removePlayer(db, id) {
       players.put({ ...player, active: false });
       games.getAll().onsuccess = (found) => {
         found.target.result
-          .filter((game) => game.state === NOT_STARTED)
+          .filter((game) => game.state === NOT_STARTED && sameTeam(game, player))
           .forEach((game) => games.put(withoutRemovedPlayer(game, id)));
       };
     };

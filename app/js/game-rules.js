@@ -4,6 +4,8 @@
 // text ("2026-11-14", "08:30"). They never pass through a time zone, so a game
 // cannot slip to the day before or after, whatever the phone's zone or region.
 
+import { placeCount, startingFormation } from "./formation-rules.js";
+
 // Fixed for now (J1-S5 is on the Later list). Stored on each game, so changing
 // them later leaves old games correct.
 export const FORMATION = "3-3-2";
@@ -54,8 +56,8 @@ export function canCreateGame(form) {
 }
 
 /** A line-up with every place empty. Each call gives a separate one. */
-function emptyLineUp() {
-  return { status: NOT_PLANNED, positions: new Array(POSITION_COUNT).fill(null) };
+function emptyLineUp(places = POSITION_COUNT) {
+  return { status: NOT_PLANNED, positions: new Array(places).fill(null) };
 }
 
 /**
@@ -75,7 +77,11 @@ function emptyLineUp() {
  *
  * `squad` is the squad in alphabetical order. It fills the first half only.
  */
-export function newGame(form, id, createdOrder, squad) {
+export function newGame(form, id, createdOrder, squad, team = null) {
+  // GDA-22: the game takes the team's size, half length and starting shape, fixed for this game.
+  // With no team given (older callers and tests) it is the old 9 a side, 3-3-2, 25 minutes.
+  const halfMinutes = team?.halfMinutes ?? HALF_MINUTES;
+  const formation = team ? startingFormation(team) : FORMATION;
   const game = {
     id,
     createdOrder,
@@ -84,11 +90,11 @@ export function newGame(form, id, createdOrder, squad) {
     kickOff: form.kickOff,
     opposition: cleanText(form.opposition),
     venue: cleanText(form.venue),
-    formation: FORMATION,
-    halfMinutes: HALF_MINUTES,
-    rotationMinutes: clampRotation(form.rotationMinutes),
+    formation,
+    halfMinutes,
+    rotationMinutes: clampRotation(form.rotationMinutes, halfMinutes),
     absent: [],
-    lineups: { firstHalf: emptyLineUp(), secondHalf: emptyLineUp() },
+    lineups: { firstHalf: emptyLineUp(placeCount(formation)), secondHalf: emptyLineUp(placeCount(formation)) },
   };
   return prePlaced(game, squad);
 }
@@ -388,11 +394,11 @@ export function anyInProgress(games) {
  * back cannot make it negative. The clock keeps running past the half length and
  * then shows the time over, "+0:01" (GDA-36); at exactly 25:00 it shows "25:00".
  */
-export function clockText(startedAt, now) {
+export function clockText(startedAt, now, halfMinutes = HALF_MINUTES) {
   const elapsed = Math.floor((now - startedAt) / 1000);
   const seconds = Number.isFinite(elapsed) ? Math.max(0, elapsed) : 0;
   const text = (total) => `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
-  const half = HALF_MINUTES * 60;
+  const half = halfMinutes * 60;
   return seconds > half ? "+" + text(seconds - half) : text(seconds);
 }
 
@@ -400,32 +406,44 @@ export function clockText(startedAt, now) {
  * Has the clock reached the half length? Worked out from the same saved start time
  * as the clock, so a locked phone cannot miss it. Drives the TIME strip.
  */
-export function isTimeUp(startedAt, now) {
+export function isTimeUp(startedAt, now, halfMinutes = HALF_MINUTES) {
   const elapsed = Math.floor((now - startedAt) / 1000);
-  return Number.isFinite(elapsed) && elapsed >= HALF_MINUTES * 60;
+  return Number.isFinite(elapsed) && elapsed >= halfMinutes * 60;
 }
 
 /** A new game starts with this rotation length, and so does a game saved before GDA-32. */
 export const ROTATION_MINUTES = 6;
 export const MIN_ROTATION = 1;
-export const MAX_ROTATION = 25;
+export const MAX_ROTATION = 25; // The most a half can be, and so the most any rotation can be.
 
 /** A whole number of minutes from 1 to 25. Anything else becomes the default 6. */
-export function clampRotation(minutes) {
+export function clampRotation(minutes, halfMinutes = MAX_ROTATION) {
+  // GDA-22: never longer than the game's half. The default 6 is also held to it.
+  const top = Math.max(MIN_ROTATION, Math.min(MAX_ROTATION, halfMinutes));
   if (!Number.isFinite(minutes)) {
-    return ROTATION_MINUTES;
+    return Math.min(ROTATION_MINUTES, top);
   }
-  return Math.min(MAX_ROTATION, Math.max(MIN_ROTATION, Math.round(minutes)));
+  return Math.min(top, Math.max(MIN_ROTATION, Math.round(minutes)));
 }
 
 /** The game's rotation length in minutes; 6 for games saved without one. */
 export function rotationOf(game) {
-  return clampRotation(game?.rotationMinutes ?? ROTATION_MINUTES);
+  return clampRotation(game?.rotationMinutes ?? ROTATION_MINUTES, halfOf(game));
+}
+
+/** The game's own half length in minutes (25 for games saved without one). */
+export function halfOf(game) {
+  return game?.halfMinutes ?? HALF_MINUTES;
+}
+
+/** Copies a game with a different formation. Only the grouping changes: the same places, so nobody moves. */
+export function withFormation(game, formation) {
+  return { ...game, formation };
 }
 
 /** Copies a game with a new rotation length. Timers are not touched: they are measured against it from now on. */
 export function withRotation(game, minutes) {
-  return { ...game, rotationMinutes: clampRotation(minutes) };
+  return { ...game, rotationMinutes: clampRotation(minutes, halfOf(game)) };
 }
 
 /**
@@ -530,7 +548,7 @@ export function reopenedFirstHalf(game) {
     ...rest,
     firstHalfEndedAt: null,
     benchOrder: benchOrderAtEndHalf ?? game.benchOrder,
-    lineups: { ...game.lineups, secondHalf: emptyLineUp() },
+    lineups: { ...game.lineups, secondHalf: emptyLineUp(game.lineups?.firstHalf?.positions?.length) },
   };
 }
 

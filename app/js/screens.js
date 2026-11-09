@@ -5,10 +5,11 @@
 // containing < or & just shows as typed.
 
 import { hasRecord, scorerSummary, csvFileName } from "./record-rules.js";
-import { FINISHED, startedAtOf, endedAtOf, benchSeconds, benchTimerText, canCreateGame, clockText, isBenchLate, ringFraction, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationOf, MIN_ROTATION, MAX_ROTATION, scoreOf, scoreText, canAddGoal, canRemoveLastGoal, fieldPlayerIds, lastGoal, US, goalsOf } from "./game-rules.js";
+import { FINISHED, startedAtOf, endedAtOf, benchSeconds, benchTimerText, canCreateGame, clockText, isBenchLate, ringFraction, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationOf, halfOf, MIN_ROTATION, NOT_STARTED, scoreOf, scoreText, canAddGoal, canRemoveLastGoal, fieldPlayerIds, lastGoal, US, goalsOf } from "./game-rules.js";
+import { checkFormation, pitchRows } from "./formation-rules.js";
 import { archiveWarning, canDeleteGame, sheetStatus } from "./sheet-rules.js";
 import { canSaveName, initialsFor } from "./squad-rules.js";
-import { UPGRADE_FAILED_MESSAGE } from "./team-rules.js";
+import { canSwitchTeams, deleteRefusal, deleteSummary, IN_PROGRESS_REFUSAL, LAST_TEAM_MESSAGE, LOCKED_MESSAGE, plural, UPGRADE_FAILED_MESSAGE } from "./team-rules.js";
 
 /** Makes one element. Props starting "on" are tap or typing handlers. */
 function h(tag, props = {}, ...children) {
@@ -177,6 +178,67 @@ function deleteSheet(state, actions) {
   );
 }
 
+/** Add team / Team settings (GDA-68): name, players per side, half length. */
+function teamFormScreen(state, actions) {
+  const form = state.teamForm;
+  const adding = form.mode === "add";
+  const field = (id, label, value, error, numeric) => {
+    const input = h("input", { id, type: "text", autocomplete: "off", spellcheck: "false", class: error ? "bad" : "" });
+    if (numeric) {
+      input.setAttribute("inputmode", "numeric");
+    }
+    input.value = value;
+    return h("div", { class: "f" }, h("label", { for: id }, h("span", {}, label)), input, error ? h("p", { class: "problem", role: "alert" }, error) : null);
+  };
+  const refusal = deleteRefusal(state.teams, state.games);
+  const deleteArea = adding
+    ? null
+    : refusal === "only"
+      ? h("p", { class: "hint", id: "onlyTeam" }, LAST_TEAM_MESSAGE)
+      : h("button", { class: "btn del", id: "deleteTeam", onclick: actions.askDeleteTeam }, "Delete team");
+  return {
+    nodes: [
+      header(adding ? "Add team" : "Team settings", actions.cancelTeamForm),
+      h(
+        "div",
+        { class: "body" },
+        field("teamName", "Team name", form.values.name, form.errors.name),
+        field("teamSize", "Players per side (5 to 11)", form.values.size, form.errors.size, true),
+        field("teamMinutes", "Half length (minutes)", form.values.minutes, form.errors.minutes, true),
+        adding ? null : h("p", { class: "hint" }, "Size and half length apply to new games only. Existing games keep theirs."),
+        problemLine(state.problem),
+        h("button", { class: "btn pri big", id: "saveTeam", onclick: actions.saveTeam }, "Save"),
+        h("button", { class: "btn", id: "cancelTeam", onclick: actions.cancelTeamForm }, "Cancel"),
+        deleteArea
+      ),
+      state.deleteTeamOpen ? deleteTeamSheet(state, actions, refusal) : null,
+    ].filter(Boolean),
+  };
+}
+
+/** The Delete team confirm, or the refusal when a game is in progress in that team. */
+function deleteTeamSheet(state, actions, refusal) {
+  const team = state.teams.find((t) => t.id === state.currentTeamId);
+  if (refusal) {
+    return h("div", { class: "scrim", id: "deleteTeamConfirm" }, h("div", { class: "sheet" }, h("h2", {}, `Can't delete ${team.name}`), h("p", { class: "refuse" }, IN_PROGRESS_REFUSAL + "."), h("button", { class: "btn", id: "cancelDeleteTeam", onclick: actions.cancelDeleteTeam }, "OK")));
+  }
+  const counts = deleteSummary(state.players, state.games);
+  return h(
+    "div",
+    { class: "scrim", id: "deleteTeamConfirm" },
+    h(
+      "div",
+      { class: "sheet" },
+      h("h2", {}, `Delete team ${team.name}?`),
+      h("p", { id: "deleteTeamCounts" }, `This erases ${plural(counts.players, "player")}, ${plural(counts.games, "game")} (archived games included), their events and the Sheet settings for this team. It can't be undone.`),
+      counts.notInSheet > 0 ? h("p", { class: "problem", id: "deleteTeamWarn" }, `${counts.notInSheet} of these games are not in the Sheet. Tap Cancel and Save file or Send now first.`) : null,
+      h("p", { class: "hint" }, "The Google Sheet itself is not touched. Other teams are not affected."),
+      h("button", { class: "btn del", id: "confirmDeleteTeam", onclick: actions.confirmDeleteTeam }, "Delete team"),
+      h("button", { class: "btn", id: "cancelDeleteTeam", onclick: actions.cancelDeleteTeam }, "Cancel")
+    )
+  );
+}
+
 /** Sheet settings (GDA-47): the script's web address and secret, kept only on this phone. */
 function sheetSettingsScreen(state, actions) {
   const settings = state.sheetDraft ?? state.sheetSettings ?? {};
@@ -199,6 +261,27 @@ function sheetSettingsScreen(state, actions) {
       ),
     ],
   };
+}
+
+/** The current team's name and size under the Game Day heading (cut short if very long). */
+function teamLine(state) {
+  const team = state.teams.find((t) => t.id === state.currentTeamId);
+  return team ? h("p", { class: "team", id: "teamLine" }, h("b", {}, team.name), ` \u00b7 ${team.playersPerSide} a side`) : null;
+}
+
+/** The team list at the top of the menu: tick on the current team, locked while a game is in progress. */
+function teamMenuItems(state, actions) {
+  const locked = !canSwitchTeams(state.games);
+  const items = state.teams.map((team) => {
+    const label = (team.id === state.currentTeamId ? "\u2713 " : "\u00a0\u00a0\u00a0 ") + team.name;
+    return h("button", { class: "mi teamItem", "data-team": team.id, disabled: locked, onclick: () => actions.switchTeam(team.id) }, label);
+  });
+  return [
+    h("div", { class: "mhd" }, "Teams"),
+    locked ? h("div", { class: "mlock", id: "teamLock" }, LOCKED_MESSAGE) : null,
+    ...items,
+    h("button", { class: "mi addTeam", disabled: locked, onclick: actions.openAddTeam }, "+ Add team"),
+  ];
 }
 
 function homeScreen(state, actions) {
@@ -234,6 +317,9 @@ function homeScreen(state, actions) {
       h(
         "div",
         { class: "pop topMenu" + (state.topMenuOpen ? " show" : "") },
+        ...teamMenuItems(state, actions),
+        h("div", { class: "mhd" }, "This team"),
+        h("button", { class: "mi teamSettings", onclick: actions.openTeamSettings }, "Team settings"),
         // With no players, "+ Add players" on Home does the job, so the Squad item waits until there is a squad.
         hasPlayers ? h("button", { class: "mi squadItem", onclick: actions.openSquad }, `Squad (${state.players.length})`) : null,
         h("button", { class: "mi sheetSettings", onclick: actions.openSheetSettings }, "Sheet settings")
@@ -246,6 +332,7 @@ function homeScreen(state, actions) {
       h(
         "div",
         { class: "body" },
+        teamLine(state),
         updateCard(state.updateNotice, actions),
         problemLine(state.problem),
         createButton,
@@ -378,16 +465,16 @@ function detailField(form, key, label, inputProps, onChange) {
 
 /**
  * The rotation stepper: - and + around the number of minutes. `value` is read each
- * time; `onStep(change)` is told -1 or +1. Both buttons grey out at the ends (1 and 25).
+ * time; `onStep(change)` is told -1 or +1. Both buttons grey out at the ends (1 and the half length, at most 25).
  */
-function rotationStepper(value, onStep) {
+function rotationStepper(value, onStep, max) {
   const number = h("div", { class: "val", id: "rotValue" });
   const less = h("button", { class: "btn", id: "rotLess", "aria-label": "Shorter", onclick: () => step(-1) }, "\u2212");
   const more = h("button", { class: "btn", id: "rotMore", "aria-label": "Longer", onclick: () => step(1) }, "+");
   const show = () => {
     number.textContent = `${value()} min`;
     less.disabled = value() <= MIN_ROTATION;
-    more.disabled = value() >= MAX_ROTATION;
+    more.disabled = value() >= max;
   };
   const step = (change) => {
     onStep(change);
@@ -425,10 +512,14 @@ function createGameScreen(state, actions) {
           rotationStepper(
             () => form.rotationMinutes,
             (change) => {
-              form.rotationMinutes = Math.min(MAX_ROTATION, Math.max(MIN_ROTATION, form.rotationMinutes + change));
-            }
+              form.rotationMinutes = Math.min(Math.min(25, form.halfMinutes), Math.max(MIN_ROTATION, form.rotationMinutes + change));
+            },
+            Math.min(25, form.halfMinutes)
           )
         ),
+        // GDA-22: the half length is the team's, fixed for this game. Shown so it is not a surprise.
+        h("div", { class: "ro", id: "halfInfo" }, `Half length: ${form.halfMinutes} min (from the team)`),
+        form.rotationNote ? h("div", { class: "ro", id: "rotNote" }, form.rotationNote) : null,
         make,
         problemLine(state.problem)
       ),
@@ -507,23 +598,23 @@ function lineUpButton(view, state, actions) {
 
 /** The pitch and bench, shared by the line-up and the before-kick-off screen. */
 function pitchAndBench(view, state, canMove, crowded, live = false) {
+  const game = openGame(state);
   const line = (places) =>
     h(
       "div",
-      { class: "line" },
+      { class: places.length >= 4 ? `line across${places.length}` : "line" },
       ...places.map((place) => {
         const player = view.positions[place];
         return player ? playerSlot(player, state, canMove, place === 0) : emptySlot(place, canMove, state);
       })
     );
-  // Forwards at the top and goal at the bottom. Place numbers are in game-rules.js.
+  // GDA-22: one row per line of the game's shape, attack at the top and goal at the bottom.
+  const rows = pitchRows(game.formation);
   const pitch = h(
     "div",
-    { class: crowded ? "pitch tight" : "pitch" },
-    line([7, 8]),
-    line([4, 5, 6]),
-    line([1, 2, 3]),
-    line([0])
+    // Five or more rows need the smaller circles to fit.
+    { class: crowded || rows.length >= 5 ? "pitch tight" : "pitch", style: `grid-template-rows: repeat(${rows.length}, minmax(0, 1fr))` },
+    ...rows.map(line)
   );
   if (live) {
     // Game under way: bench circles carry timers; nobody on the bench means no bench row.
@@ -552,6 +643,7 @@ function lineUpScreen(state, actions) {
       h(
         "div",
         { class: "lu" },
+        formationBox(game, actions),
         ...pitchAndBench(view, state, true, view.bench.length > 6 || view.absent.length > 6),
         // GDA-62: always there, below the bench, even when empty (then slim).
         lineUpRow("ABSENT", view.absent.length > 0 ? "row ab" : "row ab empty", view.absent, state, true, false, "absent")
@@ -560,6 +652,49 @@ function lineUpScreen(state, actions) {
       gameDetailsSheet(state, game, actions),
     ],
   };
+}
+
+/**
+ * The formation box (GDA-22). Typing is checked at once against the game's team size
+ * (its number of places): a valid shape is saved and the pitch redrawn in place; an
+ * invalid one shows what is wrong and the pitch keeps the last valid shape. From
+ * kick-off the box is disabled and says so. Only the box locks.
+ */
+function formationBox(game, actions) {
+  const locked = game.state !== NOT_STARTED;
+  const size = game.lineups.firstHalf.positions.length;
+  const message = h("div", { class: "fmsg", id: "fmMsg", role: "alert" });
+  const input = h("input", {
+    id: "formation",
+    type: "text",
+    value: game.formation,
+    inputmode: "numeric",
+    autocomplete: "off",
+    spellcheck: "false",
+    "aria-label": "Formation, defence to attack",
+    disabled: locked,
+  });
+  input.addEventListener("input", () => {
+    const result = checkFormation(input.value, size);
+    input.classList.toggle("bad", !result.ok);
+    message.textContent = result.ok ? "" : `${result.message} The pitch keeps ${game.formation}.`;
+    if (result.ok && result.formation !== game.formation) {
+      actions.setFormation(result.formation);
+    }
+  });
+  return h("div", { class: "fm" }, h("label", { for: "formation" }, "Formation"), input, h("span", { class: "fsub" }, locked ? "locked from kick-off" : "defence to attack"), message);
+}
+
+/** Redraws only the pitch (line-up screen), so the formation box keeps its focus while typing. */
+export function drawPitch(state) {
+  const game = openGame(state);
+  const view = lineUpView(game, state.players);
+  const [pitch] = pitchAndBench(view, state, true, view.bench.length > 6 || view.absent.length > 6);
+  document.querySelector(".pitch")?.replaceWith(pitch);
+  const tag = document.querySelector(".hdr .tag");
+  if (tag) {
+    tag.textContent = game.formation;
+  }
 }
 
 /** The settings cog (GDA-64): opens the Game details sheet. Sits at the far edge, away from the game buttons. */
@@ -584,7 +719,7 @@ function gameDetailsSheet(state, game, actions) {
       { class: "sheet" },
       h("h2", {}, "Game details"),
       h("div", { class: "lbl" }, "Rotation length"),
-      rotationStepper(() => rotationOf(openGame(state)), actions.stepRotation),
+      rotationStepper(() => rotationOf(openGame(state)), actions.stepRotation, Math.min(25, halfOf(game))),
       h("div", { class: "ro", id: "detOpp" }, `Opposition: ${game.opposition}`),
       h("div", { class: "ro", id: "detDate" }, `Date: ${formatGameDate(game.date)}`),
       h("button", { class: "btn pri", id: "rotDone", onclick: actions.closeRotation }, "Done")
@@ -659,7 +794,7 @@ function gameScreen(state, actions) {
     noMove: true,
     nodes: [
       state.welcome ? h("div", { class: "welcome", id: "welcome" }, "Welcome back") : null,
-      clockBar(clockText(startedAtOf(game), Date.now()), game.state === "second half" ? "2ND HALF" : "1ST HALF", game, actions, actions),
+      clockBar(clockText(startedAtOf(game), Date.now(), halfOf(game)), game.state === "second half" ? "2ND HALF" : "1ST HALF", game, actions, actions),
       swapStrip(game, state, actions),
       h("div", { class: "lu" }, ...pitchAndBench(view, state, true, view.bench.length > 6, true)),
       h(
@@ -806,8 +941,8 @@ export function drawClock(state) {
   const clock = document.getElementById("clock");
   if (state.screen === "game" && game && clock) {
     const now = Date.now();
-    clock.textContent = clockText(startedAtOf(game), now);
-    const timeUp = isTimeUp(startedAtOf(game), now);
+    clock.textContent = clockText(startedAtOf(game), now, halfOf(game));
+    const timeUp = isTimeUp(startedAtOf(game), now, halfOf(game));
     document.getElementById("timeStrip").hidden = !timeUp; // TIME takes the message's place in the same strip.
     document.getElementById("endHalf").classList.toggle("pri", timeUp);
     drawBenchTimers(game, now);
@@ -968,6 +1103,7 @@ const SCREENS = {
   over: halfOverScreen,
   saved: savedScreen,
   sheetSettings: sheetSettingsScreen,
+  teamForm: teamFormScreen,
   cannotOpen: cannotOpenScreen,
 };
 

@@ -31,6 +31,7 @@ const APP_FILES = [
   "./js/game-store.js",
   "./js/main.js",
   "./js/persistence.js",
+  "./js/formation-rules.js",
   "./js/record-rules.js",
   "./js/share-file.js",
   "./js/sheet-rules.js",
@@ -40,6 +41,7 @@ const APP_FILES = [
   "./js/squad-store.js",
   "./js/storage-rules.js",
   "./js/team-rules.js",
+  "./js/team-store.js",
   "./js/update-rules.js",
   "./js/updates.js",
 ];

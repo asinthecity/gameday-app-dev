@@ -18,7 +18,9 @@ const RULES = self.GAMEDAY_SW_RULES;
 const APP_FILES = [
   "./",
   "./index.html",
+  "./tokens.css",
   "./style.css",
+  "./crest.png",
   "./config.js",
   "./version.js",
   "./sw-rules.js",

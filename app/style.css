@@ -10,9 +10,9 @@
 html, body { margin: 0; padding: 0; height: 100%; }
 body {
   font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
-  background: #fff;
-  color: #111;
-  font-size: 16px;
+  background: var(--page);
+  color: var(--ink);
+  font-size: var(--s16);
   -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
 }
@@ -22,256 +22,293 @@ body.lock { position: fixed; left: 0; right: 0; top: 0; bottom: 0; overflow: hid
 body.nomove, body.nomove * { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 button { -webkit-appearance: none; appearance: none; font: inherit; color: inherit; margin: 0; cursor: pointer; }
 
-#frame { background: #fff; width: 100%; }
+#frame { background: var(--page); width: 100%; }
 #frame.flow { min-height: var(--h); }
 #frame.fix { height: var(--h); display: flex; flex-direction: column; overflow: hidden; }
 #frame.fix #screen { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 /* On a computer, keep the phone's width. */
 @media (min-width: 500px) {
-  html, body { background: #d9d9d9; }
-  #frame { width: 393px; margin: 0 auto; }
-  #frame.fix { height: min(var(--h), 852px); }
+  html, body { background: var(--line); }
+  #frame { width: var(--s393); margin: 0 auto; }
+  #frame.fix { height: min(var(--h), var(--s852)); }
 }
 
 /* Common parts */
 .hdr {
-  display: flex; align-items: center; gap: 8px; flex: none; min-height: 53px;
+  display: flex; align-items: center; gap: var(--s8); flex: none; min-height: var(--s53);
   /* The mock-up's black bar kept clear of the phone's status area. It is gone, so this does. */
-  padding: calc(4px + env(safe-area-inset-top)) 12px 4px;
-  border-bottom: 2px solid #111; background: #fff;
+  padding: calc(var(--s4) + env(safe-area-inset-top)) var(--s12) var(--s4);
+  border-bottom: 1px solid var(--line); background: var(--page);
 }
-.hdr h1 { margin: 0; font-size: 20px; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.back { flex: none; width: 48px; height: 44px; border: 2px solid #111; border-radius: 10px; background: #fff; font-size: 26px; font-weight: 700; line-height: 1; padding: 0 0 4px; }
-.tag { flex: none; background: #111; color: #fff; border-radius: 6px; padding: 2px 7px; font-size: 12px; font-weight: 800; }
-.body { padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+.hdr h1 { margin: 0; font-size: var(--s20); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.back { flex: none; width: var(--s48); height: var(--s44); border: 0; border-radius: var(--r-button); background: var(--line); color: var(--ink); padding: 0; display: flex; align-items: center; justify-content: center; }
+.back svg { width: var(--s24); height: var(--s24); }
+.tag { flex: none; background: var(--card); color: var(--brand); border-radius: var(--r-chip); padding: var(--s2) var(--s7); font-size: var(--s12); font-weight: 800; }
+.body { padding: var(--s12); display: flex; flex-direction: column; gap: var(--s12); }
 .btn {
-  display: flex; align-items: center; justify-content: center; width: 100%; min-height: 54px;
-  border: 2px solid #111; border-radius: 12px; background: #fff; color: #111;
-  font-size: 18px; font-weight: 800; padding: 6px 12px; text-align: center;
+  display: flex; align-items: center; justify-content: center; width: 100%; min-height: var(--s54);
+  border: var(--s2) solid var(--outline); border-radius: var(--r-button); background: var(--card); color: var(--ink);
+  font-size: var(--s18); font-weight: 800; padding: var(--s6) var(--s12); text-align: center;
 }
-.btn.pri { background: #111; color: #fff; }
-.btn.big { min-height: 60px; }
-.btn.del { background: #b00020; border-color: #b00020; color: #fff; }
-.btn[disabled] { background: #fff; color: #666; border: 2px dashed #666; opacity: 1; cursor: default; }
-.acts { flex: none; padding: 8px 12px calc(8px + env(safe-area-inset-bottom)); border-top: 2px solid #111; background: #fff; }
-.acts .btn { min-height: 56px; font-size: 20px; }
-.msg { font-size: 22px; font-weight: 800; text-align: center; padding: 28px 0 4px; }
-.problem { margin: 0; font-weight: 800; color: #b00020; }
-.av { width: 100%; height: 100%; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 17px; color: #111; border: 2px solid #333; }
-.c0 { background: #cfe3ff; } .c1 { background: #ffd9c2; } .c2 { background: #d7f0cf; } .c3 { background: #f5d0ee; }
-.c4 { background: #fff0a8; } .c5 { background: #cdeff0; } .c6 { background: #e1d4ff; } .c7 { background: #e6e6e6; }
+/* The five kinds of button (style doc section 5): primary, secondary (the plain .btn above),
+   grey, danger, disabled. A press makes the fill slightly darker. */
+.btn:active, .back:active, .cog:active, .ic:active { filter: brightness(.92); }
+.btn.pri { background: var(--brand); border-color: var(--brand); color: var(--card); }
+.btn.grey, .btn.eh { background: var(--line); border-color: var(--line); color: var(--ink); }
+.btn.big { min-height: var(--s60); }
+.btn.del { background: var(--danger); border-color: var(--danger); color: var(--card); }
+.btn[disabled] { background: var(--line); border-color: var(--line); color: var(--muted); opacity: 1; cursor: default; filter: none; }
+.acts { flex: none; padding: var(--s8) var(--s12) calc(var(--s8) + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--page); }
+.acts .btn { min-height: var(--s56); font-size: var(--s20); }
+.msg { font-size: var(--s22); font-weight: 800; text-align: center; padding: var(--s28) 0 var(--s4); }
+.problem { margin: 0; font-weight: 800; color: var(--danger); }
+.av { width: 100%; height: 100%; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: var(--s17); color: var(--ink); border: var(--s2) solid var(--card); box-shadow: var(--ring); }
+.c0 { background: var(--av0); } .c1 { background: var(--av1); } .c2 { background: var(--av2); } .c3 { background: var(--av3); }
+/* GDA-75: on the pitch and bench a player with no photo is a white disc with dark initials. */
+.lu .av.c0, .lu .av.c1, .lu .av.c2, .lu .av.c3, .lu .av.c4, .lu .av.c5, .lu .av.c6, .lu .av.c7 { background: var(--card); }
+.c4 { background: var(--av4); } .c5 { background: var(--av5); } .c6 { background: var(--av6); } .c7 { background: var(--av7); }
 
 /* Update notice and game cards on Home */
-.card { border: 2px solid #111; border-radius: 12px; padding: 10px; background: #f1f1f1; display: flex; flex-direction: column; gap: 3px; overflow-wrap: anywhere; }
-.card b { font-size: 18px; }
-.card .btn { margin-top: 8px; }
+.card { border: 0; border-radius: var(--r-card); padding: var(--s16); background: var(--card); display: flex; flex-direction: column; gap: var(--s3); overflow-wrap: anywhere; }
+.card b { font-size: var(--s18); }
+.card .btn { margin-top: var(--s8); }
 
 /* Squad */
-.list { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding: 8px 12px; display: flex; flex-direction: column; gap: 5px; }
-.prow { display: flex; flex: none; align-items: center; gap: 10px; min-height: 54px; padding: 4px 8px; border: 1px solid #888; border-radius: 10px; background: #f4f4f4; }
-.prow .av { flex: none; width: 36px; height: 36px; font-size: 13px; }
+.list { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding: var(--s8) var(--s12); display: flex; flex-direction: column; gap: var(--s5); }
+.prow { display: flex; flex: none; align-items: center; gap: var(--s10); min-height: var(--s54); padding: var(--s4) var(--s8); border: 0; border-radius: var(--r-chip); background: var(--card); }
+.prow .av { flex: none; width: var(--s36); height: var(--s36); font-size: var(--s13); }
 .prow .pn { flex: 1; min-width: 0; font-weight: 700; overflow-wrap: anywhere; }
-.prow .btn { flex: none; width: auto; min-width: 64px; min-height: 44px; font-size: 15px; padding: 0 10px; }
+.prow .btn { flex: none; width: auto; min-width: var(--s64); min-height: var(--s44); font-size: var(--s15); padding: 0 var(--s10); }
 
 /* Forms */
-.f label { display: flex; justify-content: space-between; font-size: 14px; font-weight: 700; margin-bottom: 3px; }
-.f input { display: block; width: 100%; min-width: 0; min-height: 52px; font-family: inherit; font-size: 18px; color: #111; background: #fff; border: 2px solid #111; border-radius: 10px; padding: 10px 12px; -webkit-appearance: none; appearance: none; margin: 0; }
+.f label { display: flex; justify-content: space-between; font-size: var(--s14); font-weight: 700; margin-bottom: var(--s3); }
+.f input { display: block; width: 100%; min-width: 0; min-height: var(--s52); font-family: inherit; font-size: var(--s18); color: var(--ink); background: var(--card); border: var(--bw-field) solid var(--outline); border-radius: var(--r-field); padding: var(--s10) var(--s12); -webkit-appearance: none; appearance: none; margin: 0; }
 .f input::-webkit-date-and-time-value { text-align: left; min-height: 1.3em; }
 /* Thicker border, less padding: the box stays the same size, so nothing moves under a finger. */
-.f.need input { border: 4px solid #b00020; padding: 8px 10px; }
-.f .nw { color: #b00020; font-weight: 800; }
-.gapbig { margin-top: 44px; }
+.f.need input { border: var(--bw-need) solid var(--danger); padding: calc(var(--s10) - var(--bw-need) + var(--bw-field)) calc(var(--s12) - var(--bw-need) + var(--bw-field)); }
+.f .nw { color: var(--danger); font-weight: 800; }
+.gapbig { margin-top: var(--s44); }
 
 /* Remove warning */
-.scrim { position: fixed; left: 0; right: 0; top: 0; bottom: 0; z-index: 20; background: rgba(0, 0, 0, .5); display: flex; align-items: flex-end; justify-content: center; }
-.sheet { width: 100%; max-width: 393px; background: #fff; border-top: 3px solid #111; border-radius: 18px 18px 0 0; padding: 16px 12px calc(14px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 10px; }
-.sheet h2 { margin: 0 0 4px; font-size: 22px; text-align: center; overflow-wrap: anywhere; }
+.scrim { position: fixed; left: 0; right: 0; top: 0; bottom: 0; z-index: 20; background: var(--scrim); display: flex; align-items: flex-end; justify-content: center; }
+.sheet { width: 100%; max-width: var(--s393); background: var(--card); border-top: 0; border-radius: var(--r-sheet) var(--r-sheet) 0 0; padding: var(--s16) var(--s12) calc(var(--s14) + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: var(--s10); }
+.sheet h2 { margin: 0 0 var(--s4); font-size: var(--s22); text-align: center; overflow-wrap: anywhere; }
 
 /* Line-up */
-.lu { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px; padding: 6px 10px; }
-.pitch { flex: 1 1 0; min-height: 0; position: relative; display: grid; grid-template-rows: repeat(4, minmax(0, 1fr)); border: 2px solid #111; border-radius: 10px; background: #e6f0e0; }
-.pitch:before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: 2px solid #b5c4ac; pointer-events: none; }
+.lu { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--s6); padding: var(--s6) var(--s10); }
+.pitch { flex: 1 1 0; min-height: 0; position: relative; display: grid; grid-template-rows: repeat(4, minmax(0, 1fr)); border: 0; border-radius: var(--r-card-big); isolation: isolate; background: repeating-linear-gradient(180deg, var(--pitch-a) 0, var(--pitch-a) var(--s48), var(--pitch-b) var(--s48), var(--pitch-b) var(--s96)); }
+.pitch:before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: var(--s2) solid var(--pitch-line); pointer-events: none; }
+/* The white box in front of the goal (bottom) and the small one at the top, behind the players (GDA-75). */
+.line:first-child:before { content: ""; position: absolute; z-index: -1; left: 30%; right: 30%; top: 0; height: var(--s30); border: var(--s2) solid var(--pitch-line); border-top: 0; pointer-events: none; }
+.line:last-child:after { content: ""; position: absolute; z-index: -1; left: 25%; right: 25%; bottom: 0; height: var(--s48); border: var(--s2) solid var(--pitch-line); border-bottom: 0; pointer-events: none; }
 .line { position: relative; display: flex; justify-content: center; align-items: stretch; min-height: 0; }
 .slot { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 0; }
 .line .slot { flex: 0 0 33.33%; max-width: 33.33%; }
-/* GDA-22: four or five across share the width, so nothing overlaps at 360px. */
+/* GDA-22: four or five across share the width, so nothing overlaps at var(--s360). */
 .line.across4 .slot { flex: 0 0 25%; max-width: 25%; }
 .line.across5 .slot { flex: 0 0 20%; max-width: 20%; }
-.line.across5 .nm { font-size: 12px; }
+.line.across5 .nm { font-size: var(--s12); }
 /* The formation box above the pitch (before kick-off). */
-.fm { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; }
+.fm { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s4) var(--s8); }
 .fm label { font-weight: 800; }
-.fm input { width: 130px; min-height: 44px; box-sizing: border-box; padding: 6px 10px; font-size: 20px; font-weight: 800; border: 2px solid #111; border-radius: 8px; }
-.fm input.bad { border-color: #a00; background: #fff0f0; }
-.fm input:disabled { background: #eee; color: #444; border-style: dashed; }
-.fm .fsub { font-size: 13px; color: #444; }
-.fmsg { flex: 1 0 100%; font-weight: 800; font-size: 14px; color: #a00; }
+.fm input { width: var(--s130); min-height: var(--s44); box-sizing: border-box; padding: var(--s6) var(--s10); font-size: var(--s20); font-weight: 800; border: var(--bw-field) solid var(--outline); border-radius: var(--r-chip); }
+.fm input.bad { border-color: var(--danger); background: var(--card); }
+.fm input:disabled { background: var(--line); color: var(--muted); border-color: var(--line); }
+.fm .fsub { font-size: var(--s13); color: var(--muted); }
+.fmsg { flex: 1 0 100%; font-weight: 800; font-size: var(--s14); color: var(--danger); }
 .fmsg:empty { display: none; }
-.ci { position: relative; flex: none; width: 48px; height: 48px; }
-.nm { width: 100%; margin-top: 2px; padding: 0 2px; text-align: center; font-size: 14px; font-weight: 800; line-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.gk { position: absolute; right: -9px; top: -7px; width: 24px; height: 24px; border-radius: 50%; background: #fff; border: 2px solid #111; font-size: 12px; line-height: 1; display: flex; align-items: center; justify-content: center; }
-.em { background: transparent; border: 2px dashed #555; }
-.tight .ci { width: 40px; height: 40px; }
-.tight .av { font-size: 15px; }
-.tight .nm { font-size: 13px; line-height: 15px; }
-.row { position: relative; flex: none; display: flex; flex-wrap: wrap; justify-content: space-around; min-height: 22px; padding: 15px 4px 2px; border: 2px solid #111; border-radius: 10px; background: #fafafa; }
-.row .t { position: absolute; left: 8px; top: 1px; font-size: 11px; font-weight: 800; line-height: 14px; }
-.row .slot { flex: 0 0 16.6%; max-width: 16.6%; padding: 2px 0; }
-.row .ci { width: 44px; height: 44px; }
-.row .av { font-size: 15px; }
-.row .nm { font-size: 13px; }
+.ci { position: relative; flex: none; width: var(--s48); height: var(--s48); }
+.nm { width: 100%; margin-top: var(--s2); padding: 0 var(--s2); text-align: center; font-size: var(--s14); font-weight: 800; line-height: var(--s16); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Keeper: green outer ring on the circle and "GK" after the name (GDA-75). */
+.keeper .av { box-shadow: 0 0 0 var(--s2) var(--card), 0 0 0 var(--s5) var(--brand); }
+.nr { display: flex; align-items: baseline; justify-content: center; gap: var(--s4); width: 100%; margin-top: var(--s2); min-width: 0; }
+.nr .nm { width: auto; min-width: 0; margin-top: 0; }
+.gk { flex: none; color: var(--brand); font-size: var(--s11); font-weight: 800; letter-spacing: .06em; }
+.em { background: transparent; border: var(--s2) dashed var(--muted); }
+.tight .ci { width: var(--s40); height: var(--s40); }
+.tight .av { font-size: var(--s15); }
+.tight .nm { font-size: var(--s13); line-height: var(--s15); }
+.row { position: relative; flex: none; display: flex; flex-wrap: wrap; justify-content: space-around; min-height: var(--s22); padding: var(--s15) var(--s4) var(--s2); border: 0; border-radius: var(--r-card); background: var(--card); }
+.row .t { position: absolute; left: var(--s8); top: 1px; font-size: var(--s11); font-weight: 800; line-height: var(--s14); }
+.row .slot { flex: 0 0 16.6%; max-width: 16.6%; padding: var(--s2) 0; }
+.row .ci { width: var(--s44); height: var(--s44); }
+.row .av { font-size: var(--s15); }
+.row .nm { font-size: var(--s13); }
 .row.ab { border-style: dashed; }
-.row.ab .av { border-style: dashed; border-color: #111; }
-.row.ab .nm { color: #333; }
-.sel .av, .drop .av { border: 4px solid #111; box-shadow: 0 0 0 4px #ffd400; }
+.row.ab .av { border-style: dashed; border-color: var(--ink); }
+.row.ab .nm { color: var(--muted); }
+.sel .av, .drop .av { border: var(--s4) solid var(--ink); box-shadow: 0 0 0 var(--s4) var(--alert); }
 .src .av { opacity: .4; }
-.plan .av { border: 4px dotted #111; }
-.acts .problem { margin-bottom: 6px; }
+/* Planned swap (GDA-75): the player coming off gets a dashed outline and OFF; the one coming on gets ON. No lines. */
+.pitch .plan .av { outline: var(--s3) dashed var(--brand-bright); outline-offset: var(--s3); }
+.pt { position: absolute; top: calc(-1 * var(--s8)); right: calc(-1 * var(--s14)); z-index: 3; padding: var(--s2) var(--s7); border-radius: var(--r-chip); background: var(--alert); color: var(--ink); font-size: var(--s11); font-weight: 800; letter-spacing: .04em; }
+.acts .problem { margin-bottom: var(--s6); }
 
 /* Drag layer */
 #layer { position: fixed; left: 0; top: 0; right: 0; bottom: 0; z-index: 50; pointer-events: none; }
 #layer svg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
-#ghost { position: absolute; left: 0; top: 0; width: 56px; height: 56px; margin: -28px 0 0 -28px; will-change: transform; }
-#ghost .av { border: 3px solid #111; box-shadow: 0 3px 8px rgba(0, 0, 0, .45); }
+#ghost { position: absolute; left: 0; top: 0; width: var(--s56); height: var(--s56); margin: calc(-1 * var(--s28)) 0 0 calc(-1 * var(--s28)); will-change: transform; }
+#ghost .av { border: var(--s3) solid var(--card); box-shadow: 0 var(--s3) var(--s8) var(--shadow); }
 
-/* Game clock bar (GDA-24): the half on the left, the time in the middle. */
-.clk { position: relative; z-index: 21; flex: none; display: flex; align-items: center; justify-content: space-between; min-height: 52px; padding: calc(2px + env(safe-area-inset-top)) 12px 2px; border-bottom: 2px solid #111; background: #fff; }
-.clk b { padding: 0 8px; font-size: 42px; font-weight: 900; line-height: 1.1; font-variant-numeric: tabular-nums; }
-.clk .ck { display: flex; flex-direction: column; align-items: flex-end; }
-.clk .hf { font-size: 13px; font-weight: 800; line-height: 13px; }
-.clk .ck b { padding: 0; }
-.acts .pair { display: flex; gap: 10px; }
+/* Game header card (GDA-75): half and clock on the left, two team rows on the right, a half bar along the bottom. */
+.clk { position: relative; z-index: 21; flex: none; display: flex; align-items: center; gap: var(--s10); height: var(--s68); margin: calc(var(--s6) + env(safe-area-inset-top)) var(--s10) 0; padding: var(--s4) var(--s12) var(--s6); border-radius: var(--r-card); background: var(--card); overflow: hidden; }
+.clk .ck { flex: none; width: var(--s104); display: flex; flex-direction: column; }
+.clk .hf { font-size: var(--s12); font-weight: 800; line-height: var(--s14); letter-spacing: .1em; }
+.clk b { font-size: var(--s40); font-weight: 800; line-height: 1.05; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.teams { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--s2); align-self: stretch; justify-content: center; padding: 0 0 0 var(--s10); border: 0; border-left: 1px solid var(--line); border-radius: 0; background: transparent; color: var(--ink); font: inherit; text-align: left; }
+.trow { display: flex; align-items: center; gap: var(--s8); min-width: 0; }
+.logo { flex: none; height: var(--s26); width: auto; max-width: var(--s34); display: block; }
+.logo.disc { width: var(--s26); border-radius: 50%; background: var(--line); display: flex; align-items: center; justify-content: center; font-size: var(--s10); font-weight: 800; }
+.tn { flex: 1; min-width: 0; font-size: var(--s15); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tg { flex: none; font-size: var(--s28); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.hp { position: absolute; left: 0; right: 0; bottom: 0; height: var(--s5); background: var(--line); }
+.hp i { display: block; height: 100%; width: 0; background: var(--brand-bright); }
+.acts .pair { display: flex; gap: var(--s10); }
 .acts .pair .btn.pri { flex: 1.6; }
 .acts .pair .btn:not(.pri) { flex: 1; }
 
 /* End Half and the TIME strip (GDA-36) */
 .strip .time { text-align: center; }
-.strip .time .big { font-size: 34px; font-weight: 900; letter-spacing: 2px; }
-.btn.eh { background: #eee; border-color: #555; font-size: 15px; }
-.btn.eh.pri { background: #111; border-color: #111; color: #fff; font-size: 20px; }
+.strip .time .big { font-size: var(--s34); font-weight: 900; letter-spacing: var(--s2); }
+.btn.eh { font-size: var(--s15); }
+.btn.eh.pri { background: var(--brand); border-color: var(--brand); color: var(--card); font-size: var(--s20); }
 /* Half over (temporary, goes with GDA-50) */
-.stop { padding: 40px 0 28px; text-align: center; font-size: 64px; font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; }
+.stop { padding: var(--s40) 0 var(--s28); text-align: center; font-size: var(--s64); font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; }
 
-/* Bench timers on the game screen (GDA-23): ring fills to the rotation length, red once late. */
-.row.live { padding-top: 18px; }
+/* Bench timers on the game screen (GDA-23): ring fills to the rotation length, red once late.
+   GDA-75: rings stay smaller than the mock-up (52px, not 66px) to protect the pitch; time under the name. */
+.row.live { padding-top: var(--s14); }
 .row.live .slot { flex: 1 1 0; max-width: 25%; }
-.row.live .ci { width: 52px; height: 52px; }
-.row.live .av { position: absolute; left: 6px; top: 6px; width: 40px; height: 40px; }
+.row.live .ci { width: var(--s52); height: var(--s52); }
+.row.live .av { position: absolute; left: var(--s6); top: var(--s6); width: var(--s40); height: var(--s40); }
 .row.live.many .slot { max-width: 16.6%; }
-.row.live.many .ci { width: 44px; height: 44px; }
-.row.live.many .av { left: 5px; top: 5px; width: 34px; height: 34px; font-size: 13px; }
+.row.live.many .ci { width: var(--s44); height: var(--s44); }
+.row.live.many .av { left: var(--s5); top: var(--s5); width: var(--s34); height: var(--s34); font-size: var(--s13); }
 .rg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
 .rg circle { fill: none; stroke-width: 5; }
-.r0 { stroke: #c8c8c8; }
-.r1 { stroke: #111; }
-.lt .r0, .lt .r1 { stroke: #b00020; }
-.bt { position: absolute; left: -11px; bottom: -5px; z-index: 2; min-width: 26px; height: 20px; padding: 0 4px; border-radius: 10px; background: #fff; border: 2px solid #111; color: #111; font-size: 12px; font-weight: 900; display: flex; align-items: center; justify-content: center; }
-.turn { position: absolute; right: -7px; bottom: -5px; z-index: 2; width: 20px; height: 20px; border-radius: 50%; background: #111; color: #fff; border: 2px solid #fff; font-size: 12px; font-weight: 800; line-height: 16px; text-align: center; }
-.tm { position: absolute; left: -9px; top: -7px; z-index: 2; padding: 1px 5px; border-radius: 9px; background: #111; color: #fff; font-size: 13px; font-weight: 800; line-height: 16px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.r0 { stroke: var(--line); }
+.r1 { stroke: var(--brand-bright); stroke-linecap: round; }
+.lt .r0, .lt .r1 { stroke: var(--danger); }
+.tm { font-size: var(--s13); font-weight: 700; line-height: var(--s14); color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.lt .tm { color: var(--danger); }
+.bt { position: absolute; left: calc(-1 * var(--s11)); bottom: calc(-1 * var(--s5)); z-index: 2; min-width: var(--s26); height: var(--s20); padding: 0 var(--s4); border-radius: var(--r-chip); background: var(--card); color: var(--ink); box-shadow: var(--ring); font-size: var(--s12); font-weight: 900; display: flex; align-items: center; justify-content: center; }
+.turn { position: absolute; right: calc(-1 * var(--s7)); bottom: calc(-1 * var(--s5)); z-index: 2; width: var(--s22); height: var(--s22); border-radius: 50%; background: var(--ink); color: var(--card); border: var(--s2) solid var(--card); font-size: var(--s12); font-weight: 800; line-height: var(--s18); text-align: center; }
 
 /* Rotation chip, stepper and sheet (GDA-32) */
 /* GDA-63: one strip, one height, every state. Only colours change, never size. */
-.strip { flex: none; box-sizing: border-box; height: 84px; margin: 6px 10px 0; padding: 4px 8px; border: 3px solid transparent; border-radius: 10px; display: flex; align-items: center; gap: 8px; overflow: hidden; }
-.strip.timeup { border-color: #111; }
-.cog { flex: none; width: 48px; height: 48px; margin-left: 8px; padding: 0 0 3px; border: 2px solid #111; border-radius: 10px; background: #fff; color: #111; font-size: 28px; line-height: 1; }
+.strip { flex: none; box-sizing: border-box; height: var(--s84); margin: var(--s6) var(--s10) 0; padding: 0 var(--s8) 0 var(--s16); border-radius: var(--r-card); background: var(--card); color: var(--ink); display: flex; align-items: center; gap: var(--s8); overflow: hidden; }
+.strip.quiet { background: var(--line); }
+.cog { flex: none; width: var(--s48); height: var(--s48); margin-left: var(--s8); padding: 0; border: 0; border-radius: var(--r-button); background: var(--line); color: var(--ink); line-height: 1; display: flex; align-items: center; justify-content: center; }
+.cog svg, .ic svg { width: var(--s24); height: var(--s24); }
 .hdr .cog { margin-left: 0; }
-.ro { font-size: 17px; font-weight: 700; color: #333; }
-.step { display: flex; align-items: center; gap: 10px; }
-.step .btn { flex: none; width: 72px; min-height: 72px; padding: 0; font-size: 34px; touch-action: manipulation; }
-.val { flex: 1; min-width: 0; min-height: 72px; display: flex; align-items: center; justify-content: center; border: 2px solid #111; border-radius: 10px; font-size: 32px; font-weight: 900; white-space: nowrap; }
-.scrim { position: fixed; left: 0; right: 0; top: 0; bottom: 0; z-index: 20; background: rgba(0,0,0,.5); display: flex; align-items: flex-end; justify-content: center; }
-.sheet { width: 100%; max-width: 393px; background: #fff; border-top: 3px solid #111; border-radius: 18px 18px 0 0; padding: 16px 12px calc(14px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 10px; }
+/* Settings in the bottom row of the game screen (GDA-75). */
+.cog.bot { width: var(--s52); height: var(--s64); margin-left: 0; }
+.ro { font-size: var(--s17); font-weight: 700; color: var(--muted); }
+.step { display: flex; align-items: center; gap: var(--s10); }
+.step .btn { flex: none; width: var(--s72); min-height: var(--s72); padding: 0; font-size: var(--s34); touch-action: manipulation; }
+.val { flex: 1; min-width: 0; min-height: var(--s72); display: flex; align-items: center; justify-content: center; border: var(--bw-field) solid var(--outline); border-radius: var(--r-field); background: var(--card); font-size: var(--s32); font-weight: 900; white-space: nowrap; }
+.scrim { position: fixed; left: 0; right: 0; top: 0; bottom: 0; z-index: 20; background: var(--scrim); display: flex; align-items: flex-end; justify-content: center; }
+.sheet { width: 100%; max-width: var(--s393); background: var(--card); border-top: 0; border-radius: var(--r-sheet) var(--r-sheet) 0 0; padding: var(--s16) var(--s12) calc(var(--s14) + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: var(--s10); }
 
 /* Planned pairs, Swap and Undo (GDA-30) */
 .lu { position: relative; }
 .pl { position: absolute; left: 0; top: 0; width: 100%; height: 100%; z-index: 4; pointer-events: none; overflow: visible; }
 .px { position: absolute; left: 0; top: 0; width: 100%; height: 100%; z-index: 5; pointer-events: none; }
-.xx { position: absolute; width: 44px; height: 44px; margin: -22px 0 0 -22px; padding: 0; border: 0; background: none; pointer-events: auto; display: flex; align-items: center; justify-content: center; }
-.xx span { width: 26px; height: 26px; border-radius: 50%; background: #fff; border: 3px solid #111; color: #111; font-size: 18px; font-weight: 900; line-height: 1; display: flex; align-items: center; justify-content: center; }
-.strip .swp { flex: none; width: 104px; min-height: 60px; font-size: 22px; }
-.undo { flex: none; width: 104px; box-sizing: border-box; display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: 2px; padding: 4px; border-radius: 12px; background: #111; color: #fff; font-size: 13px; font-weight: 800; text-align: center; }
-.undo button { min-height: 44px; border: 2px solid #fff; border-radius: 10px; background: transparent; color: #fff; font-size: 18px; font-weight: 800; }
+.xx { position: absolute; width: var(--s44); height: var(--s44); margin: calc(-1 * var(--s22)) 0 0 calc(-1 * var(--s22)); padding: 0; border: 0; background: none; pointer-events: auto; display: flex; align-items: center; justify-content: center; }
+.xx span { width: var(--s26); height: var(--s26); border-radius: 50%; background: var(--card); border: var(--s3) solid var(--ink); color: var(--ink); font-size: var(--s18); font-weight: 900; line-height: 1; display: flex; align-items: center; justify-content: center; }
+.strip .swp { flex: none; width: var(--s104); min-height: var(--s60); font-size: var(--s22); }
+.undo { flex: none; width: var(--s104); box-sizing: border-box; display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: var(--s2); padding: var(--s4); border-radius: var(--r-button); background: var(--ink); color: var(--card); font-size: var(--s13); font-weight: 800; text-align: center; }
+.undo button { min-height: var(--s44); border: var(--s2) solid var(--card); border-radius: var(--r-chip); background: transparent; color: var(--card); font-size: var(--s18); font-weight: 800; }
 
 /* The swap message in the strip (GDA-35): yellow warning, black Swap Time, red once 30 seconds late. */
-.strip .sl { flex: 1; min-width: 0; line-height: 1.2; font-size: 15px; }
-.strip .sl .big { font-size: 22px; font-weight: 900; font-variant-numeric: tabular-nums; }
-.strip.warn { background: #ffd400; border-color: #111; }
-.strip.swap { background: #111; color: #fff; border-color: #b00020; }
-.strip.late { background: #b00020; color: #fff; border-color: #111; }
+.strip .sl { flex: 1; min-width: 0; line-height: 1.2; font-size: var(--s15); font-weight: 700; }
+.strip .sl .big { font-size: var(--s22); font-weight: 900; font-variant-numeric: tabular-nums; }
+.strip .idle .lab { font-size: var(--s12); font-weight: 800; letter-spacing: .1em; color: var(--muted); }
+.strip .idle .val2 { font-size: var(--s26); font-weight: 800; font-variant-numeric: tabular-nums; }
+/* Only colours change between states, never size. Words always carry the message too. */
+.strip.warn { background: var(--alert); color: var(--ink); }
+.strip.swap, .strip.timeup { background: var(--ink); color: var(--alert); }
+.strip.late { background: var(--danger); color: var(--card); }
+.strip .swp { background: var(--ink); border-color: var(--ink); color: var(--card); }
+.strip.swap .swp, .strip.timeup .swp { background: var(--alert); border-color: var(--alert); color: var(--ink); }
+.strip.late .swp { background: var(--card); border-color: var(--card); color: var(--ink); }
 
 /* GDA-33: "Welcome back" after a restart. Floats over the top so nothing moves. */
-.welcome { position: absolute; top: 0; left: 0; right: 0; z-index: 5; background: #111; color: #fff; text-align: center; font-weight: 700; padding: 6px 0; pointer-events: none; }
+.welcome { position: absolute; top: 0; left: 0; right: 0; z-index: 5; background: var(--ink); color: var(--card); text-align: center; font-weight: 700; padding: var(--s6) 0; pointer-events: none; }
 #frame.fix #screen { position: relative; }
 
 /* Goals and score (GDA-37, 38, 39, 40). The score is as large as the clock; 10 or more still fits. */
-.score { display: flex; align-items: center; gap: 6px; border: 2px solid #111; border-radius: 10px; padding: 2px 10px; background: #fff; color: #111; font: inherit; font-size: 42px; font-weight: 900; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.score { display: flex; align-items: center; gap: var(--s6); border: 0; border-radius: var(--r-chip); padding: var(--s2) var(--s10); background: var(--card); color: var(--ink); font: inherit; font-size: var(--s42); font-weight: 900; line-height: 1.1; font-variant-numeric: tabular-nums; }
 .score .s { display: flex; flex-direction: column; align-items: center; }
-.score small { font-size: 11px; font-weight: 800; line-height: 12px; letter-spacing: 1px; }
-.fscore { display: flex; justify-content: center; padding: 20px 0; }
-.hdr .score { flex: none; font-size: 30px; }
-.gr { display: flex; gap: 8px; }
-.gr .btn { flex: 1; min-width: 0; }
-.gr .btn.pri { flex: 1.3; }
-.gr .btn.eh { flex: none; width: 92px; font-size: 15px; }
-.gr .btn.eh.pri { font-size: 15px; }
-.toast { position: absolute; left: 10px; right: 10px; bottom: 90px; z-index: 6; display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 14px; background: #111; color: #fff; border-radius: 12px; font-size: 18px; font-weight: 800; }
+.score small { font-size: var(--s11); font-weight: 800; line-height: var(--s12); letter-spacing: 1px; }
+.fscore { display: flex; justify-content: center; padding: var(--s20) 0; }
+.hdr .score { flex: none; font-size: var(--s30); }
+.acts.game { border-top: 0; padding: var(--s4) var(--s10) calc(var(--s6) + env(safe-area-inset-bottom)); }
+.gr { display: flex; gap: var(--s8); }
+.gr .btn { flex: 1; min-width: 0; height: var(--s64); min-height: var(--s64); font-size: var(--s17); line-height: 1.15; padding: 0 var(--s4); }
+.gr .btn:not(.pri):not(.eh) { border-color: var(--card); }
+.gr .btn.eh { flex: none; width: var(--s64); flex-direction: column; gap: var(--s3); padding: 0; font-size: var(--s12); }
+.gr .btn.eh svg { width: var(--s24); height: var(--s24); }
+.gr .btn.eh.pri { font-size: var(--s12); }
+.acts .pair .cog.bot { align-self: stretch; height: auto; }
+.toast { position: absolute; left: var(--s10); right: var(--s10); bottom: var(--s90); z-index: 6; display: flex; align-items: center; gap: var(--s10); padding: var(--s6) var(--s6) var(--s6) var(--s14); background: var(--ink); color: var(--card); border-radius: var(--r-field); font-size: var(--s18); font-weight: 800; }
 .toast span { flex: 1; min-width: 0; }
-.toast button { flex: none; min-width: 96px; min-height: 48px; border: 2px solid #fff; border-radius: 10px; background: transparent; color: #fff; font-size: 18px; font-weight: 800; }
-.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.grid .btn { min-height: 56px; padding: 0 4px; font-size: 18px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rmtext { margin: 0; text-align: center; font-size: 18px; }
-.sheet .pair { display: flex; gap: 10px; }
+.toast button { flex: none; min-width: var(--s96); min-height: var(--s48); border: var(--s2) solid var(--card); border-radius: var(--r-chip); background: transparent; color: var(--card); font-size: var(--s18); font-weight: 800; }
+.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s8); }
+.grid .btn { min-height: var(--s56); padding: 0 var(--s4); font-size: var(--s18); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rmtext { margin: 0; text-align: center; font-size: var(--s18); }
+.sheet .pair { display: flex; gap: var(--s10); }
 .sheet .pair .btn { flex: 1; }
 .scrim.goal { top: 0; }
 
 /* Full Time and Saved (GDA-50) */
 .lbl { font-weight: 800; text-align: center; }
-.bigscore { font-size: 72px; font-weight: 900; text-align: center; line-height: 1.1; padding: 12px 0; font-variant-numeric: tabular-nums; }
+.bigscore { font-size: var(--s72); font-weight: 900; text-align: center; line-height: 1.1; padding: var(--s12) 0; font-variant-numeric: tabular-nums; }
 .fname { text-align: center; font-weight: 700; overflow-wrap: anywhere; }
-.final { font-weight: 800; margin: 6px 0 10px; }
+.final { font-weight: 800; margin: var(--s6) 0 var(--s10); }
 
 /* GDA-62: the ABSENT row is always there on the line-up, below the bench; slim when empty. */
-.row.ab.empty { min-height: 22px; padding-bottom: 14px; }
-.row.ab.empty:after { content: "drag a player here"; display: block; width: 100%; text-align: center; font-size: 12px; color: #666; }
-[data-zone].drop { outline: 4px solid #ffd400; outline-offset: 0; }
+.row.ab.empty { min-height: var(--s22); padding-bottom: var(--s14); }
+.row.ab.empty:after { content: "drag a player here"; display: block; width: 100%; text-align: center; font-size: var(--s12); color: var(--muted); }
+[data-zone].drop { outline: var(--s4) solid var(--alert); outline-offset: 0; }
 
 /* Sheet status on a finished game, and Delete on a game not started (GDA-47, GDA-66) */
-.sheetStatus { margin-top: 4px; }
-.sheetStatus.err { color: #b00020; }
-.btn.sheetSettings { margin-top: 6px; }
+.sheetStatus { margin-top: var(--s4); }
+.sheetStatus.err { color: var(--danger); }
+.btn.sheetSettings { margin-top: var(--s6); }
 
 /* Home tidy (GDA-69): card menus, top menu, Archive confirm, green Sent bar */
-.card .head { display: flex; align-items: stretch; gap: 8px; }
-.card .info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.card .head { display: flex; align-items: stretch; gap: var(--s8); }
+.card .info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--s3); }
 .menuwrap { flex: none; display: flex; align-items: flex-start; position: relative; }
-.ic { width: 48px; height: 48px; border: 2px solid #111; border-radius: 10px; background: #fff; font-size: 24px; line-height: 1; padding: 0; }
+.ic { width: var(--s48); height: var(--s48); border: 0; border-radius: var(--r-button); background: var(--line); color: var(--ink); font-size: var(--s24); line-height: 1; padding: 0; }
 .card { position: relative; }
 .menuCover { position: fixed; left: 0; right: 0; top: 0; bottom: 0; z-index: 10; background: transparent; }
-.pop { position: absolute; right: 10px; top: 60px; z-index: 11; background: #fff; border: 2px solid #111; border-radius: 10px; min-width: 170px; box-shadow: 0 3px 8px rgba(0, 0, 0, .35); display: none; flex-direction: column; }
+.pop { position: absolute; right: var(--s10); top: var(--s60); z-index: 11; background: var(--card); border: 0; border-radius: var(--r-field); min-width: var(--s170); box-shadow: 0 var(--s3) var(--s12) var(--shadow); display: none; flex-direction: column; }
 .pop.show, .cardMenu { display: flex; }
-.pop.topMenu { top: 52px; right: 0; }
-.mi { display: block; width: 100%; min-height: 48px; padding: 12px 14px; border: 0; border-bottom: 1px solid #ccc; background: #fff; font-size: 16px; text-align: left; color: #111; }
+.pop.topMenu { top: var(--s52); right: 0; }
+.mi { display: block; width: 100%; min-height: var(--s48); padding: var(--s12) var(--s14); border: 0; border-bottom: 1px solid var(--line); background: var(--card); font-size: var(--s16); text-align: left; color: var(--ink); }
 .mi:last-child { border-bottom: 0; }
-.mi.d { color: #b00020; font-weight: 700; }
+.mi.d { color: var(--danger); font-weight: 700; }
 .hdr .menuwrap { position: relative; }
-.sheetStatus.ok { background: #0a5a28; color: #fff; border-radius: 6px; padding: 10px; font-size: 18px; }
-.sheetStatus.ok b { font-size: 18px; }
+.sheetStatus.ok { background: var(--brand); color: var(--card); border-radius: var(--r-small); padding: var(--s10); font-size: var(--s18); }
+.sheetStatus.ok b { font-size: var(--s18); }
 .archiveNote { margin: 0; text-align: center; }
-.archiveWarn { margin: 0; color: #b00020; font-weight: 700; border: 2px solid #b00020; border-radius: 6px; padding: 8px; }
+.archiveWarn { margin: 0; color: var(--danger); font-weight: 700; border: var(--s2) solid var(--danger); border-radius: var(--r-small); padding: var(--s8); }
 
 /* Teams (GDA-68) */
-.team { margin: 0 0 8px; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mhd { padding: 8px 14px 2px; font-size: 12px; font-weight: 800; text-transform: uppercase; color: #555; }
-.mlock { padding: 4px 14px 8px; color: #b00020; font-weight: 700; font-size: 14px; }
-.mi:disabled { color: #888; }
+.team { margin: 0 0 var(--s8); font-size: var(--s16); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mhd { padding: var(--s8) var(--s14) var(--s2); font-size: var(--s12); font-weight: 800; text-transform: uppercase; color: var(--muted); }
+.mlock { padding: var(--s4) var(--s14) var(--s8); color: var(--danger); font-weight: 700; font-size: var(--s14); }
+.mi:disabled { color: var(--muted); }
 .mi.teamItem { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.f input.bad { border-color: #b00020; }
-.hint { font-size: 14px; color: #444; }
+.f input.bad { border-color: var(--danger); }
+.hint { font-size: var(--s14); color: var(--muted); }
 
 /* Player photos (GDA-52) */
-.av.pic { overflow: hidden; background: #d6d6d6; }
+.av.pic { overflow: hidden; background: var(--av-photo); }
 .av.pic img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
-.photoBlock { display: flex; flex-direction: column; align-items: center; gap: 8px; }
-.photoBig { width: 96px; height: 96px; }
-.photoBig .av { font-size: 32px; }
-.photoNote { margin: 0; font-size: 13px; color: #555; }
+.photoBlock { display: flex; flex-direction: column; align-items: center; gap: var(--s8); }
+.photoBig { width: var(--s96); height: var(--s96); }
+.photoBig .av { font-size: var(--s32); }
+.photoNote { margin: 0; font-size: var(--s13); color: var(--muted); }

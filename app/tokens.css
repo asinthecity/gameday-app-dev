@@ -1,0 +1,88 @@
+/* The one place for colours, type sizes, radii and spacing (GDA-74, docs/discovery/11-visual-style.md
+   section 4). style.css uses these and writes no colour or px size of its own (0, 1px and % excepted).
+   Changing the team colours later means changing --brand, --brand-bright, --alert and app/crest.png. */
+:root {
+  /* Colour */
+  --page: #F3F4F6;
+  --card: #FFFFFF;
+  --ink: #111418;
+  --muted: #5B636D;
+  --line: #E4E6EA;
+  --outline: #C9CDD3;          /* outline of fields and white buttons */
+  --brand: #0A5C1E;
+  --brand-bright: #1E9E3A;     /* graphics only, never text */
+  --alert: #FFE500;
+  --danger: #B00020;
+  --pitch-a: #DDEBD5;
+  --pitch-b: #E8F2E2;
+  --pitch-line: #FFFFFF;
+  --scrim: rgba(17, 20, 24, .5);
+  --shadow: rgba(17, 20, 24, .32);
+  --ring: 0 0 0 2px #fff, 0 1px 6px rgba(0, 0, 0, .32);
+  /* Soft picture backgrounds for players without a photo */
+  --av0: #cfe3ff; --av1: #ffd9c2; --av2: #d7f0cf; --av3: #f5d0ee;
+  --av4: #fff0a8; --av5: #cdeff0; --av6: #e1d4ff; --av7: #e6e6e6; --av-photo: #d6d6d6;
+
+  /* Shape */
+  --r-card: 16px;
+  --r-card-big: 20px;
+  --r-button: 14px;
+  --r-field: 12px;
+  --r-chip: 10px;
+  --r-sheet: 24px;
+  --r-small: 6px;
+  --r-round: 50%;
+  --tap: 44px;
+  --bw-field: 2px;             /* whole pixels: a half pixel is rounded differently on each screen */
+  --bw-need: 4px;              /* thicker border for a missing required field */
+
+  /* Sizes: every other measurement the stylesheet uses. --s48 is 48px. 0, 1px and % are written directly. */
+  --s2: 2px;
+  --s3: 3px;
+  --s4: 4px;
+  --s5: 5px;
+  --s6: 6px;
+  --s7: 7px;
+  --s8: 8px;
+  --s9: 9px;
+  --s10: 10px;
+  --s11: 11px;
+  --s12: 12px;
+  --s13: 13px;
+  --s14: 14px;
+  --s15: 15px;
+  --s16: 16px;
+  --s17: 17px;
+  --s18: 18px;
+  --s20: 20px;
+  --s22: 22px;
+  --s24: 24px;
+  --s26: 26px;
+  --s28: 28px;
+  --s30: 30px;
+  --s32: 32px;
+  --s34: 34px;
+  --s36: 36px;
+  --s40: 40px;
+  --s42: 42px;
+  --s44: 44px;
+  --s48: 48px;
+  --s52: 52px;
+  --s53: 53px;
+  --s54: 54px;
+  --s56: 56px;
+  --s60: 60px;
+  --s64: 64px;
+  --s68: 68px;
+  --s72: 72px;
+  --s84: 84px;
+  --s90: 90px;
+  --s92: 92px;
+  --s96: 96px;
+  --s104: 104px;
+  --s130: 130px;
+  --s170: 170px;
+  --s360: 360px;
+  --s393: 393px;
+  --s852: 852px;
+}

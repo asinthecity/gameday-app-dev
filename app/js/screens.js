@@ -11,6 +11,22 @@ import { archiveWarning, canDeleteGame, sheetStatus } from "./sheet-rules.js";
 import { canSaveName, initialsFor } from "./squad-rules.js";
 import { canSwitchTeams, deleteRefusal, deleteSummary, IN_PROGRESS_REFUSAL, LAST_TEAM_MESSAGE, LOCKED_MESSAGE, plural, UPGRADE_FAILED_MESSAGE } from "./team-rules.js";
 
+/** One small inline SVG icon (24px, 2.2 stroke, round ends, takes the text colour). GDA-74. */
+const ICONS = {
+  // Settings: two sliders.
+  settings: ["M4 7h9", "M17 7h3", "M4 17h3", "M11 17h9", "M13 4v6", "M7 14v6"],
+  // Back arrow (GDA-75) and End half flag.
+  back: ["M15 5l-7 7 7 7"],
+  flag: ["M6 21V4", "M6 5h11l-2.5 4 2.5 4H6"],
+};
+function icon(name) {
+  // The HTML parser makes a real SVG element from this text; no web address is needed.
+  const holder = document.createElement("span");
+  const paths = ICONS[name].map((d) => `<path d="${d}"/>`).join("");
+  holder.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
+  return holder.firstChild;
+}
+
 /** Makes one element. Props starting "on" are tap or typing handlers. */
 function h(tag, props = {}, ...children) {
   const element = document.createElement(tag);
@@ -30,7 +46,7 @@ function h(tag, props = {}, ...children) {
 }
 
 function header(title, onBack, right = null, extra = null) {
-  const back = onBack ? h("button", { class: "back", "aria-label": "Back", onclick: onBack }, "‹") : null;
+  const back = onBack ? h("button", { class: "back", "aria-label": "Back", onclick: onBack }, icon("back")) : null;
   return h("div", { class: "hdr" }, back, h("h1", {}, title), right, extra);
 }
 
@@ -561,36 +577,35 @@ function createGameScreen(state, actions) {
  * path. Slots without them, on the before-kick-off screen, do nothing.
  */
 function playerSlot(player, state, canMove, isKeeper = false, benchTimer = false, onPitch = false) {
-  const planned = state.screen === "game" && pairsOf(openGame(state)).some((pair) => pair.benchId === player.id || pair.fieldId === player.id);
+  const game = state.screen === "game" ? openGame(state) : null;
+  const plannedOff = !!game && pairsOf(game).some((pair) => pair.fieldId === player.id);
+  const plannedOn = !!game && pairsOf(game).some((pair) => pair.benchId === player.id);
+  const planned = plannedOff || plannedOn;
   // The bench-order number (GDA-56): shown on field and bench circles during a game. A number, not just colour.
   const number = (state.screen === "game" || state.screen === "halfTime") ? benchNumberOf(openGame(state), player.id) : null;
   const turnMark = number ? h("span", { class: "turn", "aria-label": `Bench order ${number}`, title: `Bench order ${number}` }, String(number)) : null;
   // Bench time so far (GDA-29): pitch circles only, nothing under a minute. Changes only at a Swap or half start, so it needs no tick.
   const benchText = onPitch && (state.screen === "game" || state.screen === "halfTime") ? benchTotalText(benchTotalSeconds(openGame(state), player.id, Date.now())) : "";
   const benchPill = benchText ? h("span", { class: "bt", "aria-label": `Bench time ${benchText}`, title: `Bench time ${benchText}` }, benchText) : null;
+  // GDA-75: a planned swap is shown by tags on the circles, not by lines across the pitch.
+  const planTag = plannedOff ? h("span", { class: "pt" }, "OFF") : plannedOn ? h("span", { class: "pt" }, "ON") : null;
+  // The keeper's "GK" sits after the name (a separate span, so the name itself stays just the name).
+  const nameLine = isKeeper ? h("div", { class: "nr" }, h("div", { class: "nm" }, player.name), h("span", { class: "gk" }, "GK")) : h("div", { class: "nm" }, player.name);
   return h(
     "div",
     {
-      class: ["slot", player.id === state.selectedId ? "sel" : "", planned ? "plan" : ""].join(" ").trim(),
+      class: ["slot", player.id === state.selectedId ? "sel" : "", planned ? "plan" : "", isKeeper ? "keeper" : ""].join(" ").trim(),
       ...(canMove ? { "data-player": player.id } : {}),
       ...(benchTimer ? { "data-bench": player.id } : {}), // Marks a timer circle; it is not draggable.
     },
-    h(
-      "div",
-      { class: "ci" },
-      avatar(player),
-      benchTimer ? ring() : null,
-      benchTimer ? h("span", { class: "tm" }) : null,
-      benchPill,
-      turnMark,
-      isKeeper ? h("span", { class: "gk" }, "\u{1F9E4}") : null
-    ),
-    h("div", { class: "nm" }, player.name)
+    h("div", { class: "ci" }, avatar(player), benchTimer ? ring() : null, benchPill, turnMark, planTag),
+    nameLine,
+    benchTimer ? h("div", { class: "tm" }) : null // Bench time under the name; drawBenchTimers fills it.
   );
 }
 
 /** The ring round a bench circle. Its fill is set by drawBenchTimers, not here. */
-const RING_LENGTH = 2 * Math.PI * 23;
+const RING_LENGTH = 2 * Math.PI * 23; // matches r="23" below
 function ring() {
   // Parsed as HTML so the browser puts the SVG parts in the right namespace.
   const holder = document.createElement("div");
@@ -730,8 +745,8 @@ export function drawPitch(state) {
 }
 
 /** The settings cog (GDA-64): opens the Game details sheet. Sits at the far edge, away from the game buttons. */
-function cogButton(actions) {
-  return h("button", { class: "cog", id: "cog", "aria-label": "Game details", onclick: actions.openRotation }, "\u2699");
+function cogButton(actions, extra = "") {
+  return h("button", { class: ("cog " + extra).trim(), id: "cog", "aria-label": "Game details", onclick: actions.openRotation }, icon("settings"));
 }
 
 /**
@@ -774,9 +789,35 @@ function scoreBox(game, actions) {
   return h("button", { class: "score", id: "score", "aria-label": `Score, us ${score.us}, them ${score.them}. Tap to remove the last goal`, onclick: actions.openRemoveGoal }, ...parts);
 }
 
-/** The bar at the top of the game screens: the score on the left, the half and the time on the right. */
-function clockBar(text, half, game, actions, cogActions) {
-  return h("div", { class: "clk" }, scoreBox(game, actions), h("div", { class: "ck" }, h("span", { class: "hf" }, half), h("b", { id: "clock" }, text)), cogButton(cogActions));
+/** Our crest, or a grey disc with initials for a team with no crest (the opponent, for now). */
+function teamLogo(name, isUs) {
+  return isUs
+    ? h("img", { class: "logo", src: "crest.png", alt: "", draggable: false })
+    : h("span", { class: "logo disc", "aria-hidden": "true" }, initialsFor(name));
+}
+
+/**
+ * The header card at the top of the game screens (GDA-75): half and clock on the left,
+ * two team rows (logo, name, score) on the right, and a thin bar along the bottom edge
+ * that fills over the half (drawClock moves it). With `actions` the team rows are one
+ * button (tap = Remove last goal, GDA-39); without, plain text (before kick-off).
+ */
+function gameHeader(text, half, game, actions, state) {
+  const score = scoreOf(game);
+  const team = state.teams.find((t) => t.id === (game.teamId ?? state.currentTeamId));
+  const usName = team?.name ?? "Us";
+  const row = (name, isUs, n, id) => h("span", { class: "trow" }, teamLogo(name, isUs), h("span", { class: "tn" }, name), h("span", { class: "tg", id }, String(n)));
+  const rows = [row(usName, true, score.us, "scoreUs"), row(game.opposition, false, score.them, "scoreThem")];
+  const teams = actions
+    ? h("button", { class: "teams", id: "score", "aria-label": `Score, ${usName} ${score.us}, ${game.opposition} ${score.them}. Tap to remove the last goal`, onclick: actions.openRemoveGoal }, ...rows)
+    : h("div", { class: "teams", id: "score" }, ...rows);
+  return h(
+    "div",
+    { class: "clk" },
+    h("div", { class: "ck" }, h("span", { class: "hf" }, half), h("b", { id: "clock" }, text)),
+    teams,
+    h("div", { class: "hp" }, h("i", { id: "halfBar" }))
+  );
 }
 
 /** Before kick-off: look, but not touch. The game has not started and nothing here is saved. */
@@ -787,7 +828,7 @@ function readyScreen(state, actions) {
     fixed: true,
     noMove: true,
     nodes: [
-      clockBar("0:00", "1ST HALF", game, null, actions),
+      gameHeader("0:00", "1ST HALF", game, null, state),
       h(
         "div",
         { class: "lu" },
@@ -803,7 +844,8 @@ function readyScreen(state, actions) {
           "div",
           { class: "pair" },
           h("button", { class: "btn", onclick: actions.backToLineUp }, "Line-up"),
-          h("button", { class: "btn pri", onclick: actions.startFirstHalf }, "START 1ST HALF")
+          h("button", { class: "btn pri", onclick: actions.startFirstHalf }, "START 1ST HALF"),
+          cogButton(actions, "bot")
         )
       ),
       gameDetailsSheet(state, game, actions),
@@ -826,19 +868,20 @@ function gameScreen(state, actions) {
     noMove: true,
     nodes: [
       state.welcome ? h("div", { class: "welcome", id: "welcome" }, "Welcome back") : null,
-      clockBar(clockText(startedAtOf(game), Date.now(), halfOf(game)), game.state === "second half" ? "2ND HALF" : "1ST HALF", game, actions, actions),
+      gameHeader(clockText(startedAtOf(game), Date.now(), halfOf(game)), game.state === "second half" ? "2ND HALF" : "1ST HALF", game, actions, state),
       swapStrip(game, state, actions),
       h("div", { class: "lu" }, ...pitchAndBench(view, state, true, view.bench.length > 6, true)),
       h(
         "div",
-        { class: "acts" },
+        { class: "acts game" },
         problemLine(state.problem),
         h(
           "div",
           { class: "gr" },
           h("button", { class: "btn pri", id: "goalUs", onclick: actions.goalUs }, "GOAL - US"),
           h("button", { class: "btn", id: "goalThem", onclick: actions.goalAgainst }, "Goal against"),
-          h("button", { class: "btn eh", id: "endHalf", onclick: actions.endHalf }, "End Half")
+          h("button", { class: "btn eh", id: "endHalf", onclick: actions.endHalf }, icon("flag"), "End Half"),
+          cogButton(actions, "bot")
         )
       ),
       goalToast(state, actions),
@@ -911,14 +954,25 @@ function removeGoalSheet(state, game, actions) {
  * the message or TIME while pairs are planned. The height never changes, so the pitch and
  * bench never move. The rules for Swap, Undo and the message are unchanged.
  */
+/**
+ * What the strip says when no swap is due (Ben to choose, GDA-75). Change this one word:
+ *   "text"  - "NEXT SWAP: Not due yet" (default)
+ *   "half"  - "HALF ENDS IN 12:18" (counts down, drawClock fills it)
+ *   "quiet" - an empty white strip, no words
+ */
+const IDLE_STRIP = "text";
+const IDLE_LABEL = { text: "NEXT SWAP", half: "HALF ENDS IN", quiet: "" };
+
 function swapStrip(game, state, actions) {
   const planned = pairsOf(game).length > 0;
   const undoShown = !planned && state.undo && Date.now() < state.undo.until;
   return h(
     "div",
-    { class: "strip", id: "strip" },
+    { class: IDLE_STRIP === "quiet" ? "strip quiet" : "strip", id: "strip" },
     h("div", { class: "sl", id: "swapMsg", hidden: true }),
     h("div", { class: "sl time", id: "timeStrip", hidden: true }, h("span", { class: "big" }, "TIME")),
+    // Nothing due: a quiet note (see IDLE_STRIP), so the strip is never an empty hole (GDA-75).
+    undoShown || IDLE_STRIP === "quiet" ? null : h("div", { class: "sl idle", id: "idleMsg" }, h("div", { class: "lab" }, IDLE_LABEL[IDLE_STRIP]), h("div", { class: "val2", id: "idleVal" }, IDLE_STRIP === "half" ? "" : "Not due yet")),
     undoShown ? h("div", { class: "undo", id: "undo" }, h("span", {}, "Swap done"), h("button", { onclick: actions.undo }, "Undo")) : null,
     planned ? h("button", { class: "btn pri swp", id: "swap", onclick: actions.swap }, "Swap") : null
   );
@@ -927,9 +981,9 @@ function swapStrip(game, state, actions) {
 let lastActions = null;
 
 /**
- * Draws a dotted line for each planned pair, from the bench circle to the position,
- * with a cross where the line leaves the bench. Worked out from where the circles
- * really are, so it also follows a pair when its child moves position.
+ * Draws the remove-pair cross (x) for each planned pair, at the top of the bench, above the
+ * bench circle (GDA-75: no lines across the pitch any more; the OFF and ON tags show the pair).
+ * Worked out from where the circles really are.
  */
 export function drawPairLines(state, actions = lastActions) {
   const area = document.querySelector(".lu");
@@ -939,32 +993,20 @@ export function drawPairLines(state, actions = lastActions) {
     return;
   }
   const box = area.getBoundingClientRect();
-  const centre = (slot) => {
-    const c = slot.querySelector(".ci").getBoundingClientRect();
-    return { x: c.left + c.width / 2 - box.left, y: c.top + c.height / 2 - box.top };
-  };
   const edge = (area.querySelector(".row.live")?.getBoundingClientRect().top ?? box.bottom) - box.top;
-  let lines = "";
   const crosses = h("div", { class: "px" });
   for (const pair of pairsOf(game)) {
     const from = area.querySelector(`.row.live [data-player="${pair.benchId}"]`);
-    const to = area.querySelector(pair.fieldId !== null ? `.pitch [data-player="${pair.fieldId}"]` : `.pitch [data-place="${pair.place}"]`);
-    if (!from || !to) {
+    if (!from) {
       continue;
     }
-    const a = centre(from);
-    const b = centre(to);
-    lines += `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="#111" stroke-width="4" stroke-dasharray="3 7" stroke-linecap="round"></line>`;
-    const along = b.y === a.y ? 0.5 : (edge - a.y) / (b.y - a.y);
-    const x = Math.max(22, Math.min(box.width - 22, a.x + (b.x - a.x) * along));
+    const c = from.querySelector(".ci").getBoundingClientRect();
+    const x = Math.max(22, Math.min(box.width - 22, c.left + c.width / 2 - box.left));
     crosses.append(
       h("button", { class: "xx", "aria-label": "Remove pair", style: `left:${x}px;top:${edge}px`, onclick: () => actions.unpair(pair.benchId) }, h("span", {}, "\u00d7"))
     );
   }
-  // Parsed as HTML so the browser puts the SVG parts in the right namespace.
-  const holder = document.createElement("div");
-  holder.innerHTML = `<svg class="pl">${lines}</svg>`;
-  area.append(holder.firstChild, crosses);
+  area.append(crosses);
 }
 
 /** Moves the clock, the TIME strip and the End Half colour on, without redrawing the screen. Safe at any moment. */
@@ -977,8 +1019,16 @@ export function drawClock(state) {
     const timeUp = isTimeUp(startedAtOf(game), now, halfOf(game));
     document.getElementById("timeStrip").hidden = !timeUp; // TIME takes the message's place in the same strip.
     document.getElementById("endHalf").classList.toggle("pri", timeUp);
+    // The half progress bar along the bottom of the header card.
+    const seconds = Math.max(0, (now - startedAtOf(game)) / 1000);
+    document.getElementById("halfBar").style.width = Math.min(100, (seconds / (halfOf(game) * 60)) * 100).toFixed(1) + "%";
     drawBenchTimers(game, now);
     drawSwapMessage(game, state.players, now, timeUp);
+    const idleVal = document.getElementById("idleVal");
+    if (idleVal && IDLE_STRIP === "half") {
+      const left = Math.max(0, Math.ceil(halfOf(game) * 60 - seconds));
+      idleVal.textContent = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}`;
+    }
     // The strip never changes height, so the pair lines never need redrawing here.
   }
 }
@@ -994,10 +1044,14 @@ function drawSwapMessage(game, squad, now, timeUp) {
   const box = document.getElementById("swapMsg");
   const message = timeUp ? null : swapMessage(game, squad, now);
   const wasShown = !box.hidden;
+  const idle = document.getElementById("idleMsg");
+  if (idle) {
+    idle.hidden = !!message || timeUp; // Idle words give way to the swap message or TIME.
+  }
   if (!message) {
     box.hidden = true;
     box.textContent = "";
-    strip.className = timeUp ? "strip timeup" : "strip";
+    strip.className = (timeUp ? "strip timeup" : "strip") + (IDLE_STRIP === "quiet" ? " quiet" : "");
     return wasShown;
   }
   const name = (id) => squad.find((player) => player.id === id)?.name ?? "";
@@ -1099,7 +1153,7 @@ function halfTimeScreen(state, actions) {
     fixed: true,
     noMove: true,
     nodes: [
-      h("div", { class: "hdr ht" }, h("button", { class: "back", "aria-label": "Back", onclick: actions.backToGame }, "\u2039"), h("h1", {}, "HALF TIME"), scoreBox(game, canRemoveLastGoal(game) ? actions : null), cogButton(actions)),
+      h("div", { class: "hdr ht" }, h("button", { class: "back", "aria-label": "Back", onclick: actions.backToGame }, icon("back")), h("h1", {}, "HALF TIME"), scoreBox(game, canRemoveLastGoal(game) ? actions : null), cogButton(actions)),
       h("div", { class: "lu" }, ...pitchAndBench(view, state, true, view.bench.length > 6)),
       h("div", { class: "acts" }, problemLine(state.problem), h("button", { class: "btn pri", id: "startSecond", onclick: actions.startSecondHalf }, "Start 2nd Half")),
       removeGoalSheet(state, game, actions),
@@ -1143,7 +1197,7 @@ const SCREENS = {
 export function drawScreen(state, actions) {
   lastActions = actions;
   const view = SCREENS[state.screen](state, actions);
-  document.getElementById("screen").replaceChildren(...view.nodes);
+  document.getElementById("screen").replaceChildren(...view.nodes.filter((n) => n != null)); // GDA-79: a closed sheet is null; never print it as text
   document.getElementById("frame").className = view.fixed ? "fix" : "flow";
   document.body.classList.toggle("lock", Boolean(view.fixed));
   document.body.classList.toggle("nomove", Boolean(view.noMove));

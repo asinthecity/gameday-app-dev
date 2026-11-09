@@ -225,3 +225,22 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .sheetStatus { margin-top: 4px; }
 .sheetStatus.err { color: #b00020; }
 .btn.sheetSettings { margin-top: 6px; }
+
+/* Home tidy (GDA-69): card menus, top menu, Archive confirm, green Sent bar */
+.card .head { display: flex; align-items: stretch; gap: 8px; }
+.card .info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.menuwrap { flex: none; display: flex; align-items: flex-start; position: relative; }
+.ic { width: 48px; height: 48px; border: 2px solid #111; border-radius: 10px; background: #fff; font-size: 24px; line-height: 1; padding: 0; }
+.card { position: relative; }
+.menuCover { position: fixed; left: 0; right: 0; top: 0; bottom: 0; z-index: 10; background: transparent; }
+.pop { position: absolute; right: 10px; top: 60px; z-index: 11; background: #fff; border: 2px solid #111; border-radius: 10px; min-width: 170px; box-shadow: 0 3px 8px rgba(0, 0, 0, .35); display: none; flex-direction: column; }
+.pop.show, .cardMenu { display: flex; }
+.pop.topMenu { top: 52px; right: 0; }
+.mi { display: block; width: 100%; min-height: 48px; padding: 12px 14px; border: 0; border-bottom: 1px solid #ccc; background: #fff; font-size: 16px; text-align: left; color: #111; }
+.mi:last-child { border-bottom: 0; }
+.mi.d { color: #b00020; font-weight: 700; }
+.hdr .menuwrap { position: relative; }
+.sheetStatus.ok { background: #0a5a28; color: #fff; border-radius: 6px; padding: 10px; font-size: 18px; }
+.sheetStatus.ok b { font-size: 18px; }
+.archiveNote { margin: 0; text-align: center; }
+.archiveWarn { margin: 0; color: #b00020; font-weight: 700; border: 2px solid #b00020; border-radius: 6px; padding: 8px; }

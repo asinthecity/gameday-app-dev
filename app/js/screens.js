@@ -6,7 +6,7 @@
 
 import { hasRecord, scorerSummary, csvFileName } from "./record-rules.js";
 import { FINISHED, startedAtOf, endedAtOf, benchSeconds, benchTimerText, canCreateGame, clockText, isBenchLate, ringFraction, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, hasHadTurn, rotationOf, MIN_ROTATION, MAX_ROTATION, scoreOf, scoreText, canAddGoal, canRemoveLastGoal, fieldPlayerIds, lastGoal, US, goalsOf } from "./game-rules.js";
-import { canDeleteGame, sheetStatus } from "./sheet-rules.js";
+import { archiveWarning, canDeleteGame, sheetStatus } from "./sheet-rules.js";
 import { canSaveName, initialsFor } from "./squad-rules.js";
 
 /** Makes one element. Props starting "on" are tap or typing handlers. */
@@ -48,16 +48,40 @@ function updateCard(notice, actions) {
   return h("div", { class: "card" }, h("b", {}, notice.text), problemLine(notice.problem), button);
 }
 
-function gameCard(game, actions) {
+/** The ⋯ button in its own area, so tapping it never opens the game (GDA-69). */
+function menuButton(game, actions) {
+  return h("button", { class: "ic menuBtn", "aria-label": "Game menu", onclick: () => actions.openMenu(game.id) }, "\u22ef");
+}
+
+/** The small menu under a card's ⋯ button. A transparent cover behind it closes it when I tap away. */
+function cardMenu(game, state, actions, items) {
+  if (state.menuId !== game.id) {
+    return null;
+  }
+  return h(
+    "div",
+    {},
+    h("div", { class: "menuCover", onclick: actions.closeMenu }),
+    h("div", { class: "pop cardMenu" }, ...items)
+  );
+}
+
+function gameCard(game, state, actions) {
+  // Only a game not started has a menu (Delete). A game in progress has none.
+  const hasMenu = canDeleteGame(game);
   return h(
     "div",
     { class: "card game" },
-    h("b", {}, `vs ${game.opposition}`),
-    h("div", {}, `${formatGameDate(game.date)} · ${formatKickOff(game.kickOff)}`),
-    h("div", {}, game.venue),
-    h("button", { class: "btn", onclick: () => actions.openLineUp(game.id) }, "Line-up"),
-    // Delete sits apart from the Line-up button, and only before START 1ST HALF (GDA-66).
-    canDeleteGame(game) ? h("button", { class: "btn del deleteGame", onclick: () => actions.askDelete(game.id) }, "Delete") : null
+    h(
+      "div",
+      { class: "head" },
+      h("div", { class: "info" }, h("b", {}, `vs ${game.opposition}`), h("div", {}, `${formatGameDate(game.date)} \u00b7 ${formatKickOff(game.kickOff)}`), h("div", {}, game.venue)),
+      hasMenu ? h("div", { class: "menuwrap" }, menuButton(game, actions)) : null
+    ),
+    hasMenu
+      ? cardMenu(game, state, actions, [h("button", { class: "mi d deleteGame", onclick: () => actions.askDelete(game.id) }, "Delete")])
+      : null,
+    h("button", { class: "btn", onclick: () => actions.openLineUp(game.id) }, "Line-up")
   );
 }
 
@@ -71,7 +95,7 @@ function sheetLine(game, state, actions) {
   }
   const line = (text) => h("div", { class: "sheetStatus", "data-status": status.kind }, h("b", {}, text));
   if (status.kind === "sent") {
-    return [line("Sent to the Sheet")];
+    return [h("div", { class: "sheetStatus ok", "data-status": "sent" }, h("b", {}, "\u2713 Sent to the Sheet"))];
   }
   if (status.kind === "sending") {
     return [line("Sending\u2026")];
@@ -85,17 +109,51 @@ function sheetLine(game, state, actions) {
   ];
 }
 
-/** A finished game on Home: the result, its Sheet status and one Save file button. No history screen. */
+/** A finished game on Home: the result, its Sheet status and a ⋯ menu (Save file, Archive). No history screen. */
 function finishedCard(game, state, actions) {
   const failed = state.fileProblemFor === game.id;
   return h(
     "div",
     { class: "card finished", "data-game": game.id },
-    h("b", {}, `vs ${game.opposition} \u00b7 ${game.record.us} - ${game.record.them}`),
-    h("div", {}, `${formatGameDate(game.date)} \u00b7 Finished`),
+    h(
+      "div",
+      { class: "head" },
+      h("div", { class: "info" }, h("b", {}, `vs ${game.opposition} \u00b7 ${game.record.us} - ${game.record.them}`), h("div", {}, `${formatGameDate(game.date)} \u00b7 Finished`)),
+      h("div", { class: "menuwrap" }, menuButton(game, actions))
+    ),
+    cardMenu(game, state, actions, [
+      h("button", { class: "mi saveFile", onclick: () => actions.saveFile(game.id) }, "Save file"),
+      h("button", { class: "mi d archiveGame", onclick: () => actions.askArchive(game.id) }, "Archive"),
+    ]),
     ...sheetLine(game, state, actions),
-    failed ? h("p", { class: "problem", role: "alert" }, FILE_PROBLEM) : null,
-    h("button", { class: "btn saveFile", onclick: () => actions.saveFile(game.id) }, "Save file")
+    failed ? h("p", { class: "problem", role: "alert" }, FILE_PROBLEM) : null
+  );
+}
+
+const ARCHIVE_WARNINGS = {
+  notInSheet: "Warning: this game is not in the Sheet yet. Tap Cancel, then Send now or Save file first.",
+  noStatus: "Warning: this older game has no Sheet record. Tap Cancel and Save file first.",
+};
+
+/** "Archive v Eagles from the list?" with one confirm and, if the game is not in the Sheet, a red warning (GDA-69). */
+function archiveSheet(state, actions) {
+  const game = state.games.find((g) => g.id === state.archiveId);
+  if (!game) {
+    return null;
+  }
+  const warning = archiveWarning(game);
+  return h(
+    "div",
+    { class: "scrim", id: "archiveConfirm" },
+    h(
+      "div",
+      { class: "sheet" },
+      h("h2", {}, `Archive v ${game.opposition} from the list?`),
+      h("p", { class: "archiveNote" }, warning === null ? "It stays saved on this phone and in the Sheet." : "It stays saved on this phone."),
+      warning ? h("p", { class: "archiveWarn", role: "alert" }, ARCHIVE_WARNINGS[warning]) : null,
+      h("button", { class: "btn del", id: "confirmArchive", onclick: actions.confirmArchive }, "Archive"),
+      h("button", { class: "btn", id: "cancelArchive", onclick: actions.cancelArchive }, "Cancel")
+    )
   );
 }
 
@@ -147,18 +205,37 @@ function homeScreen(state, actions) {
   const createButton = hasPlayers
     ? h("button", { class: "btn pri big", onclick: actions.openCreateGame }, "+ Create game")
     : null;
-  const cards = state.games.filter((game) => game.state !== FINISHED).map((game) => gameCard(game, actions));
+  const cards = state.games.filter((game) => game.state !== FINISHED).map((game) => gameCard(game, state, actions));
   // Finished games with a record keep one Save file button. Old test games (no record) stay hidden.
-  const finished = state.games.filter(hasRecord).map((game) => finishedCard(game, state, actions));
-  const squadPart = hasPlayers
-    ? [h("button", { class: "btn", onclick: actions.openSquad }, `Squad (${state.players.length})`)]
+  const finished = state.games.filter((game) => hasRecord(game) && !game.archived).map((game) => finishedCard(game, state, actions));
+  const addPlayers = hasPlayers
+    ? []
     : [
         h("div", { class: "msg" }, "Add your players"),
         h("button", { class: "btn pri big", onclick: actions.addFromHome }, "+ Add players"),
       ];
+  // The ☰ menu at the top holds Squad and Sheet settings (GDA-69).
+  const topMenu = h(
+    "div",
+    { class: "menuwrap topMenuWrap" },
+    h("button", { class: "ic topMenuBtn", "aria-label": "Menu", onclick: actions.openTopMenu }, "\u2630"),
+    // The items stay in the page but hidden until ☰ is tapped.
+    h(
+      "div",
+      {},
+      state.topMenuOpen ? h("div", { class: "menuCover", onclick: actions.closeMenu }) : null,
+      h(
+        "div",
+        { class: "pop topMenu" + (state.topMenuOpen ? " show" : "") },
+        // With no players, "+ Add players" on Home does the job, so the Squad item waits until there is a squad.
+        hasPlayers ? h("button", { class: "mi squadItem", onclick: actions.openSquad }, `Squad (${state.players.length})`) : null,
+        h("button", { class: "mi sheetSettings", onclick: actions.openSheetSettings }, "Sheet settings")
+      )
+    )
+  );
   return {
     nodes: [
-      header("Game Day"),
+      header("Game Day", null, topMenu),
       h(
         "div",
         { class: "body" },
@@ -167,10 +244,10 @@ function homeScreen(state, actions) {
         createButton,
         ...cards,
         ...finished,
-        ...squadPart,
-        h("button", { class: "btn sheetSettings", onclick: actions.openSheetSettings }, "Sheet settings")
+        ...addPlayers
       ),
       deleteSheet(state, actions),
+      archiveSheet(state, actions),
     ].filter(Boolean),
   };
 }

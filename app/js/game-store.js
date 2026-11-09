@@ -4,7 +4,7 @@
 import { change, read } from "./db.js";
 import { lineUpMoved, SECOND_HALF, goalAdded, goalRemoved, lineupKey, startedSecondHalf, endedHalf, reopenedHalf, benchReordered, fieldMoved, pairPlanned, pairRemoved, swapEvent, swapUndone, swapped, gamesInOrder, halfEndCancelledEvent, halfEndEvent, halfStartEvent, movedOnto, newGame, nextCreatedOrder, positionChangeEvent, prePlaced, startedFirstHalf, withBenchOrder } from "./game-rules.js";
 import { buildRecord, gameAtFullTime } from "./record-rules.js";
-import { canDeleteGame } from "./sheet-rules.js";
+import { canDeleteGame, gameArchived } from "./sheet-rules.js";
 import { squadInOrder } from "./squad-rules.js";
 
 /** Every game, in the order Home shows them. */
@@ -291,4 +291,9 @@ export function deleteGame(db, gameId) {
       };
     };
   });
+}
+
+/** Archives ONE finished game (GDA-69): sets a flag on it. Nothing is erased, sent or changed in the Sheet. */
+export function archiveGame(db, gameId) {
+  return changeGame(db, gameId, gameArchived);
 }

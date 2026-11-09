@@ -96,3 +96,24 @@ export function canSend(game, settings) {
 export function canDeleteGame(game) {
   return game.state === "not started";
 }
+
+/** Archive is offered only on a finished game (one with a record) not already archived (GDA-69). */
+export function canArchiveGame(game) {
+  return Boolean(game.record) && !game.archived;
+}
+
+/** The game with the "archived" flag set. Nothing is erased or sent. A game that cannot be archived is returned as it is. */
+export function gameArchived(game) {
+  return canArchiveGame(game) ? { ...game, archived: true } : game;
+}
+
+/**
+ * The red warning on the Archive confirm (GDA-69): null if the game is already in the Sheet,
+ * "notInSheet" if it is not (not sent, sending, or Sheet not set up), "noStatus" for an old game with no Sheet status.
+ */
+export function archiveWarning(game) {
+  if (!game.toSend) {
+    return "noStatus";
+  }
+  return game.sentToSheet ? null : "notInSheet";
+}

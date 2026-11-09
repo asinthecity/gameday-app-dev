@@ -28,7 +28,7 @@ import {
   screenForOpening,
   withRotation,
 } from "./game-rules.js";
-import { deleteGame, markSentToSheet, addGame, addGoal, removeGoal, changeGame, endHalf, fullTime, loadGames, moveFieldPlayer, movePlayer, planPair, prePlaceGame, reopenHalf, reorderBench, startFirstHalf, startSecondHalf, swapPlayers, undoSwap, unplanPair } from "./game-store.js";
+import { archiveGame, deleteGame, markSentToSheet, addGame, addGoal, removeGoal, changeGame, endHalf, fullTime, loadGames, moveFieldPlayer, movePlayer, planPair, prePlaceGame, reopenHalf, reorderBench, startFirstHalf, startSecondHalf, swapPlayers, undoSwap, unplanPair } from "./game-store.js";
 import { cleanSheetSettings, canSend, SETTINGS_KEY } from "./sheet-rules.js";
 import { sendGameToSheet } from "./sheet-send.js";
 import { shareCsv } from "./share-file.js";
@@ -76,6 +76,9 @@ const state = {
   sheetSaved: false, // "Saved" note on the Sheet settings screen.
   sendingId: null, // The game being sent to the Sheet right now. Never saved.
   sheetProblem: {}, // gameId -> "secret" after the script refused the secret. Never saved.
+  menuId: null, // The game whose ⋯ menu is open. Never saved.
+  topMenuOpen: false, // The ☰ menu on Home. Never saved.
+  archiveId: null, // The finished game being asked about ("Archive?"). Never saved.
   deleteId: null, // The not-started game being asked about ("Delete?"). Never saved.
   updateNotice: currentUpdateNotice(),
 };
@@ -99,6 +102,9 @@ function goTo(screen) {
   state.sheetSaved = false;
   state.sheetDraft = null;
   state.deleteId = null;
+  state.menuId = null;
+  state.topMenuOpen = false;
+  state.archiveId = null;
   ignoreTapsUntil = Date.now() + TAP_PAUSE_MS;
   draw();
   window.scrollTo(0, 0);
@@ -570,7 +576,37 @@ const actions = {
     state.sheetDraft = null;
     draw();
   }),
+  openMenu: tap((gameId) => {
+    state.topMenuOpen = false;
+    state.menuId = state.menuId === gameId ? null : gameId;
+    draw();
+  }),
+  openTopMenu: tap(() => {
+    state.menuId = null;
+    state.topMenuOpen = !state.topMenuOpen;
+    draw();
+  }),
+  closeMenu: tap(() => {
+    state.menuId = null;
+    state.topMenuOpen = false;
+    draw();
+  }),
+  askArchive: tap((gameId) => {
+    state.menuId = null;
+    state.archiveId = gameId;
+    draw();
+  }),
+  cancelArchive: tap(() => {
+    state.archiveId = null;
+    draw();
+  }),
+  confirmArchive: tap(() => {
+    const gameId = state.archiveId;
+    state.archiveId = null;
+    saveThenGoTo(() => archiveGame(db, gameId), "home");
+  }),
   askDelete: tap((gameId) => {
+    state.menuId = null;
     state.deleteId = gameId;
     draw();
   }),
@@ -583,7 +619,10 @@ const actions = {
     state.deleteId = null;
     saveThenGoTo(() => deleteGame(db, gameId), "home");
   }),
-  saveFile: tap((gameId) => saveFile(gameId)),
+  saveFile: tap((gameId) => {
+    state.menuId = null; // The menu closes when I choose an item.
+    saveFile(gameId);
+  }),
   applyUpdate: tap(() => applyUpdate()),
   tryAgain: tap(() => window.location.reload()),
 };

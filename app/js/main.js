@@ -27,9 +27,11 @@ import {
   halfOf,
   withFormation,
   NOT_STARTED,
+  FINISHED,
   gameToResume,
   screenForOpening,
   withRotation,
+  withVenue,
   hereDifferences,
 } from "./game-rules.js";
 import { archiveGame, deleteGame, markSentToSheet, addGame, addGoal, removeGoal, changeGame, endHalf, fullTime, loadGames, moveFieldPlayer, movePlayer, planPair, prePlaceGame, reopenHalf, reorderBench, startFirstHalf, startSecondHalf, swapPlayers, toggleHere, undoSwap, unplanPair } from "./game-store.js";
@@ -591,6 +593,16 @@ const actions = {
     // Show the new number straight away; the save follows within milliseconds.
     state.games = state.games.map((game) => (game.id === state.gameId ? withRotation(game, minutes) : game));
     drawClock(state);
+  },
+  // GDA-88: the Home / Away / Other tag or the Field text, saved at once from the Game details sheet.
+  changeVenue: (change) => {
+    const game = openGame();
+    if (!game || game.state === FINISHED) {
+      return; // Not offered after Full Time.
+    }
+    state.games = state.games.map((g) => (g.id === game.id ? withVenue(g, change) : g));
+    changeGame(db, game.id, (g) => (g.state === FINISHED ? g : withVenue(g, change)))
+      .catch((error) => console.warn("Could not save the venue", error));
   },
   // GDA-22: a valid typed shape. Only before kick-off. Same places, so nobody moves. It is also the team's last-used shape.
   setFormation: (formation) => {

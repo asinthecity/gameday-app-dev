@@ -96,7 +96,8 @@ export function buildRecord(game, squad, events) {
   return {
     date: game.date,
     opposition: game.opposition,
-    venue: game.venue,
+    venueTag: game.venueTag ?? "",
+    venue: game.venue ?? "",
     us: score.us,
     them: score.them,
     goals: goals.map((g) => ({ side: g.side, scorer: g.side === US && g.scorerId !== null ? nameOf(g.scorerId) : null, half: g.half })),

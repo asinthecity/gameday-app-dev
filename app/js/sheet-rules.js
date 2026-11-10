@@ -45,8 +45,9 @@ export function cleanSheetSettings(urlText, secretText) {
  * (date, opposition, our score, their score, player, 1st half, 2nd half, goals, bench order).
  * No heading row. Every player of the game is in it (absent ones too).
  */
+/** GDA-88: columns 11 and 12 are the Home/Away/Other tag and the Field text (the old venue text for older games). */
 export function sheetRows(record, gameId) {
-  return record.players.map((p) => [gameId, record.date, record.opposition, record.us, record.them, p.name, p.firstHalf, p.secondHalf, p.goals, p.benchOrder ?? ""]);
+  return record.players.map((p) => [gameId, record.date, record.opposition, record.us, record.them, p.name, p.firstHalf, p.secondHalf, p.goals, p.benchOrder ?? "", record.venueTag ?? "", record.venue ?? ""]);
 }
 
 /** The text posted to the script. One game, all its rows, in one go. */

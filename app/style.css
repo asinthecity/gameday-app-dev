@@ -344,3 +344,10 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .ptile.here .pchk { background: var(--brand); border-color: var(--brand); }
 .ptile.away { border-style: dashed; background: var(--line); color: var(--muted); }
 .ptile.away .pav { filter: grayscale(1); opacity: .45; }
+
+/* GDA-88: the Home / Away / Other choice (three buttons side by side) and the cog-sheet block that holds it. */
+.vtChoice { display: flex; gap: var(--s8); }
+.vtBtn { flex: 1; min-height: var(--s52); font: inherit; font-size: var(--s17); font-weight: 700; color: var(--ink); background: var(--card); border: var(--bw-field) solid var(--outline); border-radius: var(--r-field); touch-action: manipulation; }
+.vtBtn.vtOn { background: var(--brand); border-color: var(--brand); color: var(--card); }
+.vtEditor { display: flex; flex-direction: column; gap: var(--s6); }
+.vtEditor input { min-height: var(--s52); font-family: inherit; font-size: var(--s18); color: var(--ink); background: var(--card); border: var(--bw-field) solid var(--outline); border-radius: var(--r-field); padding: var(--s10) var(--s12); }

@@ -6,7 +6,7 @@
 
 import { hasRecord, scorerSummary, csvFileName } from "./record-rules.js";
 import { trimmedLine } from "./drag.js";
-import { FINISHED, canChangeWhoIsHere, startedAtOf, endedAtOf, benchSeconds, benchTimerText, canCreateGame, clockText, isBenchLate, ringFraction, frozenRingLook, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationOf, halfOf, MIN_ROTATION, NOT_STARTED, scoreOf, scoreText, canAddGoal, canRemoveLastGoal, fieldPlayerIds, lastGoal, US, goalsOf } from "./game-rules.js";
+import { FINISHED, canChangeWhoIsHere, startedAtOf, endedAtOf, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, frozenRingLook, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationOf, halfOf, MIN_ROTATION, NOT_STARTED, scoreOf, scoreText, canAddGoal, canRemoveLastGoal, fieldPlayerIds, lastGoal, US, goalsOf } from "./game-rules.js";
 import { checkFormation, formatFormationDigits, pitchRows } from "./formation-rules.js";
 import { archiveWarning, canDeleteGame, sheetStatus } from "./sheet-rules.js";
 import { canSaveName, initialsFor } from "./squad-rules.js";
@@ -107,7 +107,7 @@ function gameCard(game, state, actions) {
     h(
       "div",
       { class: "head" },
-      h("div", { class: "info" }, h("b", {}, `vs ${game.opposition}`), h("div", {}, `${formatGameDate(game.date)} \u00b7 ${formatKickOff(game.kickOff)}`), h("div", {}, game.venue)),
+      h("div", { class: "info" }, h("b", {}, `vs ${game.opposition}`), h("div", {}, `${formatGameDate(game.date)} \u00b7 ${formatKickOff(game.kickOff)}`), h("div", {}, venueLine(game))),
       hasMenu ? h("div", { class: "menuwrap" }, menuButton(game, actions)) : null
     ),
     hasMenu
@@ -475,7 +475,7 @@ function editScreen(state, actions) {
  * One box on the New game screen. It keeps state.form up to date as it changes,
  * and marks itself Needed when left blank. Fields not reached are never marked.
  */
-function detailField(form, key, label, inputProps, onChange) {
+function detailField(form, key, label, inputProps, onChange, optional = false) {
   const needed = h("span", { class: "nw", hidden: !form.marked[key] }, "Needed");
   const input = h("input", { id: "i-" + key, ...inputProps });
   input.value = form[key];
@@ -503,7 +503,7 @@ function detailField(form, key, label, inputProps, onChange) {
   input.addEventListener("change", changed);
   input.addEventListener("focusout", () => {
     changed(); // In case a picker was cleared without reporting it.
-    if (isBlank(input.value)) {
+    if (isBlank(input.value) && !optional) {
       mark(true);
     }
   });
@@ -531,6 +531,26 @@ function rotationStepper(value, onStep, max) {
   return h("div", { class: "step" }, less, number, more);
 }
 
+/**
+ * GDA-88: the Home / Away / Other choice (three buttons, one chosen at most; none at first).
+ * `current` is the chosen tag or "". Tapping calls onPick(tag) and moves the highlight here, so the
+ * same control serves the Create game form and the Game details sheet.
+ */
+function venueTagChoice(current, onPick) {
+  const buttons = VENUE_TAGS.map((tag) =>
+    h("button", { type: "button", class: "vtBtn" + (tag === current ? " vtOn" : ""), "data-tag": tag, "aria-pressed": String(tag === current), onclick: () => choose(tag) }, tag)
+  );
+  function choose(tag) {
+    for (const button of buttons) {
+      const on = button.dataset.tag === tag;
+      button.classList.toggle("vtOn", on);
+      button.setAttribute("aria-pressed", String(on));
+    }
+    onPick(tag);
+  }
+  return h("div", { class: "vtChoice", id: "vtChoice", role: "group", "aria-label": "Home, Away or Other" }, ...buttons);
+}
+
 function createGameScreen(state, actions) {
   const form = state.form;
   const make = h(
@@ -551,7 +571,8 @@ function createGameScreen(state, actions) {
         detailField(form, "date", "Date", { type: "date" }, onChange),
         detailField(form, "kickOff", "Kick-off", { type: "time" }, onChange),
         detailField(form, "opposition", "Opposition", text, onChange),
-        detailField(form, "venue", "Venue", text, onChange),
+        h("div", { class: "f", id: "f-venueTag" }, h("div", { class: "lb" }, h("span", {}, "Home or away")), venueTagChoice(form.venueTag, (tag) => { form.venueTag = tag; onChange(); })),
+        detailField(form, "venue", "Field", { ...text, placeholder: "e.g. Field 3, Smith Park (optional)" }, onChange, true),
         h(
           "div",
           { class: "f" },
@@ -861,6 +882,25 @@ function hereDraftPicker(state, actions) {
 }
 
 /**
+ * GDA-88: change Home / Away / Other and the Field text in the Game details sheet. Each change is
+ * saved at once. An older game shows its old venue text in Field and has no tag chosen.
+ * (The sheet only opens on the game screens, never after Full Time.)
+ */
+function venueEditor(game, actions) {
+  const input = h("input", { id: "i-detField", type: "text", autocomplete: "off", autocapitalize: "words", autocorrect: "off", spellcheck: "false", placeholder: "Field (optional)" });
+  input.value = game.venue ?? "";
+  input.addEventListener("input", () => actions.changeVenue({ venue: input.value }));
+  return h(
+    "div",
+    { class: "vtEditor" },
+    h("div", { class: "lbl" }, "Home or away"),
+    venueTagChoice(game.venueTag ?? "", (tag) => actions.changeVenue({ venueTag: tag })),
+    h("div", { class: "lbl" }, "Field"),
+    input
+  );
+}
+
+/**
  * The Game details sheet (GDA-64), drawn only while open: the rotation length stepper,
  * opposition and date as read-only text, and Done. Each tap on - or + is saved at once;
  * Done only closes the sheet.
@@ -883,6 +923,7 @@ function gameDetailsSheet(state, game, actions) {
       rotationStepper(() => rotationOf(openGame(state)), actions.stepRotation, Math.min(25, halfOf(game))),
       h("div", { class: "ro", id: "detOpp" }, `Opposition: ${game.opposition}`),
       h("div", { class: "ro", id: "detDate" }, `Date: ${formatGameDate(game.date)}`),
+      venueEditor(game, actions),
       hereRow(state, game, actions),
       h("button", { class: "btn pri", id: "rotDone", onclick: actions.closeRotation }, "Done")
     )

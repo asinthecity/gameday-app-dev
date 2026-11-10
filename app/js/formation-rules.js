@@ -15,6 +15,15 @@ export function lineSizes(formation) {
 }
 
 /**
+ * GDA-83: keeps only the digits of what was typed or pasted and joins them with "-",
+ * dash only between numbers ("332" -> "3-3-2", "3-3-" -> "3-3"). Every line is 1 to 5
+ * players, so each number is one digit.
+ */
+export function formatFormationDigits(text) {
+  return (String(text ?? "").match(/\d/g) ?? []).join("-");
+}
+
+/**
  * Checks typed text against the team size. Gives { ok: true, formation } or
  * { ok: false, message } saying what is wrong.
  */

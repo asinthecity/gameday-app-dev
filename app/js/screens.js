@@ -7,7 +7,7 @@
 import { hasRecord, scorerSummary, csvFileName } from "./record-rules.js";
 import { trimmedLine } from "./drag.js";
 import { FINISHED, startedAtOf, endedAtOf, benchSeconds, benchTimerText, canCreateGame, clockText, isBenchLate, ringFraction, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationOf, halfOf, MIN_ROTATION, NOT_STARTED, scoreOf, scoreText, canAddGoal, canRemoveLastGoal, fieldPlayerIds, lastGoal, US, goalsOf } from "./game-rules.js";
-import { checkFormation, pitchRows } from "./formation-rules.js";
+import { checkFormation, formatFormationDigits, pitchRows } from "./formation-rules.js";
 import { archiveWarning, canDeleteGame, sheetStatus } from "./sheet-rules.js";
 import { canSaveName, initialsFor } from "./squad-rules.js";
 import { canSwitchTeams, deleteRefusal, deleteSummary, IN_PROGRESS_REFUSAL, LAST_TEAM_MESSAGE, LOCKED_MESSAGE, plural, UPGRADE_FAILED_MESSAGE } from "./team-rules.js";
@@ -740,10 +740,10 @@ function formationBox(game, actions) {
   const message = h("div", { class: "fmsg", id: "fmMsg", role: "alert" });
   const input = h("input", {
     id: "formation",
-    type: "text",
+    type: "text", // text (not number) so the value can hold dashes
     value: game.formation,
-    // GDA-71: a plain text keyboard, because the iPhone number keyboard has no "-".
-    inputmode: "text",
+    // GDA-83: the number keypad (it has no "-", which GDA-71 hit); the box adds the dashes itself.
+    inputmode: "numeric",
     autocomplete: "off",
     autocapitalize: "off",
     autocorrect: "off",
@@ -751,11 +751,19 @@ function formationBox(game, actions) {
     "aria-label": "Formation, defence to attack",
     disabled: locked,
   });
+  // The formation the pitch is showing now (the closed-over `game` goes stale as Ben types).
+  let shownOnPitch = game.formation;
   input.addEventListener("input", () => {
+    // Show only the digits joined by dashes; setting the value puts the caret at the end.
+    const shown = formatFormationDigits(input.value);
+    if (input.value !== shown) {
+      input.value = shown;
+    }
     const result = checkFormation(input.value, size);
     input.classList.toggle("bad", !result.ok);
-    message.textContent = result.ok ? "" : `${result.message} The pitch keeps ${game.formation}.`;
-    if (result.ok && result.formation !== game.formation) {
+    message.textContent = result.ok ? "" : `${result.message} The pitch keeps ${shownOnPitch}.`;
+    if (result.ok && result.formation !== shownOnPitch) {
+      shownOnPitch = result.formation;
       actions.setFormation(result.formation);
     }
   });

@@ -119,8 +119,11 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .fmsg:empty { display: none; }
 .ci { position: relative; flex: none; width: var(--s48); height: var(--s48); }
 .nm { width: 100%; margin-top: var(--s2); padding: 0 var(--s2); text-align: center; font-size: var(--s14); font-weight: 800; line-height: var(--s16); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* Keeper: green outer ring on the circle and "GK" after the name (GDA-75). */
-.keeper .av { box-shadow: 0 0 0 var(--s2) var(--card), 0 0 0 var(--s5) var(--brand); }
+/* Keeper (GDA-85): a small white disc with a green glove at the circle's top-left, and "GK" after the name. */
+.gkb { position: absolute; left: calc(-1 * var(--s6)); top: calc(-1 * var(--s6)); z-index: 3; width: 21px; height: 21px; border-radius: 50%; background: var(--card); color: var(--brand); box-shadow: 0 1px 3px var(--shadow); display: flex; align-items: center; justify-content: center; }
+.gkb svg { width: 15px; height: 15px; }
+.tight .gkb { width: 18px; height: 18px; left: calc(-1 * var(--s5)); top: calc(-1 * var(--s5)); }
+.tight .gkb svg { width: 13px; height: 13px; }
 .nr { display: flex; align-items: baseline; justify-content: center; gap: var(--s4); width: 100%; margin-top: var(--s2); min-width: 0; }
 .nr .nm { width: auto; min-width: 0; margin-top: 0; }
 .gk { flex: none; color: var(--brand); font-size: var(--s11); font-weight: 800; letter-spacing: .06em; }
@@ -139,8 +142,7 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .row.ab .nm { color: var(--muted); }
 .sel .av, .drop .av { border: var(--s4) solid var(--ink); box-shadow: 0 0 0 var(--s4) var(--alert); }
 .src .av { opacity: .4; }
-/* Planned swap (GDA-75): the player coming off gets a dashed outline and OFF; the one coming on gets ON. No lines. */
-.pitch .plan .av { outline: var(--s3) dashed var(--brand-bright); outline-offset: var(--s3); }
+/* Planned swap: OFF and ON tags (GDA-75) and the dotted pair line (GDA-80). No outline (GDA-85). */
 .pt { position: absolute; top: calc(-1 * var(--s8)); right: calc(-1 * var(--s14)); z-index: 3; padding: var(--s2) var(--s7); border-radius: var(--r-chip); background: var(--alert); color: var(--ink); font-size: var(--s11); font-weight: 800; letter-spacing: .04em; }
 .acts .problem { margin-bottom: var(--s6); }
 
@@ -184,17 +186,20 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .row.live.many .slot { max-width: 16.6%; }
 .row.live.many .ci { width: var(--s44); height: var(--s44); }
 .row.live.many .av { left: var(--s5); top: var(--s5); width: var(--s34); height: var(--s34); font-size: var(--s13); }
-.rg { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
-.rg circle { fill: none; stroke-width: 5; }
+/* Status rings (GDA-85): a 140px box centred on the circle; the rings sit flush against its white edge. */
+.rg, .fz { position: absolute; left: 50%; top: 50%; width: 140px; height: 140px; margin: -70px 0 0 -70px; overflow: visible; pointer-events: none; }
+.rg circle, .fz circle { fill: none; }
 .r0 { stroke: var(--line); }
 .r1 { stroke: var(--brand-bright); stroke-linecap: round; }
 .lt .r0, .lt .r1 { stroke: var(--danger); }
 .tm { font-size: var(--s13); font-weight: 700; line-height: var(--s14); color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .lt .tm { color: var(--danger); }
-/* Frozen bench rings on a pitch circle (GDA-80): a 100px box centred on the circle, rings drawn outside it. Late stints stay red. */
-.fz { position: absolute; z-index: -1; left: 50%; top: 50%; width: 100px; height: 100px; margin: -50px 0 0 -50px; overflow: visible; pointer-events: none; }
-.fz circle { fill: none; stroke-width: 2; }
-.fz .r1.late { stroke: var(--danger); }
+/* Frozen bench rings on a pitch circle (GDA-80/85): same slot as the live ring but paler (white track, softened
+   arcs) so they read as stopped. Late stints stay red. */
+.fz { z-index: -1; }
+.fz .r0 { stroke: rgba(31, 41, 55, .16); }
+.fz .r1 { stroke: var(--brand-bright); stroke-opacity: .55; stroke-linecap: butt; }
+.fz .r1.late { stroke: var(--danger); stroke-opacity: .55; }
 .turn { position: absolute; right: calc(-1 * var(--s7)); bottom: calc(-1 * var(--s5)); z-index: 2; width: var(--s22); height: var(--s22); border-radius: 50%; background: var(--ink); color: var(--card); border: var(--s2) solid var(--card); font-size: var(--s12); font-weight: 800; line-height: var(--s18); text-align: center; }
 
 /* Rotation chip, stepper and sheet (GDA-32) */

@@ -19,6 +19,8 @@ const ICONS = {
   // Back arrow (GDA-75) and End half flag.
   back: ["M15 5l-7 7 7 7"],
   flag: ["M6 21V4", "M6 5h11l-2.5 4 2.5 4H6"],
+  // Goalkeeper glove (GDA-85): three fingers, a thumb and a cuff.
+  glove: ["M9 13V6.5a1.5 1.5 0 0 1 3 0V11", "M12 11V5a1.5 1.5 0 0 1 3 0v6", "M15 11V6.5a1.5 1.5 0 0 1 3 0V15c0 3-2 5-5 5h-1.5c-2 0-3-1-4-2.5l-3-4.5a1.5 1.5 0 0 1 2.4-1.8L9 13", "M8.5 22h8"],
 };
 function icon(name) {
   // The HTML parser makes a real SVG element from this text; no web address is needed.
@@ -577,7 +579,7 @@ function createGameScreen(state, actions) {
  * here: drag.js reads data-player and data-place, so a tap and a drag take one
  * path. Slots without them, on the before-kick-off screen, do nothing.
  */
-function playerSlot(player, state, canMove, isKeeper = false, benchTimer = false, onPitch = false) {
+function playerSlot(player, state, canMove, isKeeper = false, benchTimer = false, onPitch = false, dims = { size: 48, weight: 4 }) {
   const game = state.screen === "game" ? openGame(state) : null;
   const plannedOff = !!game && pairsOf(game).some((pair) => pair.fieldId === player.id);
   const plannedOn = !!game && pairsOf(game).some((pair) => pair.benchId === player.id);
@@ -588,7 +590,9 @@ function playerSlot(player, state, canMove, isKeeper = false, benchTimer = false
   // GDA-80: a pitch circle of someone who has been on the bench shows one thin frozen ring per stint (this half),
   // each at how full the bench ring was when they came on. Nobody benched, no rings. (Replaces the "4m" label of GDA-29.)
   const stints = onPitch && (state.screen === "game" || state.screen === "halfTime") ? openGame(state).benchStints?.[player.id] : undefined;
-  const frozen = stints ? frozenRings(stints, rotationOf(openGame(state))) : null;
+  const frozen = stints ? frozenRings(stints, rotationOf(openGame(state)), dims) : null;
+  // Room for the rings above and below the circle so they never cover the name (one ring step is weight + 1px gap).
+  const frozenSpace = stints ? Math.min(stints.length, MAX_FROZEN_RINGS) * (dims.weight + 1) : 0;
   // A planned swap: OFF and ON tags on the circles (GDA-75), and a dotted line between them (GDA-80, drawPairLines).
   const planTag = plannedOff ? h("span", { class: "pt" }, "OFF") : plannedOn ? h("span", { class: "pt" }, "ON") : null;
   // The keeper's "GK" sits after the name (a separate span, so the name itself stays just the name).
@@ -600,47 +604,50 @@ function playerSlot(player, state, canMove, isKeeper = false, benchTimer = false
       ...(canMove ? { "data-player": player.id } : {}),
       ...(benchTimer ? { "data-bench": player.id } : {}), // Marks a timer circle; it is not draggable.
     },
-    h("div", { class: "ci" }, avatar(player), benchTimer ? ring() : null, frozen, turnMark, planTag),
+    h("div", { class: "ci", ...(frozen ? { style: `margin: ${frozenSpace}px 0` } : {}) }, avatar(player), benchTimer ? ring(dims) : null, frozen, isKeeper ? h("span", { class: "gkb", "aria-hidden": "true" }, icon("glove")) : null, turnMark, planTag),
     nameLine,
     benchTimer ? h("div", { class: "tm" }) : null // Bench time under the name; drawBenchTimers fills it.
   );
 }
 
+/**
+ * Status rings (GDA-85). One slot sits flush against the circle's white edge (the 2px border plus the 2px halo);
+ * extra rings stack outward with a 1px gap. `dims` is the circle's size and the ring weight (4px, 3px when tight).
+ * The SVG is a 140px box centred on the circle, so the rings scale with the circle and never move the layout.
+ */
+function ringCircles(dims, arcs, className) {
+  const { size, weight } = dims;
+  let out = "";
+  arcs.forEach((arc, i) => {
+    const r = size / 2 + 2 + weight / 2 + i * (weight + 1);
+    const length = 2 * Math.PI * r;
+    const dash = `${(arc.fraction * length).toFixed(1)} ${length.toFixed(1)}`;
+    out +=
+      `<circle class="r0" cx="70" cy="70" r="${r}" stroke-width="${weight}"></circle>` +
+      `<circle class="r1${arc.late ? " late" : ""}" cx="70" cy="70" r="${r}" stroke-width="${weight}" data-len="${length.toFixed(2)}" transform="rotate(-90 70 70)" stroke-dasharray="${dash}"></circle>`;
+  });
+  return `<svg class="${className}" viewBox="0 0 140 140" ${arcs.label ? `role="img" aria-label="${arcs.label}"` : 'aria-hidden="true"'}>${out}</svg>`;
+}
+
 /** The ring round a bench circle. Its fill is set by drawBenchTimers, not here. */
-const RING_LENGTH = 2 * Math.PI * 23; // matches r="23" below
-function ring() {
+function ring(dims) {
   // Parsed as HTML so the browser puts the SVG parts in the right namespace.
   const holder = document.createElement("div");
-  holder.innerHTML =
-    '<svg class="rg" viewBox="0 0 52 52">' +
-    '<circle class="r0" cx="26" cy="26" r="23"></circle>' +
-    '<circle class="r1" cx="26" cy="26" r="23" transform="rotate(-90 26 26)"></circle></svg>';
+  holder.innerHTML = ringCircles(dims, [{ fraction: 0, late: false }], "rg");
   return holder.firstChild;
 }
 
 /**
- * The frozen rings on a pitch circle (GDA-80), oldest innermost. They sit just outside the circle, so the
- * keeper's green edge and the dashed OFF outline (both hugging the circle) stay readable inside them.
- * A stint that ended late (past the rotation length, when the bench ring was red) stays red. At most
- * MAX_FROZEN_RINGS are drawn, keeping the latest: three still clear a neighbour at 3 across; more is just noise.
+ * The frozen rings on a pitch circle (GDA-80), oldest innermost, in the same slot and weight as the live bench
+ * ring (paler in CSS so they read as stopped). A stint that ended late stays red. At most MAX_FROZEN_RINGS are
+ * drawn, keeping the latest.
  */
 const MAX_FROZEN_RINGS = 3;
-const FIRST_RING_RADIUS = 33.5;
-const RING_STEP = 3.6;
-function frozenRings(stints, rotation) {
-  let rings = "";
-  stints.slice(-MAX_FROZEN_RINGS).forEach((seconds, i) => {
-    const r = FIRST_RING_RADIUS + i * RING_STEP;
-    const length = 2 * Math.PI * r;
-    const look = frozenRingLook(seconds, rotation);
-    const late = look.late ? " late" : "";
-    rings +=
-      `<circle class="r0" cx="50" cy="50" r="${r}"></circle>` +
-      `<circle class="r1${late}" cx="50" cy="50" r="${r}" transform="rotate(-90 50 50)" stroke-dasharray="${(look.fraction * length).toFixed(1)} ${length.toFixed(1)}"></circle>`;
-  });
-  // Parsed as HTML so the browser puts the SVG parts in the right namespace.
+function frozenRings(stints, rotation, dims) {
+  const arcs = stints.slice(-MAX_FROZEN_RINGS).map((seconds) => frozenRingLook(seconds, rotation));
+  arcs.label = `Times on the bench: ${stints.map(benchTimerText).join(", ")}`;
   const holder = document.createElement("div");
-  holder.innerHTML = `<svg class="fz" viewBox="0 0 100 100" role="img" aria-label="Times on the bench: ${stints.map(benchTimerText).join(", ")}">${rings}</svg>`;
+  holder.innerHTML = ringCircles(dims, arcs, "fz");
   return holder.firstChild;
 }
 
@@ -656,7 +663,9 @@ function emptySlot(place, canMove, state) {
 }
 
 function lineUpRow(title, rowClass, players, state, canMove, benchTimers = false, zone = null) {
-  const slots = players.map((player) => playerSlot(player, state, canMove, false, benchTimers));
+  // Circle size and ring weight (GDA-85): a crowded live bench has smaller circles and thinner rings.
+  const dims = rowClass.includes("many") ? { size: 34, weight: 3 } : { size: 40, weight: 4 };
+  const slots = players.map((player) => playerSlot(player, state, canMove, false, benchTimers, false, dims));
   // `zone` makes the whole row a drop target (GDA-62): "absent" or "bench", line-up screen only.
   return h("div", { class: rowClass, ...(zone ? { "data-zone": zone } : {}) }, h("span", { class: "t" }, title), ...slots);
 }
@@ -672,15 +681,20 @@ function lineUpButton(view, state, actions) {
 }
 
 /** The pitch and bench, shared by the line-up and the before-kick-off screen. */
+function openRowsTight(game) {
+  return pitchRows(game.formation).length >= 5;
+}
 function pitchAndBench(view, state, canMove, crowded, live = false) {
   const game = openGame(state);
+  const tight = crowded || openRowsTight(game);
+  const dims = tight ? { size: 40, weight: 3 } : { size: 48, weight: 4 };
   const line = (places) =>
     h(
       "div",
       { class: places.length >= 4 ? `line across${places.length}` : "line" },
       ...places.map((place) => {
         const player = view.positions[place];
-        return player ? playerSlot(player, state, canMove, place === 0, false, true) : emptySlot(place, canMove, state);
+        return player ? playerSlot(player, state, canMove, place === 0, false, true, dims) : emptySlot(place, canMove, state);
       })
     );
   // GDA-22: one row per line of the game's shape, attack at the top and goal at the bottom.
@@ -688,7 +702,7 @@ function pitchAndBench(view, state, canMove, crowded, live = false) {
   const pitch = h(
     "div",
     // Five or more rows need the smaller circles to fit.
-    { class: crowded || rows.length >= 5 ? "pitch tight" : "pitch", style: `grid-template-rows: repeat(${rows.length}, minmax(0, 1fr))` },
+    { class: tight ? "pitch tight" : "pitch", style: `grid-template-rows: repeat(${rows.length}, minmax(0, 1fr))` },
     ...rows.map(line)
   );
   if (live) {
@@ -1147,7 +1161,9 @@ function drawBenchTimers(game, now) {
   for (const slot of document.querySelectorAll(".row.live .slot[data-bench]")) {
     const seconds = benchSeconds(game, slot.dataset.bench, now);
     slot.querySelector(".tm").textContent = benchTimerText(seconds);
-    slot.querySelector(".r1").setAttribute("stroke-dasharray", `${(ringFraction(seconds, rotation) * RING_LENGTH).toFixed(1)} ${RING_LENGTH.toFixed(1)}`);
+    const arc = slot.querySelector(".r1");
+    const length = Number(arc.getAttribute("data-len"));
+    arc.setAttribute("stroke-dasharray", `${(ringFraction(seconds, rotation) * length).toFixed(1)} ${length.toFixed(1)}`);
     slot.classList.toggle("lt", isBenchLate(seconds, rotation));
   }
 }

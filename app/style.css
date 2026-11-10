@@ -322,3 +322,9 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .photoBig { width: var(--s96); height: var(--s96); }
 .photoBig .av { font-size: var(--s32); }
 .photoNote { margin: 0; font-size: var(--s13); color: var(--muted); }
+
+/* Who is here list in the Game details sheet (GDA-43): scrolls if the squad is long. */
+.heres { display: flex; flex-direction: column; gap: var(--s4); max-height: 40vh; overflow-y: auto; touch-action: pan-y; }
+.here { flex: none; display: flex; justify-content: space-between; align-items: center; min-height: var(--s44); padding: 0 var(--s12); border: 1px solid var(--line); border-radius: var(--r-card); background: var(--card); font: inherit; font-size: var(--s17); font-weight: 700; color: var(--ink); }
+.here b { font-size: var(--s15); }
+.here.off { color: var(--muted); border-style: dashed; }

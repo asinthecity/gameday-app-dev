@@ -31,7 +31,7 @@ import {
   screenForOpening,
   withRotation,
 } from "./game-rules.js";
-import { archiveGame, deleteGame, markSentToSheet, addGame, addGoal, removeGoal, changeGame, endHalf, fullTime, loadGames, moveFieldPlayer, movePlayer, planPair, prePlaceGame, reopenHalf, reorderBench, startFirstHalf, startSecondHalf, swapPlayers, undoSwap, unplanPair } from "./game-store.js";
+import { archiveGame, deleteGame, markSentToSheet, addGame, addGoal, removeGoal, changeGame, endHalf, fullTime, loadGames, moveFieldPlayer, movePlayer, planPair, prePlaceGame, reopenHalf, reorderBench, startFirstHalf, startSecondHalf, swapPlayers, toggleHere, undoSwap, unplanPair } from "./game-store.js";
 import { cleanSheetSettings, canSend, SETTINGS_KEY } from "./sheet-rules.js";
 import { sendGameToSheet } from "./sheet-send.js";
 import { shareCsv } from "./share-file.js";
@@ -604,6 +604,20 @@ const actions = {
       })
       .catch((error) => console.warn("Could not save the formation", error));
   },
+  // GDA-43: one tap on a player in the Here / Not here list, saved at once. If it does not save, nothing changes on screen.
+  toggleHere: tap(async (playerId) => {
+    try {
+      await toggleHere(db, state.gameId, playerId, Date.now());
+      state.games = await gamesNow();
+      state.undo = null; // A Swap's Undo would put the old line-up back over this change.
+      state.selectedId = null;
+      state.problem = "";
+    } catch (error) {
+      console.warn("Here / Not here did not save", error);
+      state.problem = SAVE_PROBLEM;
+    }
+    draw();
+  }),
   closeRotation: tap(() => {
     state.rotationOpen = false;
     draw();

@@ -6,7 +6,7 @@
 
 import { hasRecord, scorerSummary, csvFileName } from "./record-rules.js";
 import { trimmedLine } from "./drag.js";
-import { FINISHED, startedAtOf, endedAtOf, benchSeconds, benchTimerText, canCreateGame, clockText, isBenchLate, ringFraction, frozenRingLook, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationOf, halfOf, MIN_ROTATION, NOT_STARTED, scoreOf, scoreText, canAddGoal, canRemoveLastGoal, fieldPlayerIds, lastGoal, US, goalsOf } from "./game-rules.js";
+import { FINISHED, canChangeWhoIsHere, startedAtOf, endedAtOf, benchSeconds, benchTimerText, canCreateGame, clockText, isBenchLate, ringFraction, frozenRingLook, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationOf, halfOf, MIN_ROTATION, NOT_STARTED, scoreOf, scoreText, canAddGoal, canRemoveLastGoal, fieldPlayerIds, lastGoal, US, goalsOf } from "./game-rules.js";
 import { checkFormation, formatFormationDigits, pitchRows } from "./formation-rules.js";
 import { archiveWarning, canDeleteGame, sheetStatus } from "./sheet-rules.js";
 import { canSaveName, initialsFor } from "./squad-rules.js";
@@ -803,6 +803,30 @@ function cogButton(actions, extra = "") {
 }
 
 /**
+ * Who is here (GDA-43): every player with Here or Not here; one tap flips it. Only while the
+ * game is running (before kick-off the line-up screen does this; after Full Time it is final).
+ */
+function hereList(state, game, actions) {
+  if (!canChangeWhoIsHere(game)) {
+    return null;
+  }
+  return h(
+    "div",
+    { class: "heres", id: "hereList" },
+    h("div", { class: "lbl" }, "Who is here"),
+    ...state.players.map((player) => {
+      const here = !game.absent.includes(player.id);
+      return h(
+        "button",
+        { class: "here" + (here ? "" : " off"), "data-here": player.id, "aria-label": `${player.name}, ${here ? "here" : "not here"}. Tap to change`, onclick: () => actions.toggleHere(player.id) },
+        h("span", {}, player.name),
+        h("b", {}, here ? "Here" : "Not here")
+      );
+    })
+  );
+}
+
+/**
  * The Game details sheet (GDA-64), drawn only while open: the rotation length stepper,
  * opposition and date as read-only text, and Done. Each tap on - or + is saved at once;
  * Done only closes the sheet.
@@ -822,6 +846,7 @@ function gameDetailsSheet(state, game, actions) {
       rotationStepper(() => rotationOf(openGame(state)), actions.stepRotation, Math.min(25, halfOf(game))),
       h("div", { class: "ro", id: "detOpp" }, `Opposition: ${game.opposition}`),
       h("div", { class: "ro", id: "detDate" }, `Date: ${formatGameDate(game.date)}`),
+      hereList(state, game, actions),
       h("button", { class: "btn pri", id: "rotDone", onclick: actions.closeRotation }, "Done")
     )
   );

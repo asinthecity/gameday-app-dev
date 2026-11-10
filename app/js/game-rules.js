@@ -835,6 +835,49 @@ export function swapUndone(game, before) {
   return { ...restored, benchOrder: before.benchOrder, benchSince: before.benchSince, benchNumbers: before.benchNumbers ?? {}, benchTotals: before.benchTotals ?? {}, plannedPairs: before.plannedPairs ?? [] };
 }
 
+/**
+ * Can Ben change who is here (GDA-43)? Once the game has started, until Full Time.
+ * Before kick-off the line-up screen does it; after Full Time it is final.
+ */
+export function canChangeWhoIsHere(game) {
+  return game.state === FIRST_HALF || game.state === SECOND_HALF;
+}
+
+/**
+ * One tap on a player in the Here / Not here list (GDA-43), during a game. `game.benchOrder`
+ * must already be complete (see withBenchOrder). Gives { game, changes } or null if not allowed.
+ * - Not here -> Here: end of the bench, bench timer from 0:00 at `at`, no turn counted.
+ * - Bench -> Not here: leaves the bench; the others keep their order and timers. The time on
+ *   the bench so far is kept in benchTotals, so it is not lost if they come back.
+ * - Pitch -> Not here: the position is left empty and nobody moves in. The leaving is logged as
+ *   a move to the bench (`changes`), so the record still counts the time they played.
+ * Tapping again reverses it. A leaver's planned swap line is dropped.
+ */
+export function hereToggled(game, playerId, at) {
+  if (!canChangeWhoIsHere(game)) {
+    return null;
+  }
+  if (game.absent.includes(playerId)) {
+    const benchSince = { ...game.benchSince, [playerId]: at };
+    const order = (game.benchOrder ?? []).filter((id) => id !== playerId);
+    return { game: { ...markedBackIn(game, playerId), benchOrder: [...order, playerId], benchSince }, changes: [] };
+  }
+  const place = activePositions(game).indexOf(playerId);
+  const onBench = (game.benchOrder ?? []).includes(playerId);
+  if (place === -1 && !onBench) {
+    return null;
+  }
+  const benchTotals = { ...game.benchTotals };
+  const benchSince = { ...game.benchSince };
+  if (onBench) {
+    benchTotals[playerId] = (benchTotals[playerId] ?? 0) + benchSeconds(game, playerId, at);
+    delete benchSince[playerId];
+  }
+  const away = pairRemoved(markedAbsent(game, playerId), playerId);
+  const gone = { ...away, plannedPairs: pairsOf(away).filter((pair) => pair.fieldId !== playerId), benchTotals, benchSince };
+  return { game: gone, changes: place === -1 ? [] : [{ playerId, from: place, to: BENCH }] };
+}
+
 /** The event log entry for a Swap: one event, one time, all the players who moved. */
 export function swapEvent(gameId, changes, at, half = "firstHalf") {
   return { gameId, type: SWAP, at, half, changes };

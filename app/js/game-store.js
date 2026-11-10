@@ -2,7 +2,7 @@
 // fully saved or not changed at all. See game-rules.js for what a game holds.
 
 import { change, read } from "./db.js";
-import { isInProgress, benchStints, lineUpMoved, SECOND_HALF, goalAdded, goalRemoved, lineupKey, startedSecondHalf, endedHalf, reopenedHalf, benchReordered, fieldMoved, pairPlanned, pairRemoved, swapEvent, swapUndone, swapped, gamesInOrder, halfEndCancelledEvent, halfEndEvent, halfStartEvent, movedOnto, newGame, nextCreatedOrder, positionChangeEvent, prePlaced, startedFirstHalf, withBenchOrder } from "./game-rules.js";
+import { isInProgress, hereToggled, benchStints, lineUpMoved, SECOND_HALF, goalAdded, goalRemoved, lineupKey, startedSecondHalf, endedHalf, reopenedHalf, benchReordered, fieldMoved, pairPlanned, pairRemoved, swapEvent, swapUndone, swapped, gamesInOrder, halfEndCancelledEvent, halfEndEvent, halfStartEvent, movedOnto, newGame, nextCreatedOrder, positionChangeEvent, prePlaced, startedFirstHalf, withBenchOrder } from "./game-rules.js";
 import { buildRecord, gameAtFullTime } from "./record-rules.js";
 import { canDeleteGame, gameArchived } from "./sheet-rules.js";
 import { squadInOrder } from "./squad-rules.js";
@@ -147,6 +147,14 @@ export function moveFieldPlayer(db, gameId, playerId, spot, at) {
   return changeLive(db, gameId, (game) => {
     const moved = fieldMoved(game, playerId, spot);
     return moved && { game: moved.game, event: positionChangeEvent(gameId, moved.changes, at, lineupKey(game)) };
+  });
+}
+
+/** One tap in the Here / Not here list (GDA-43), saved at once. A player leaving the pitch is logged with the time. */
+export function toggleHere(db, gameId, playerId, at) {
+  return changeLive(db, gameId, (game) => {
+    const done = hereToggled(game, playerId, at);
+    return done && { game: done.game, event: done.changes.length > 0 ? positionChangeEvent(gameId, done.changes, at, lineupKey(game)) : undefined };
   });
 }
 

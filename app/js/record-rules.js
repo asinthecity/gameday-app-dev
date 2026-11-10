@@ -84,9 +84,12 @@ export function buildRecord(game, squad, events) {
     return null;
   }
   const isAbsent = (p) => game.absent.includes(p.id);
-  const ids = squad.filter((p) => !isAbsent(p)).map((p) => p.id);
+  // GDA-43: someone who left mid-game is in the absent list but did play, so their time is worked out too.
+  const ids = squad.map((p) => p.id);
   const first = timeInPositions(game.lineups.firstHalf.positions, ids, events, "firstHalf", game.firstHalfStartedAt, game.firstHalfEndedAt, game.formation);
   const second = timeInPositions(game.lineups.secondHalf.positions, ids, events, "secondHalf", game.secondHalfStartedAt, game.secondHalfEndedAt, game.formation);
+  // Played = was in a position at some point in that half (so a leaver who played is not "Absent").
+  const played = (half, p) => Object.keys(half.get(p.id).groups).length > 0;
   const goals = goalsOf(game);
   const nameOf = (id) => squad.find((p) => p.id === id)?.name ?? NOT_SURE;
   const score = scoreOf(game);
@@ -100,11 +103,11 @@ export function buildRecord(game, squad, events) {
     // Everyone in the squad, once. Absent players keep their row (0 goals as they never played).
     players: squad.map((p) => ({
       name: p.name,
-      firstHalf: isAbsent(p) ? ABSENT_NAME : halfPosition(first.get(p.id), game.formation),
-      secondHalf: isAbsent(p) ? ABSENT_NAME : halfPosition(second.get(p.id), game.formation),
+      firstHalf: isAbsent(p) && !played(first, p) ? ABSENT_NAME : halfPosition(first.get(p.id), game.formation),
+      secondHalf: isAbsent(p) && !played(second, p) ? ABSENT_NAME : halfPosition(second.get(p.id), game.formation),
       goals: goals.filter((g) => g.side === US && g.scorerId === p.id).length,
       // GDA-56: the bench-order number, or blank if never off the bench (absent players too).
-      benchOrder: isAbsent(p) ? "" : game.benchNumbers?.[p.id] ?? "",
+      benchOrder: isAbsent(p) && !played(first, p) && !played(second, p) ? "" : game.benchNumbers?.[p.id] ?? "",
     })),
   };
 }

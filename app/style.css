@@ -324,7 +324,23 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .photoNote { margin: 0; font-size: var(--s13); color: var(--muted); }
 
 /* Who is here list in the Game details sheet (GDA-43): scrolls if the squad is long. */
-.heres { display: flex; flex-direction: column; gap: var(--s4); max-height: 40vh; overflow-y: auto; touch-action: pan-y; }
-.here { flex: none; display: flex; justify-content: space-between; align-items: center; min-height: var(--s44); padding: 0 var(--s12); border: 1px solid var(--line); border-radius: var(--r-card); background: var(--card); font: inherit; font-size: var(--s17); font-weight: 700; color: var(--ink); }
-.here b { font-size: var(--s15); }
-.here.off { color: var(--muted); border-style: dashed; }
+/* Who is here row and the reusable player picker (GDA-43). */
+.prow-link { display: flex; justify-content: space-between; align-items: center; min-height: var(--s60); padding: 0 var(--s14); border: 0; border-radius: var(--r-card); background: var(--line); box-shadow: inset 0 0 0 var(--s2) var(--brand); font: inherit; font-size: var(--s17); font-weight: 700; color: var(--ink); text-align: left; }
+.sheet.picker { height: calc(100% - var(--s56)); gap: 0; padding: 0; }
+.phead { flex: none; display: flex; align-items: center; gap: var(--s8); padding: var(--s16) var(--s12) var(--s10); border-bottom: 1.5px solid var(--line); }
+.phead h2 { flex: 1; margin: 0; text-align: left; }
+.phead small { display: block; font-size: var(--s14); font-weight: 700; color: var(--muted); }
+.pkx { flex: none; width: var(--s48); height: var(--s48); border: 0; border-radius: var(--r-button); background: var(--line); font: inherit; font-size: var(--s22); font-weight: 800; color: var(--ink); }
+.pgrid { flex: 1; min-height: 0; overflow-y: auto; touch-action: pan-y; padding: var(--s12) var(--s10); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s8); align-content: start; }
+.pfoot { flex: none; display: flex; gap: var(--s8); padding: var(--s10) var(--s12) calc(var(--s14) + env(safe-area-inset-bottom)); border-top: 1.5px solid var(--line); background: var(--card); }
+.pfoot .btn { min-height: var(--s60); font-size: var(--s18); }
+.pfoot .btn.pri { flex: 1; }
+.pfoot .btn:not(.pri) { flex: none; width: var(--s110); }
+.ptile { position: relative; height: var(--s94); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s5); padding: var(--s4); border: var(--s2) solid var(--outline); border-radius: var(--r-card); background: var(--card); font: inherit; color: var(--ink); }
+.pav { width: var(--s52); height: var(--s52); flex: none; }
+.pnm { font-size: var(--s16); font-weight: 800; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pchk { position: absolute; top: var(--s5); right: var(--s5); width: var(--s26); height: var(--s26); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: var(--s16); font-weight: 900; border: var(--s2) solid var(--muted); background: var(--card); color: var(--card); }
+.ptile.here { border: var(--s4) solid var(--brand); background: #E8F4EA; }
+.ptile.here .pchk { background: var(--brand); border-color: var(--brand); }
+.ptile.away { border-style: dashed; background: var(--line); color: var(--muted); }
+.ptile.away .pav { filter: grayscale(1); opacity: .45; }

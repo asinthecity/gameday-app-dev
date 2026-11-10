@@ -30,6 +30,7 @@ import {
   gameToResume,
   screenForOpening,
   withRotation,
+  hereDifferences,
 } from "./game-rules.js";
 import { archiveGame, deleteGame, markSentToSheet, addGame, addGoal, removeGoal, changeGame, endHalf, fullTime, loadGames, moveFieldPlayer, movePlayer, planPair, prePlaceGame, reopenHalf, reorderBench, startFirstHalf, startSecondHalf, swapPlayers, toggleHere, undoSwap, unplanPair } from "./game-store.js";
 import { cleanSheetSettings, canSend, SETTINGS_KEY } from "./sheet-rules.js";
@@ -72,6 +73,7 @@ const state = {
   photos: {}, // playerId -> small photo, kept on this phone only (GDA-52).
   addCameFrom: "home",
   showRemoveWarning: false,
+  hereDraft: null, // GDA-43: the Who is here picker's unsaved draft (a Set of player ids), or null when closed.
   rotationOpen: false, // The rotation stepper sheet on the ready and game screens.
   welcome: false, // The "Welcome back" banner after a restart. Never saved.
   goalToast: null, // After a goal, for about 5 seconds: { goalId, text, until }. Never saved.
@@ -148,6 +150,7 @@ function goTo(screen) {
   state.problem = "";
   state.showRemoveWarning = false;
   state.rotationOpen = false;
+  state.hereDraft = null;
   state.selectedId = null;
   state.undo = null;
   state.goalToast = null;
@@ -604,22 +607,54 @@ const actions = {
       })
       .catch((error) => console.warn("Could not save the formation", error));
   },
-  // GDA-43: one tap on a player in the Here / Not here list, saved at once. If it does not save, nothing changes on screen.
-  toggleHere: tap(async (playerId) => {
-    try {
-      await toggleHere(db, state.gameId, playerId, Date.now());
-      state.games = await gamesNow();
-      state.undo = null; // A Swap's Undo would put the old line-up back over this change.
-      state.selectedId = null;
-      state.problem = "";
-    } catch (error) {
-      console.warn("Here / Not here did not save", error);
-      state.problem = SAVE_PROBLEM;
-    }
-    draw();
-  }),
   closeRotation: tap(() => {
     state.rotationOpen = false;
+    state.hereDraft = null;
+    draw();
+  }),
+  // GDA-43 picker: the draft is the set of players ticked as here. Nothing is saved until Done.
+  openHere: tap(() => {
+    const game = openGame();
+    state.hereDraft = new Set(state.players.filter((p) => !game.absent.includes(p.id)).map((p) => p.id));
+    draw();
+  }),
+  toggleHereDraft: (playerId) => {
+    if (!state.hereDraft) {
+      return;
+    }
+    const grid = document.querySelector(".pgrid");
+    const scrolled = grid ? grid.scrollTop : 0;
+    state.hereDraft.has(playerId) ? state.hereDraft.delete(playerId) : state.hereDraft.add(playerId);
+    draw();
+    const again = document.querySelector(".pgrid"); // draw() rebuilds the grid; keep its scroll place
+    if (again) {
+      again.scrollTop = scrolled;
+    }
+  },
+  cancelHere: tap(() => {
+    state.hereDraft = null;
+    draw();
+  }),
+  // Done: each changed player goes through the same toggleHere rules, then back to the Game details sheet.
+  doneHere: tap(async () => {
+    const draft = state.hereDraft;
+    state.hereDraft = null;
+    try {
+      const ids = hereDifferences(openGame(), state.players.map((p) => p.id), draft);
+      for (const id of ids) {
+        await toggleHere(db, state.gameId, id, Date.now());
+        state.games = await gamesNow();
+      }
+      if (ids.length > 0) {
+        state.undo = null; // A Swap's Undo would put the old line-up back over this change.
+        state.selectedId = null;
+      }
+      state.problem = "";
+    } catch (error) {
+      console.warn("Who is here did not save", error);
+      state.games = await gamesNow();
+      state.problem = SAVE_PROBLEM;
+    }
     draw();
   }),
   backToLineUp: tap(() => goTo("lineUp")),

@@ -844,6 +844,14 @@ export function canChangeWhoIsHere(game) {
 }
 
 /**
+ * The picker's Done (GDA-43): which players need toggling so the game matches the draft.
+ * `hereIds` is the set of players ticked as here. Gives ids in squad order, only those that differ.
+ */
+export function hereDifferences(game, squadIds, hereIds) {
+  return squadIds.filter((id) => hereIds.has(id) === game.absent.includes(id));
+}
+
+/**
  * One tap on a player in the Here / Not here list (GDA-43), during a game. `game.benchOrder`
  * must already be complete (see withBenchOrder). Gives { game, changes } or null if not allowed.
  * - Not here -> Here: end of the bench, bench timer from 0:00 at `at`, no turn counted.

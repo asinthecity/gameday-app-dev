@@ -803,27 +803,61 @@ function cogButton(actions, extra = "") {
 }
 
 /**
- * Who is here (GDA-43): every player with Here or Not here; one tap flips it. Only while the
- * game is running (before kick-off the line-up screen does this; after Full Time it is final).
+ * Who is here (GDA-43): one row in the Game details sheet, "Who is here - N of M", that opens the
+ * player picker. Only while the game is running (before kick-off the line-up screen does this).
  */
-function hereList(state, game, actions) {
+function hereRow(state, game, actions) {
   if (!canChangeWhoIsHere(game)) {
     return null;
   }
+  const here = state.players.filter((p) => !game.absent.includes(p.id)).length;
+  return h("button", { class: "prow-link", id: "hereRow", onclick: actions.openHere }, h("span", {}, `Who is here \u00b7 ${here} of ${state.players.length}`), h("span", {}, "\u203a"));
+}
+
+/**
+ * A reusable player picker pop-up (GDA-43; Who scored can use it later). Fixed title and footer,
+ * only the grid scrolls. `selected` is a Set of player ids. multi = ticks (here / absent); single =
+ * one tap picks and finishes. Taps call onToggle(id); the caller keeps the draft.
+ */
+export function playerPicker({ title, subtitle, players, selected, multi, doneLabel, onToggle, onDone, onCancel }) {
+  const tile = (player) => {
+    const on = selected.has(player.id);
+    return h(
+      "button",
+      { class: "ptile" + (multi ? (on ? " here" : " away") : ""), "data-here": player.id, "aria-pressed": multi ? String(on) : undefined, "aria-label": multi ? `${player.name}, ${on ? "here" : "absent"}` : player.name, onclick: () => onToggle(player.id) },
+      h("span", { class: "pav" }, avatar(player)),
+      h("span", { class: "pnm" }, player.name),
+      multi ? h("span", { class: "pchk" }, on ? "\u2713" : "") : null
+    );
+  };
   return h(
     "div",
-    { class: "heres", id: "hereList" },
-    h("div", { class: "lbl" }, "Who is here"),
-    ...state.players.map((player) => {
-      const here = !game.absent.includes(player.id);
-      return h(
-        "button",
-        { class: "here" + (here ? "" : " off"), "data-here": player.id, "aria-label": `${player.name}, ${here ? "here" : "not here"}. Tap to change`, onclick: () => actions.toggleHere(player.id) },
-        h("span", {}, player.name),
-        h("b", {}, here ? "Here" : "Not here")
-      );
-    })
+    { class: "scrim", id: "pickerSheet" },
+    h(
+      "div",
+      { class: "sheet picker" },
+      h("div", { class: "phead" }, h("h2", {}, title, subtitle ? h("small", { id: "pickerSub" }, subtitle) : null), h("button", { class: "pkx", id: "pickerX", "aria-label": "Cancel", onclick: onCancel }, "\u00d7")),
+      h("div", { class: "pgrid" }, ...players.map(tile)),
+      h("div", { class: "pfoot" }, h("button", { class: "btn", id: "pickerCancel", onclick: onCancel }, "Cancel"), multi ? h("button", { class: "btn pri", id: "pickerDone", onclick: onDone }, doneLabel) : null)
+    )
   );
+}
+
+/** The Who is here picker, drawn while state.hereDraft is open. */
+function hereDraftPicker(state, actions) {
+  const n = state.hereDraft.size;
+  const total = state.players.length;
+  return playerPicker({
+    title: "Who is here?",
+    subtitle: `${n} here \u00b7 ${total - n} absent`,
+    players: state.players,
+    selected: state.hereDraft,
+    multi: true,
+    doneLabel: `Done \u00b7 ${n} here`,
+    onToggle: actions.toggleHereDraft,
+    onDone: actions.doneHere,
+    onCancel: actions.cancelHere,
+  });
 }
 
 /**
@@ -834,6 +868,9 @@ function hereList(state, game, actions) {
 function gameDetailsSheet(state, game, actions) {
   if (!state.rotationOpen) {
     return null;
+  }
+  if (state.hereDraft) {
+    return hereDraftPicker(state, actions);
   }
   return h(
     "div",
@@ -846,7 +883,7 @@ function gameDetailsSheet(state, game, actions) {
       rotationStepper(() => rotationOf(openGame(state)), actions.stepRotation, Math.min(25, halfOf(game))),
       h("div", { class: "ro", id: "detOpp" }, `Opposition: ${game.opposition}`),
       h("div", { class: "ro", id: "detDate" }, `Date: ${formatGameDate(game.date)}`),
-      hereList(state, game, actions),
+      hereRow(state, game, actions),
       h("button", { class: "btn pri", id: "rotDone", onclick: actions.closeRotation }, "Done")
     )
   );

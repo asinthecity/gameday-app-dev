@@ -6,7 +6,7 @@
 
 import { hasRecord, scorerSummary, csvFileName } from "./record-rules.js";
 import { trimmedLine } from "./drag.js";
-import { FINISHED, startedAtOf, endedAtOf, benchSeconds, benchTimerText, canCreateGame, clockText, isBenchLate, ringFraction, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationOf, halfOf, MIN_ROTATION, NOT_STARTED, scoreOf, scoreText, canAddGoal, canRemoveLastGoal, fieldPlayerIds, lastGoal, US, goalsOf } from "./game-rules.js";
+import { FINISHED, startedAtOf, endedAtOf, benchSeconds, benchTimerText, canCreateGame, clockText, isBenchLate, ringFraction, frozenRingLook, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationOf, halfOf, MIN_ROTATION, NOT_STARTED, scoreOf, scoreText, canAddGoal, canRemoveLastGoal, fieldPlayerIds, lastGoal, US, goalsOf } from "./game-rules.js";
 import { checkFormation, formatFormationDigits, pitchRows } from "./formation-rules.js";
 import { archiveWarning, canDeleteGame, sheetStatus } from "./sheet-rules.js";
 import { canSaveName, initialsFor } from "./squad-rules.js";
@@ -632,10 +632,11 @@ function frozenRings(stints, rotation) {
   stints.slice(-MAX_FROZEN_RINGS).forEach((seconds, i) => {
     const r = FIRST_RING_RADIUS + i * RING_STEP;
     const length = 2 * Math.PI * r;
-    const late = isBenchLate(seconds, rotation) ? " late" : "";
+    const look = frozenRingLook(seconds, rotation);
+    const late = look.late ? " late" : "";
     rings +=
       `<circle class="r0" cx="50" cy="50" r="${r}"></circle>` +
-      `<circle class="r1${late}" cx="50" cy="50" r="${r}" transform="rotate(-90 50 50)" stroke-dasharray="${(ringFraction(seconds, rotation) * length).toFixed(1)} ${length.toFixed(1)}"></circle>`;
+      `<circle class="r1${late}" cx="50" cy="50" r="${r}" transform="rotate(-90 50 50)" stroke-dasharray="${(look.fraction * length).toFixed(1)} ${length.toFixed(1)}"></circle>`;
   });
   // Parsed as HTML so the browser puts the SVG parts in the right namespace.
   const holder = document.createElement("div");

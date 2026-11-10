@@ -474,6 +474,22 @@ export function isBenchLate(seconds, rotationMinutes = ROTATION_MINUTES) {
   return seconds > rotationMinutes * 60;
 }
 
+/** A finished stint within this many seconds of the rotation length counts as a full rotation (GDA-84). */
+export const FROZEN_RING_TOLERANCE_SECONDS = 60;
+
+/**
+ * How a frozen ring (a finished bench stint on a field player) looks, rounded out:
+ * within 1 minute of the rotation length (either side) = full ring, not late;
+ * over rotation + 1 minute = full and late; under rotation - 1 minute = part ring.
+ * The live bench ring and swap message do not use this.
+ */
+export function frozenRingLook(seconds, rotationMinutes = ROTATION_MINUTES) {
+  const full = rotationMinutes * 60;
+  if (seconds > full + FROZEN_RING_TOLERANCE_SECONDS) return { fraction: 1, late: true };
+  if (seconds >= full - FROZEN_RING_TOLERANCE_SECONDS) return { fraction: 1, late: false };
+  return { fraction: ringFraction(seconds, rotationMinutes), late: false };
+}
+
 /** The swap warning starts this many seconds before a bench player is due (fixed in the MVP). */
 export const WARN_SECONDS = 30;
 

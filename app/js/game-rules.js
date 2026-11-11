@@ -55,7 +55,7 @@ export function blankGameForm() {
  * `venue` on a game is now the optional "Field" text; games saved before GDA-88 keep their old
  * venue text there and have no tag, so they need no migration.
  */
-export const VENUE_TAGS = ["Home", "Away", "Other"];
+export const VENUE_TAGS = ["Home", "Away"];
 
 /** Date, kick-off, opposition and a Home / Away / Other choice are needed. Field is optional. */
 export function canCreateGame(form) {

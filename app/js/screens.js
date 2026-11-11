@@ -842,7 +842,7 @@ function hereRow(state, game, actions) {
  * only the grid scrolls. The optional gridHead, gridTail, middle and footer let Who scored add its sections. `selected` is a Set of player ids. multi = ticks (here / absent); single =
  * one tap picks and finishes. Taps call onToggle(id); the caller keeps the draft.
  */
-export function playerPicker({ title, subtitle, players, selected, multi, doneLabel, onToggle, onDone, onCancel, id = "pickerSheet", gridHead = null, gridTail = null, middle = null, footer = null }) {
+export function playerPicker({ title, subtitle, players, selected, multi, doneLabel, onToggle, onDone, onCancel, id = "pickerSheet", columns = 3, gridHead = null, gridTail = null, middle = null, footer = null }) {
   const tile = (player) => {
     const on = selected.has(player.id);
     return h(
@@ -860,7 +860,7 @@ export function playerPicker({ title, subtitle, players, selected, multi, doneLa
       "div",
       { class: "sheet picker" },
       h("div", { class: "phead" }, h("h2", {}, title, subtitle ? h("small", { id: "pickerSub" }, subtitle) : null), h("button", { class: "pkx", id: "pickerX", "aria-label": "Cancel", onclick: onCancel }, "\u00d7")),
-      h("div", { class: "pgrid" }, gridHead, ...players.map(tile), gridTail),
+      h("div", { class: "pgrid" + (columns === 4 ? " cols4" : "") }, gridHead, ...players.map(tile), gridTail),
       middle,
       footer ?? h("div", { class: "pfoot" }, h("button", { class: "btn", id: "pickerCancel", onclick: onCancel }, "Cancel"), multi ? h("button", { class: "btn pri", id: "pickerDone", onclick: onDone }, doneLabel) : null)
     )
@@ -938,14 +938,26 @@ function gameDetailsSheet(state, game, actions) {
  * always labelled. With `actions` it is a button (tap = Remove last goal, GDA-39);
  * without, it is plain text (before kick-off, nothing to remove).
  */
+let scoreFlashAt = 0;
+/** Class (and delay) for a score panel. While the flash runs, a redraw resumes the fade part-way instead of restarting it. */
+function scoreFlashProps(cls) {
+  const elapsed = Date.now() - scoreFlashAt;
+  return elapsed >= 0 && elapsed < 1500 ? { class: cls + " flash", style: `animation-delay: -${elapsed}ms` } : { class: cls };
+}
+/** Starts the pale-yellow flash on the score panel (GDA-90). Screens are redrawn often, so scoreBox keeps it going. */
+export function startScoreFlash() {
+  scoreFlashAt = Date.now();
+}
+
 function scoreBox(game, actions) {
+  const flashProps = scoreFlashProps("score");
   const score = scoreOf(game);
   const side = (label, n, id) => h("span", { class: "s" }, h("small", {}, label), h("span", { id }, String(n)));
   const parts = [side("US", score.us, "scoreUs"), h("span", { class: "dash" }, "-"), side("THEM", score.them, "scoreThem")];
   if (!actions) {
-    return h("div", { class: "score", id: "score" }, ...parts);
+    return h("div", { ...flashProps, id: "score" }, ...parts);
   }
-  return h("button", { class: "score", id: "score", "aria-label": `Score, us ${score.us}, them ${score.them}. Tap to add or undo a goal`, onclick: actions.openGoalDialog }, ...parts);
+  return h("button", { ...flashProps, id: "score", "aria-label": `Score, us ${score.us}, them ${score.them}. Tap to add or undo a goal`, onclick: actions.openGoalDialog }, ...parts);
 }
 
 /** Our crest, or a grey disc with initials for a team with no crest (the opponent, for now). */
@@ -968,8 +980,8 @@ function gameHeader(text, half, game, actions, state) {
   const row = (name, isUs, n, id) => h("span", { class: "trow" }, teamLogo(name, isUs), h("span", { class: "tn" }, name), h("span", { class: "tg", id }, String(n)));
   const rows = [row(usName, true, score.us, "scoreUs"), row(game.opposition, false, score.them, "scoreThem")];
   const teams = actions
-    ? h("button", { class: "teams", id: "score", "aria-label": `Score, ${usName} ${score.us}, ${game.opposition} ${score.them}. Tap to add or undo a goal`, onclick: actions.openGoalDialog }, ...rows)
-    : h("div", { class: "teams", id: "score" }, ...rows);
+    ? h("button", { ...scoreFlashProps("teams"), id: "score", "aria-label": `Score, ${usName} ${score.us}, ${game.opposition} ${score.them}. Tap to add or undo a goal`, onclick: actions.openGoalDialog }, ...rows)
+    : h("div", { ...scoreFlashProps("teams"), id: "score" }, ...rows);
   return h(
     "div",
     { class: "clk" },
@@ -1054,7 +1066,7 @@ function gameScreen(state, actions) {
 /**
  * "Who scored?" (GDA-90/91): the Who is here picker's tiles in single-pick mode, with a "For us" label,
  * a last tile "Their own goal", an "Against us" section and a footer with Undo last goal and Cancel.
- * One tap on a tile or the Opposition button saves a goal and closes it; Undo stays open.
+ * Every action (a goal, Undo last goal, Cancel) closes it.
  */
 function goalDialog(state, game, actions) {
   if (!state.goalOpen || !canAddGoal(game)) {
@@ -1071,6 +1083,7 @@ function goalDialog(state, game, actions) {
   );
   return playerPicker({
     id: "goalDialog",
+    columns: players.length >= 13 ? 4 : 3, // 13 or more players: 4 per row so 15 fit without scrolling (Ben, 2026-11-11)
     title: "Who scored?",
     players,
     selected: new Set(),

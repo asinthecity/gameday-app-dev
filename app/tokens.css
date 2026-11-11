@@ -12,6 +12,7 @@
   --brand: #0A5C1E;
   --brand-bright: #1E9E3A;     /* graphics only, never text */
   --alert: #FFE500;
+  --flash: #FFF6B8;            /* pale yellow flash on the score panel after a goal or undo; softer than --alert */
   --danger: #B00020;
   --pitch-a: #DDEBD5;
   --pitch-b: #E8F2E2;

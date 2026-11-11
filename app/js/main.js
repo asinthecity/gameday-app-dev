@@ -38,7 +38,7 @@ import { canSend, checkMessage, parseSetupCode, SETTINGS_KEY, sheetTabOf } from 
 import { checkSheetConnection, sendGameToSheet } from "./sheet-send.js";
 import { shareCsv } from "./share-file.js";
 import { askToKeepDataOnce } from "./persistence.js";
-import { drawClock, drawLineUpActions, drawPairLines, drawPitch, drawScreen, setPhotos } from "./screens.js";
+import { drawClock, drawLineUpActions, drawPairLines, drawPitch, drawScreen, setPhotos, startScoreFlash } from "./screens.js";
 import { shrinkPhoto } from "./photo-image.js";
 import { PHOTO_PROBLEM } from "./photo-rules.js";
 import { loadPhotos, removePhoto, savePhoto } from "./photo-store.js";
@@ -460,11 +460,13 @@ async function saveGoal(side, scorerId) {
   saving = false;
   state.problem = "";
   ignoreTapsUntil = Date.now() + TAP_PAUSE_MS; // A double tap must not land on whatever is under the closed dialog.
+  startScoreFlash();
   draw();
 }
 
-/** Undo last goal (in the dialog, which stays open): saves the removal, then draws the corrected score. */
+/** Undo last goal: saves the removal, closes the dialog, then draws the corrected score. */
 async function saveGoalRemoval(goalId) {
+  state.goalOpen = false;
   saving = true;
   try {
     await removeGoal(db, state.gameId, goalId);
@@ -479,6 +481,7 @@ async function saveGoalRemoval(goalId) {
   saving = false;
   state.problem = "";
   ignoreTapsUntil = Date.now() + TAP_PAUSE_MS; // A double tap on Undo removes one goal only.
+  startScoreFlash();
   draw();
 }
 
@@ -668,7 +671,7 @@ const actions = {
     draw();
   }),
   goalAgainst: tap(() => saveGoal(THEM, null)),
-  // GDA-91: removes the newest goal (either side); the dialog stays open.
+  // GDA-91: removes the newest goal (either side); the dialog closes.
   undoLastGoal: tap(() => {
     const goal = lastGoal(openGame());
     if (goal && canAddGoal(openGame())) {

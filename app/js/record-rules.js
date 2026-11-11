@@ -8,7 +8,6 @@
 import { OLD_FORMATION, positionNameIn } from "./formation-rules.js";
 import { BENCH, FINISHED, SECOND_HALF, SWAP, POSITION_CHANGE, goalsOf, scoreOf, US } from "./game-rules.js";
 
-export const NOT_SURE = "Not sure";
 export const BENCH_NAME = "Bench";
 export const ABSENT_NAME = "Absent";
 
@@ -91,7 +90,7 @@ export function buildRecord(game, squad, events) {
   // Played = was in a position at some point in that half (so a leaver who played is not "Absent").
   const played = (half, p) => Object.keys(half.get(p.id).groups).length > 0;
   const goals = goalsOf(game);
-  const nameOf = (id) => squad.find((p) => p.id === id)?.name ?? NOT_SURE;
+  const nameOf = (id) => squad.find((p) => p.id === id)?.name ?? null;
   const score = scoreOf(game);
   return {
     date: game.date,
@@ -121,21 +120,24 @@ export function gameAtFullTime(game, record) {
   return { ...game, state: FINISHED, record, toSend: true };
 }
 
-/** "Alex 2 · Morgan 1" and the "Not sure" count, for the Full Time screen. `goals` is [{ side, scorer }]. */
+/**
+ * "Alex 2 · Morgan 1" and the own-goal count (GDA-92), for the Full Time screen.
+ * `goals` is [{ side, scorer }]. A goal for us with no scorer is an own goal.
+ */
 export function scorerSummary(goals) {
   const counts = new Map();
-  let unsure = 0;
+  let ownGoals = 0;
   for (const goal of goals) {
     if (goal.side !== US) {
       continue;
     }
     if (goal.scorer === null) {
-      unsure += 1;
+      ownGoals += 1;
     } else {
       counts.set(goal.scorer, (counts.get(goal.scorer) ?? 0) + 1);
     }
   }
-  return { named: [...counts].map(([name, n]) => `${name} ${n}`).join(" · "), unsure };
+  return { named: [...counts].map(([name, n]) => `${name} ${n}`).join(" · "), ownGoals };
 }
 
 /** One CSV cell. Wrapped in quotes if it holds a comma, quote or line break; quotes are doubled. */

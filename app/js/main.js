@@ -12,7 +12,6 @@ import {
   canReorderBench,
   canTapLive,
   canAddGoal,
-  canRemoveLastGoal,
   lastGoal,
   THEM,
   US,
@@ -78,9 +77,7 @@ const state = {
   hereDraft: null, // GDA-43: the Who is here picker's unsaved draft (a Set of player ids), or null when closed.
   rotationOpen: false, // The rotation stepper sheet on the ready and game screens.
   welcome: false, // The "Welcome back" banner after a restart. Never saved.
-  goalToast: null, // After a goal, for about 5 seconds: { goalId, text, until }. Never saved.
-  goalSheet: false, // The "Who scored?" sheet.
-  removeOpen: false, // The "Remove last goal?" confirm.
+  goalOpen: false, // The "Who scored?" dialog (GDA-90).
   undo: null, // After Swap, for about 5 seconds: { before, eventId, until }. Never saved.
   problem: "",
   fileProblemFor: null, // The finished game whose Save file just failed.
@@ -155,9 +152,7 @@ function goTo(screen) {
   state.hereDraft = null;
   state.selectedId = null;
   state.undo = null;
-  state.goalToast = null;
-  state.goalSheet = false;
-  state.removeOpen = false;
+  state.goalOpen = false;
   state.fileProblemFor = null;
   state.sheetResult = null;
   state.sheetDraft = null;
@@ -440,13 +435,12 @@ async function saveUndo() {
 }
 
 /**
- * A goal: saved first, shown after (the score is counted from the saved goals).
- * `scorerId` is a player id, or null for "Not sure" and for a goal against. The toast
- * with Undo then shows for about 5 seconds; it is taken off the page without a redraw.
+ * A goal: saved first, shown after (the score is counted from the saved goals). The dialog closes.
+ * `scorerId` is a player id, or null for a goal against and for "Their own goal".
  */
 async function saveGoal(side, scorerId) {
   const game = openGame();
-  state.goalSheet = false;
+  state.goalOpen = false;
   if (!game || !canAddGoal(game)) {
     draw();
     return;
@@ -465,24 +459,12 @@ async function saveGoal(side, scorerId) {
   }
   saving = false;
   state.problem = "";
-  const name = state.players.find((player) => player.id === scorerId)?.name;
-  const text = side === THEM ? "Goal against" : `Goal: ${name ?? "Not sure"}`;
-  const shown = { goalId: goal.id, text, until: Date.now() + UNDO_MS };
-  state.goalToast = shown;
-  ignoreTapsUntil = Date.now() + TAP_PAUSE_MS; // The toast appears near the buttons: a double tap must not hit Undo.
+  ignoreTapsUntil = Date.now() + TAP_PAUSE_MS; // A double tap must not land on whatever is under the closed dialog.
   draw();
-  setTimeout(() => {
-    if (state.goalToast === shown) {
-      state.goalToast = null;
-      document.getElementById("goalToast")?.remove();
-    }
-  }, UNDO_MS);
 }
 
-/** Undo (the toast) or Remove last goal (the confirm): saves the removal, then draws the corrected score. */
+/** Undo last goal (in the dialog, which stays open): saves the removal, then draws the corrected score. */
 async function saveGoalRemoval(goalId) {
-  state.goalToast = null;
-  state.removeOpen = false;
   saving = true;
   try {
     await removeGoal(db, state.gameId, goalId);
@@ -496,6 +478,7 @@ async function saveGoalRemoval(goalId) {
   }
   saving = false;
   state.problem = "";
+  ignoreTapsUntil = Date.now() + TAP_PAUSE_MS; // A double tap on Undo removes one goal only.
   draw();
 }
 
@@ -672,36 +655,24 @@ const actions = {
   backToLineUp: tap(() => goTo("lineUp")),
   startFirstHalf: tap(() => startGame()),
   swap: tap(() => saveSwap()),
-  goalUs: tap(() => {
+  // GDA-90: the score header opens "Who scored?" while a half runs and at Half Time.
+  openGoalDialog: tap(() => {
     if (canAddGoal(openGame())) {
-      state.goalSheet = true;
+      state.goalOpen = true;
       draw();
     }
   }),
   chooseScorer: tap((playerId) => saveGoal(US, playerId)),
-  closeGoalSheet: tap(() => {
-    state.goalSheet = false;
+  closeGoalDialog: tap(() => {
+    state.goalOpen = false;
     draw();
   }),
   goalAgainst: tap(() => saveGoal(THEM, null)),
-  undoGoal: tap(() => state.goalToast && saveGoalRemoval(state.goalToast.goalId)),
-  openRemoveGoal: tap(() => {
-    if (canRemoveLastGoal(openGame())) {
-      state.removeOpen = true;
-      draw();
-    }
-  }),
-  closeRemoveGoal: tap(() => {
-    state.removeOpen = false;
-    draw();
-  }),
-  confirmRemoveGoal: tap(() => {
+  // GDA-91: removes the newest goal (either side); the dialog stays open.
+  undoLastGoal: tap(() => {
     const goal = lastGoal(openGame());
-    if (goal && canRemoveLastGoal(openGame())) {
+    if (goal && canAddGoal(openGame())) {
       saveGoalRemoval(goal.id);
-    } else {
-      state.removeOpen = false;
-      draw();
     }
   }),
   undo: tap(() => saveUndo()),

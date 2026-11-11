@@ -2,7 +2,7 @@
 // fully saved or not changed at all. See game-rules.js for what a game holds.
 
 import { change, read } from "./db.js";
-import { isInProgress, hereToggled, benchStints, lineUpMoved, SECOND_HALF, goalAdded, goalRemoved, lineupKey, startedSecondHalf, endedHalf, reopenedHalf, benchReordered, fieldMoved, pairPlanned, pairRemoved, swapEvent, swapUndone, swapped, gamesInOrder, halfEndCancelledEvent, halfEndEvent, halfStartEvent, movedOnto, newGame, nextCreatedOrder, positionChangeEvent, prePlaced, startedFirstHalf, withBenchOrder } from "./game-rules.js";
+import { isInProgress, hereToggled, benchStints, lineUpMoved, SECOND_HALF, goalAdded, goalRemoved, playedToday, lineupKey, startedSecondHalf, endedHalf, reopenedHalf, benchReordered, fieldMoved, pairPlanned, pairRemoved, swapEvent, swapUndone, swapped, gamesInOrder, halfEndCancelledEvent, halfEndEvent, halfStartEvent, movedOnto, newGame, nextCreatedOrder, positionChangeEvent, prePlaced, startedFirstHalf, withBenchOrder } from "./game-rules.js";
 import { buildRecord, gameAtFullTime } from "./record-rules.js";
 import { canDeleteGame, gameArchived } from "./sheet-rules.js";
 import { squadInOrder } from "./squad-rules.js";
@@ -29,6 +29,7 @@ export function loadGames(db, teamId, firstTeamId) {
       for (const game of running) {
         tx.objectStore("events").index("gameId").getAll(game.id).onsuccess = (found) => {
           game.benchStints = benchStints(game, found.target.result);
+          game.played = [...playedToday(game, found.target.result)]; // GDA-90: who the Who scored? dialog may offer, in memory only
           waiting -= 1;
           if (waiting === 0) {
             answer(games);

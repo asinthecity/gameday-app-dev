@@ -993,44 +993,106 @@ export function scoreOf(game) {
   return { us: goals.filter((goal) => goal.side === US).length, them: goals.filter((goal) => goal.side === THEM).length };
 }
 
-/** "2 - 1" style text for the score, used in the remove confirm. */
+/** "2-1" style text for the score. */
 export function scoreText(score) {
   return `${score.us}-${score.them}`;
 }
 
-/** Goals can be added only while a half is running (not before kick-off, at Half Time, after End Half or Full Time). */
+/**
+ * Goals can be added while a half is running and at Half Time (they count in the first half).
+ * Not before kick-off, and not once the game is finished. (After the second half's End Half the
+ * game is still open until FULL TIME is tapped, and Back brings the half back.)
+ */
 export function canAddGoal(game) {
-  return (game.state === FIRST_HALF || game.state === SECOND_HALF) && !isHalfEnded(game);
+  return game.state === FIRST_HALF || game.state === SECOND_HALF;
 }
 
-/** The player ids on the field right now, in position order. Only these can be offered as scorer. */
+/** The player ids on the field right now, in position order. */
 export function fieldPlayerIds(game) {
   return activePositions(game).filter((id) => id !== null && id !== undefined);
 }
 
-/** Adds a goal. `goal` is { id, side, scorerId }. Gives the game unchanged if goals are not allowed now. */
+/** Every player this game knows about: on the field, on the bench, or marked absent. */
+function gamePlayerIds(game) {
+  const ids = [];
+  for (const half of Object.values(game.lineups ?? {})) {
+    ids.push(...(half.positions ?? []));
+  }
+  ids.push(...(game.benchOrder ?? []), ...(game.benchOrderAtEndHalf ?? []), ...(game.absent ?? []));
+  return new Set(ids.filter((id) => id !== null && id !== undefined));
+}
+
+/**
+ * Who has played today (GDA-90): anyone who has been on the field since kick-off, worked out from
+ * the saved moves (a swap or a move that involves a position). Someone who played and then left
+ * is still in this list. `events` are this game's events, any order. Returns a Set of player ids.
+ */
+export function playedToday(game, events) {
+  const played = new Set(fieldPlayerIds(game));
+  const kickOff = game.firstHalfStartedAt;
+  if (typeof kickOff !== "number") {
+    return played;
+  }
+  for (const event of events) {
+    if ((event.type === SWAP || event.type === POSITION_CHANGE) && event.at >= kickOff) {
+      for (const change of event.changes ?? []) {
+        if (change.from !== BENCH || change.to !== BENCH) {
+          played.add(change.playerId);
+        }
+      }
+    }
+  }
+  return played;
+}
+
+/**
+ * The players the "Who scored?" dialog offers (GDA-90), A to Z: everyone who is here, plus anyone
+ * marked absent who has played today. `playedIds` is playedToday(), as a list or Set.
+ */
+export function scorerChoices(game, players, playedIds) {
+  const played = new Set(playedIds ?? []);
+  return players
+    .filter((p) => !game.absent.includes(p.id) || played.has(p.id))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/**
+ * Adds a goal. `goal` is { id, side, scorerId }. Gives the game unchanged if goals are not allowed now.
+ * A goal for us may be saved against any player in this game (field, bench, swapped off, left);
+ * a goal for us with no scorer is an own goal. A goal against has no scorer.
+ */
 export function goalAdded(game, goal) {
   if (!canAddGoal(game)) {
     return game;
   }
   const side = goal.side === THEM ? THEM : US;
-  const scorerId = side === US && fieldPlayerIds(game).includes(goal.scorerId) ? goal.scorerId : null;
+  const scorerId = side === US && gamePlayerIds(game).has(goal.scorerId) ? goal.scorerId : null;
   const half = game.state === SECOND_HALF ? "secondHalf" : "firstHalf";
   return { ...game, goals: [...goalsOf(game), { id: goal.id, side, scorerId, half }] };
 }
 
-/** Takes away the goal with this id (Undo on the toast). An id that is not there changes nothing. */
+/** Takes away the goal with this id (Undo last goal). An id that is not there changes nothing. */
 export function goalRemoved(game, goalId) {
   return { ...game, goals: goalsOf(game).filter((goal) => goal.id !== goalId) };
+}
+
+/**
+ * The second line of "Undo last goal" (GDA-91): who scored the newest goal and the score before it,
+ * e.g. "Ronan · 1 - 0", "Own goal · 1 - 0", "Opposition · 1 - 0". null if there are no goals.
+ * `nameOf(id)` gives a player's name (or undefined).
+ */
+export function undoLineOf(game, nameOf) {
+  const goal = lastGoal(game);
+  if (!goal) {
+    return null;
+  }
+  const before = scoreOf(goalRemoved(game, goal.id));
+  const who = goal.side === THEM ? "Opposition" : goal.scorerId === null ? "Own goal" : nameOf(goal.scorerId) ?? "Goal for us";
+  return `${who} \u00b7 ${before.us} - ${before.them}`;
 }
 
 /** The most recent goal, or null if there are none. */
 export function lastGoal(game) {
   const goals = goalsOf(game);
   return goals.length > 0 ? goals[goals.length - 1] : null;
-}
-
-/** "Remove last goal" works in any half and at Half Time, but not after Full Time, and needs a goal to remove. */
-export function canRemoveLastGoal(game) {
-  return isInProgress(game) && lastGoal(game) !== null;
 }

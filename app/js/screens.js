@@ -6,7 +6,7 @@
 
 import { hasRecord, scorerSummary, csvFileName } from "./record-rules.js";
 import { trimmedLine } from "./drag.js";
-import { FINISHED, canChangeWhoIsHere, startedAtOf, endedAtOf, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, frozenRingLook, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationOf, halfOf, MIN_ROTATION, NOT_STARTED, scoreOf, scoreText, canAddGoal, canRemoveLastGoal, fieldPlayerIds, lastGoal, US, goalsOf } from "./game-rules.js";
+import { FINISHED, canChangeWhoIsHere, startedAtOf, endedAtOf, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, frozenRingLook, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationOf, halfOf, MIN_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, goalsOf } from "./game-rules.js";
 import { checkFormation, formatFormationDigits, pitchRows } from "./formation-rules.js";
 import { archiveWarning, canDeleteGame, setupCodeOf, sheetStatus } from "./sheet-rules.js";
 import { canSaveName, initialsFor } from "./squad-rules.js";
@@ -838,11 +838,11 @@ function hereRow(state, game, actions) {
 }
 
 /**
- * A reusable player picker pop-up (GDA-43; Who scored can use it later). Fixed title and footer,
- * only the grid scrolls. `selected` is a Set of player ids. multi = ticks (here / absent); single =
+ * A reusable player picker pop-up (GDA-43; Who scored uses it too, GDA-90). Fixed title and footer,
+ * only the grid scrolls. The optional gridHead, gridTail, middle and footer let Who scored add its sections. `selected` is a Set of player ids. multi = ticks (here / absent); single =
  * one tap picks and finishes. Taps call onToggle(id); the caller keeps the draft.
  */
-export function playerPicker({ title, subtitle, players, selected, multi, doneLabel, onToggle, onDone, onCancel }) {
+export function playerPicker({ title, subtitle, players, selected, multi, doneLabel, onToggle, onDone, onCancel, id = "pickerSheet", gridHead = null, gridTail = null, middle = null, footer = null }) {
   const tile = (player) => {
     const on = selected.has(player.id);
     return h(
@@ -855,13 +855,14 @@ export function playerPicker({ title, subtitle, players, selected, multi, doneLa
   };
   return h(
     "div",
-    { class: "scrim", id: "pickerSheet" },
+    { class: "scrim", id },
     h(
       "div",
       { class: "sheet picker" },
       h("div", { class: "phead" }, h("h2", {}, title, subtitle ? h("small", { id: "pickerSub" }, subtitle) : null), h("button", { class: "pkx", id: "pickerX", "aria-label": "Cancel", onclick: onCancel }, "\u00d7")),
-      h("div", { class: "pgrid" }, ...players.map(tile)),
-      h("div", { class: "pfoot" }, h("button", { class: "btn", id: "pickerCancel", onclick: onCancel }, "Cancel"), multi ? h("button", { class: "btn pri", id: "pickerDone", onclick: onDone }, doneLabel) : null)
+      h("div", { class: "pgrid" }, gridHead, ...players.map(tile), gridTail),
+      middle,
+      footer ?? h("div", { class: "pfoot" }, h("button", { class: "btn", id: "pickerCancel", onclick: onCancel }, "Cancel"), multi ? h("button", { class: "btn pri", id: "pickerDone", onclick: onDone }, doneLabel) : null)
     )
   );
 }
@@ -944,7 +945,7 @@ function scoreBox(game, actions) {
   if (!actions) {
     return h("div", { class: "score", id: "score" }, ...parts);
   }
-  return h("button", { class: "score", id: "score", "aria-label": `Score, us ${score.us}, them ${score.them}. Tap to remove the last goal`, onclick: actions.openRemoveGoal }, ...parts);
+  return h("button", { class: "score", id: "score", "aria-label": `Score, us ${score.us}, them ${score.them}. Tap to add or undo a goal`, onclick: actions.openGoalDialog }, ...parts);
 }
 
 /** Our crest, or a grey disc with initials for a team with no crest (the opponent, for now). */
@@ -967,7 +968,7 @@ function gameHeader(text, half, game, actions, state) {
   const row = (name, isUs, n, id) => h("span", { class: "trow" }, teamLogo(name, isUs), h("span", { class: "tn" }, name), h("span", { class: "tg", id }, String(n)));
   const rows = [row(usName, true, score.us, "scoreUs"), row(game.opposition, false, score.them, "scoreThem")];
   const teams = actions
-    ? h("button", { class: "teams", id: "score", "aria-label": `Score, ${usName} ${score.us}, ${game.opposition} ${score.them}. Tap to remove the last goal`, onclick: actions.openRemoveGoal }, ...rows)
+    ? h("button", { class: "teams", id: "score", "aria-label": `Score, ${usName} ${score.us}, ${game.opposition} ${score.them}. Tap to add or undo a goal`, onclick: actions.openGoalDialog }, ...rows)
     : h("div", { class: "teams", id: "score" }, ...rows);
   return h(
     "div",
@@ -1036,16 +1037,12 @@ function gameScreen(state, actions) {
         h(
           "div",
           { class: "gr" },
-          h("button", { class: "btn pri", id: "goalUs", onclick: actions.goalUs }, "GOAL - US"),
-          h("button", { class: "btn", id: "goalThem", onclick: actions.goalAgainst }, "Goal against"),
-          h("button", { class: "btn eh", id: "endHalf", onclick: actions.endHalf }, icon("flag"), "End Half"),
+          h("button", { class: "btn eh wide", id: "endHalf", onclick: actions.endHalf }, icon("flag"), "End Half"),
           cogButton(actions, "bot")
         )
       ),
-      goalToast(state, actions),
       gameDetailsSheet(state, game, actions),
-      goalSheet(state, game, actions),
-      removeGoalSheet(state, game, actions),
+      goalDialog(state, game, actions),
     ].filter(Boolean),
     after: () => {
       drawClock(state);
@@ -1054,55 +1051,42 @@ function gameScreen(state, actions) {
   };
 }
 
-/** The toast after a goal: what happened, and Undo for about 5 seconds (GDA-37/38/39). Floats, so nothing moves. */
-function goalToast(state, actions) {
-  const toast = state.goalToast;
-  if (!toast || Date.now() >= toast.until) {
+/**
+ * "Who scored?" (GDA-90/91): the Who is here picker's tiles in single-pick mode, with a "For us" label,
+ * a last tile "Their own goal", an "Against us" section and a footer with Undo last goal and Cancel.
+ * One tap on a tile or the Opposition button saves a goal and closes it; Undo stays open.
+ */
+function goalDialog(state, game, actions) {
+  if (!state.goalOpen || !canAddGoal(game)) {
     return null;
   }
-  return h("div", { class: "toast", id: "goalToast" }, h("span", {}, toast.text), h("button", { id: "goalUndo", onclick: actions.undoGoal }, "Undo"));
-}
-
-/** "Who scored?": the players on the field now, plus Not sure. Cancel or a tap outside adds nothing. */
-function goalSheet(state, game, actions) {
-  if (!state.goalSheet || !canAddGoal(game)) {
-    return null;
-  }
-  const names = fieldPlayerIds(game).map((id) => state.players.find((player) => player.id === id)).filter(Boolean);
-  return h(
-    "div",
-    { class: "scrim goal", id: "goalSheet", onclick: (event) => event.target === event.currentTarget && actions.closeGoalSheet() },
-    h(
-      "div",
-      { class: "sheet" },
-      h("h2", {}, "Who scored?"),
-      h("div", { class: "grid" }, ...names.map((player) => h("button", { class: "btn", "data-scorer": player.id, onclick: () => actions.chooseScorer(player.id) }, player.name)), h("button", { class: "btn", id: "notSure", onclick: () => actions.chooseScorer(null) }, "Not sure")),
-      h("button", { class: "btn", id: "goalCancel", onclick: actions.closeGoalSheet }, "Cancel")
-    )
+  const label = (text) => h("div", { class: "glbl" }, text);
+  const players = scorerChoices(game, state.players, game.played);
+  const undoLine = undoLineOf(game, (id) => state.players.find((p) => p.id === id)?.name);
+  const ownGoal = h(
+    "button",
+    { class: "ptile og", id: "ownGoal", onclick: () => actions.chooseScorer(null) },
+    h("span", { class: "pav" }, h("span", { class: "av" }, "OG")),
+    h("span", { class: "pnm" }, "Their own goal")
   );
-}
-
-/** The one confirm for Remove last goal: names the goal and the new score. */
-function removeGoalSheet(state, game, actions) {
-  const goal = lastGoal(game);
-  if (!state.removeOpen || !goal) {
-    return null;
-  }
-  const score = scoreOf(game);
-  const after = { us: score.us - (goal.side === US ? 1 : 0), them: score.them - (goal.side === US ? 0 : 1) };
-  const scorer = state.players.find((player) => player.id === goal.scorerId)?.name;
-  const what = goal.side === US ? (scorer ? `${scorer}'s goal for us.` : "A goal for us (scorer not sure).") : "A goal against us.";
-  return h(
-    "div",
-    { class: "scrim goal", id: "removeSheet", onclick: (event) => event.target === event.currentTarget && actions.closeRemoveGoal() },
-    h(
+  return playerPicker({
+    id: "goalDialog",
+    title: "Who scored?",
+    players,
+    selected: new Set(),
+    multi: false,
+    onToggle: actions.chooseScorer,
+    onCancel: actions.closeGoalDialog,
+    gridHead: label("For us"),
+    gridTail: ownGoal,
+    middle: h("div", { class: "gagainst" }, label("Against us"), h("button", { class: "btn", id: "goalThem", onclick: actions.goalAgainst }, "Opposition goal")),
+    footer: h(
       "div",
-      { class: "sheet" },
-      h("h2", {}, "Remove last goal?"),
-      h("p", { class: "rmtext" }, what, h("br"), h("b", {}, `Score goes from ${scoreText(score)} to ${scoreText(after)}.`)),
-      h("div", { class: "pair" }, h("button", { class: "btn", id: "removeCancel", onclick: actions.closeRemoveGoal }, "Cancel"), h("button", { class: "btn pri", id: "removeConfirm", onclick: actions.confirmRemoveGoal }, "Remove goal"))
-    )
-  );
+      { class: "pfoot" },
+      h("button", { class: "btn grey undo2", id: "undoGoal", disabled: undoLine === null, onclick: actions.undoLastGoal }, "Undo last goal", undoLine ? h("small", { id: "undoLine" }, undoLine) : null),
+      h("button", { class: "btn", id: "goalCancel", onclick: actions.closeGoalDialog }, "Cancel")
+    ),
+  });
 }
 
 /**
@@ -1281,7 +1265,7 @@ function halfOverScreen(state, actions) {
   const game = openGame(state);
   const score = scoreOf(game);
   const nameOf = (id) => state.players.find((p) => p.id === id)?.name ?? null;
-  const { named, unsure } = scorerSummary(goalsOf(game).map((g) => ({ side: g.side, scorer: g.side === US && g.scorerId !== null ? nameOf(g.scorerId) : null })));
+  const { named, ownGoals } = scorerSummary(goalsOf(game).map((g) => ({ side: g.side, scorer: g.side === US && g.scorerId !== null ? nameOf(g.scorerId) : null })));
   return {
     nodes: [
       header("Full Time", actions.backToGame),
@@ -1290,7 +1274,7 @@ function halfOverScreen(state, actions) {
         { class: "body" },
         h("div", { class: "lbl" }, `FINAL SCORE v ${game.opposition}`),
         h("div", { class: "bigscore", id: "finalScore" }, `${score.us} - ${score.them}`),
-        h("div", { class: "card", id: "scorers" }, h("b", {}, "Scorers"), h("div", {}, named || "No goals for us"), h("div", {}, `Not sure ${unsure}`)),
+        h("div", { class: "card", id: "scorers" }, h("b", {}, "Scorers"), named || ownGoals === 0 ? h("div", {}, named || "No goals for us") : null, ownGoals > 0 ? h("div", { id: "ownGoals" }, `Own goals ${ownGoals}`) : null),
         h("p", { class: "final" }, "Cannot be reopened. Need a last goal? Tap Back first."),
         problemLine(state.problem),
         h("button", { class: "btn pri big", id: "fullTime", onclick: actions.fullTime }, "FULL TIME")
@@ -1334,10 +1318,10 @@ function halfTimeScreen(state, actions) {
     fixed: true,
     noMove: true,
     nodes: [
-      h("div", { class: "hdr ht" }, h("button", { class: "back", "aria-label": "Back", onclick: actions.backToGame }, icon("back")), h("h1", {}, "HALF TIME"), scoreBox(game, canRemoveLastGoal(game) ? actions : null), cogButton(actions)),
+      h("div", { class: "hdr ht" }, h("button", { class: "back", "aria-label": "Back", onclick: actions.backToGame }, icon("back")), h("h1", {}, "HALF TIME"), scoreBox(game, canAddGoal(game) ? actions : null), cogButton(actions)),
       h("div", { class: "lu" }, ...pitchAndBench(view, state, true, view.bench.length > 6)),
       h("div", { class: "acts" }, problemLine(state.problem), h("button", { class: "btn pri", id: "startSecond", onclick: actions.startSecondHalf }, "Start 2nd Half")),
-      removeGoalSheet(state, game, actions),
+      goalDialog(state, game, actions),
       gameDetailsSheet(state, game, actions),
     ],
   };

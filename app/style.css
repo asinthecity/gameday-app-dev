@@ -257,19 +257,13 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .gr { display: flex; gap: var(--s8); }
 .gr .btn { flex: 1; min-width: 0; height: var(--s64); min-height: var(--s64); font-size: var(--s17); line-height: 1.15; padding: 0 var(--s4); }
 .gr .btn:not(.pri):not(.eh) { border-color: var(--card); }
-.gr .btn.eh { flex: none; width: var(--s64); flex-direction: column; gap: var(--s3); padding: 0; font-size: var(--s12); }
+.gr .btn.eh.wide { flex: 1; width: auto; flex-direction: row; gap: var(--s8); padding: 0 var(--s12); font-size: var(--s18); }
+.gr .btn.eh:not(.wide) { flex: none; width: var(--s64); flex-direction: column; gap: var(--s3); padding: 0; font-size: var(--s12); }
 .gr .btn.eh svg { width: var(--s24); height: var(--s24); }
 .gr .btn.eh.pri { font-size: var(--s12); }
 .acts .pair .cog.bot { align-self: stretch; height: auto; }
-.toast { position: absolute; left: var(--s10); right: var(--s10); bottom: var(--s90); z-index: 6; display: flex; align-items: center; gap: var(--s10); padding: var(--s6) var(--s6) var(--s6) var(--s14); background: var(--ink); color: var(--card); border-radius: var(--r-field); font-size: var(--s18); font-weight: 800; }
-.toast span { flex: 1; min-width: 0; }
-.toast button { flex: none; min-width: var(--s96); min-height: var(--s48); border: var(--s2) solid var(--card); border-radius: var(--r-chip); background: transparent; color: var(--card); font-size: var(--s18); font-weight: 800; }
-.grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s8); }
-.grid .btn { min-height: var(--s56); padding: 0 var(--s4); font-size: var(--s18); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rmtext { margin: 0; text-align: center; font-size: var(--s18); }
 .sheet .pair { display: flex; gap: var(--s10); }
 .sheet .pair .btn { flex: 1; }
-.scrim.goal { top: 0; }
 
 /* Full Time and Saved (GDA-50) */
 .lbl { font-weight: 800; text-align: center; }
@@ -351,3 +345,17 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .vtBtn.vtOn { background: var(--brand); border-color: var(--brand); color: var(--card); }
 .vtEditor { display: flex; flex-direction: column; gap: var(--s6); }
 .vtEditor input { min-height: var(--s52); font-family: inherit; font-size: var(--s18); color: var(--ink); background: var(--card); border: var(--bw-field) solid var(--outline); border-radius: var(--r-field); padding: var(--s10) var(--s12); }
+
+/* Who scored? (GDA-90/91): the picker, above the score header (its z-index is 21), with two sections and a footer. */
+.scrim#goalDialog { z-index: 30; align-items: stretch; }
+#goalDialog .sheet.picker { height: 100%; border-radius: 0; }
+#goalDialog .phead { border-bottom: 0; padding-top: calc(var(--s8) + env(safe-area-inset-top)); padding-bottom: var(--s6); }
+.glbl { grid-column: 1 / -1; font-size: var(--s14); font-weight: 800; color: var(--muted); }
+.gagainst { flex: none; display: flex; flex-direction: column; gap: var(--s6); padding: var(--s10) var(--s12); border-top: 1.5px solid var(--line); }
+.gagainst .btn { min-height: var(--s60); }
+.ptile.og { border-style: dashed; }
+.ptile.og .av { background: var(--line); font-size: var(--s17); }
+.ptile.og .pnm { font-size: var(--s14); }
+.pfoot .btn.undo2 { flex: 1; width: auto; flex-direction: column; line-height: 1.15; font-size: var(--s16); }
+.pfoot .btn.undo2 small { font-size: var(--s12); font-weight: 700; color: var(--muted); }
+.pfoot .btn.undo2:disabled { opacity: .45; }

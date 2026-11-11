@@ -6,7 +6,7 @@
 
 import { hasRecord, scorerSummary, csvFileName } from "./record-rules.js";
 import { trimmedLine } from "./drag.js";
-import { FINISHED, IN_PROGRESS_PHASE, NOT_STARTED_PHASE, phaseOf, canStartHalf, canResumeHalf, halfLineUpView, nextScreen, lineupKey, canChangeWhoIsHere, startedAtOf, endedAtOf, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, frozenRingLook, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationOf, halfOf, MIN_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, goalsOf } from "./game-rules.js";
+import { FINISHED, FIRST_HALF, canPlan, IN_PROGRESS_PHASE, NOT_STARTED_PHASE, phaseOf, canStartHalf, canResumeHalf, halfLineUpView, nextScreen, lineupKey, canChangeWhoIsHere, startedAtOf, endedAtOf, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, frozenRingLook, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationOf, halfOf, MIN_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, goalsOf } from "./game-rules.js";
 import { checkFormation, formatFormationDigits, pitchRows } from "./formation-rules.js";
 import { archiveWarning, canDeleteGame, setupCodeOf, sheetStatus } from "./sheet-rules.js";
 import { canSaveName, initialsFor } from "./squad-rules.js";
@@ -871,12 +871,14 @@ function notStartedHalf(state, actions, half) {
   const main = startable
     ? h("button", { class: "btn pri main", id: "startSecond", onclick: actions.startSecondHalf }, "Start 2nd half")
     : h("button", { class: "btn main", id: "startSecond", disabled: true }, "Starts when the 1st half ends");
+  // GDA-97: the plan can be edited from before kick-off (frame 4: "Planning" while the 1st half is on) until Start 2nd half.
+  const note = game.state === FIRST_HALF && !startable ? "1st half in progress" : "plan the 2nd half";
   return {
     fixed: true,
     noMove: true,
     nodes: [
-      navBar("2nd Half", "Not started", state, actions),
-      planBody(game, view, state, actions, { editable: startable, firstHalf: false, note: startable ? "plan the 2nd half" : "1st half comes first" }),
+      navBar("2nd Half", startable ? "Not started" : "Planning", state, actions),
+      planBody(game, view, state, actions, { editable: canPlan(game), firstHalf: false, note }),
       bottomBar(state, actions, main),
       gameDetailsSheet(state, game, actions),
     ].filter(Boolean),

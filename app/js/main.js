@@ -21,6 +21,8 @@ import {
   markedBackIn,
   movedOnto,
   lineUpMoved,
+  planMoved,
+  planView,
   needsPrePlacing,
   rotationOf,
   halfOf,
@@ -30,7 +32,6 @@ import {
   gameToResume,
   screenForOpening,
   phaseOf,
-  canStartHalf,
   backScreen,
   nextScreen,
   IN_PROGRESS_PHASE,
@@ -39,7 +40,7 @@ import {
   withVenue,
   hereDifferences,
 } from "./game-rules.js";
-import { archiveGame, deleteGame, markSentToSheet, addGame, addGoal, removeGoal, changeGame, endHalf, fullTime, loadGames, moveFieldPlayer, movePlayer, planPair, prePlaceGame, reopenHalf, reorderBench, startFirstHalf, startSecondHalf, swapPlayers, toggleHere, undoSwap, unplanPair } from "./game-store.js";
+import { archiveGame, deleteGame, markSentToSheet, addGame, addGoal, removeGoal, changeGame, endHalf, fullTime, loadGames, moveFieldPlayer, movePlan, movePlayer, planPair, prePlaceGame, reopenHalf, reorderBench, reorderPlanBench, startFirstHalf, startSecondHalf, swapPlayers, toggleHere, undoSwap, unplanPair } from "./game-store.js";
 import { canSend, checkMessage, parseSetupCode, SETTINGS_KEY, sheetTabOf } from "./sheet-rules.js";
 import { checkSheetConnection, sendGameToSheet } from "./sheet-send.js";
 import { shareCsv } from "./share-file.js";
@@ -867,8 +868,9 @@ const actions = {
 
 // Which way the circles on the current screen work (GDA-95):
 //   "live"  - a half In progress: plan a swap pair, move a field player, re-order the bench.
-//   "edit"  - a half Not started that can be planned: the 1st half before kick-off, the 2nd half at half time.
-//   null    - nothing to move (Ended halves, the 2nd half before it can be planned).
+//   "edit"  - the 1st half before kick-off.
+//   "plan"  - the 2nd half Not started (GDA-97): the 2nd-half plan, from before kick-off until Start 2nd half.
+//   null    - nothing to move (Ended halves).
 function circleMode() {
   const half = screenHalf(state.screen);
   const game = half === 0 ? null : openGame();
@@ -879,24 +881,35 @@ function circleMode() {
   if (phase === IN_PROGRESS_PHASE) {
     return "live";
   }
-  return phase === NOT_STARTED_PHASE && (half === 1 || canStartHalf(game, 2)) ? "edit" : null;
+  if (phase !== NOT_STARTED_PHASE) {
+    return null;
+  }
+  return half === 1 ? "edit" : "plan";
 }
 const isLiveScreen = () => circleMode() === "live";
 
 // Taps and drags on the line-up's circles. See drag.js.
+// On the plan the rules run on the plan view (GDA-97), so they never touch the running half.
+const onPlan = () => circleMode() === "plan";
+const ruleGame = () => (onPlan() ? planView(openGame(), state.players) : openGame());
+const canMoveOnLineUp = (game, id, spot) => (onPlan() ? planMoved(openGame(), id, spot, state.players) !== null : lineUpMoved(game, id, spot, state.players) !== null);
+function saveEdit(playerId, spot) {
+  return onPlan() ? saveThenShowLineUp(() => movePlan(db, state.gameId, playerId, spot)) : saveMove(playerId, spot);
+}
+function saveEditBench(playerId, targetId) {
+  return onPlan() ? saveThenShowLineUp(() => reorderPlanBench(db, state.gameId, playerId, targetId)) : saveBenchMove(playerId, targetId);
+}
 const presses = watchLineUpPresses({
   canPress: () => circleMode() !== null && readyForTaps(),
-  canDrag: (spot) => canDrag(openGame(), spot),
+  canDrag: (spot) => canDrag(ruleGame(), spot),
   canDrop: (playerId, spot) =>
-    isLiveScreen()
-      ? liveAction(openGame(), playerId, spot) !== null
-      : lineUpMoved(openGame(), playerId, spot, state.players) !== null || canReorderBench(openGame(), playerId, spot.playerId),
+    isLiveScreen() ? liveAction(openGame(), playerId, spot) !== null : canMoveOnLineUp(openGame(), playerId, spot) || canReorderBench(ruleGame(), playerId, spot.playerId),
   tapped(spot) {
     const live = isLiveScreen();
-    const outcome = live ? afterTap(openGame(), state.selectedId, spot, canTapLive) : afterTap(openGame(), state.selectedId, spot, (game, id, target) => lineUpMoved(game, id, target, state.players) !== null);
+    const outcome = live ? afterTap(openGame(), state.selectedId, spot, canTapLive) : afterTap(ruleGame(), state.selectedId, spot, canMoveOnLineUp);
     state.problem = "";
     if (outcome.move) {
-      live ? saveLive(state.selectedId, spot) : saveMove(state.selectedId, spot);
+      live ? saveLive(state.selectedId, spot) : saveEdit(state.selectedId, spot);
     } else {
       state.selectedId = outcome.selectedId;
       draw();
@@ -913,10 +926,10 @@ const presses = watchLineUpPresses({
   dropped(playerId, spot) {
     if (isLiveScreen()) {
       spot ? saveLive(playerId, spot) : draw();
-    } else if (spot && canReorderBench(openGame(), playerId, spot.playerId)) {
-      saveBenchMove(playerId, spot.playerId);
+    } else if (spot && canReorderBench(ruleGame(), playerId, spot.playerId)) {
+      saveEditBench(playerId, spot.playerId);
     } else if (spot) {
-      saveMove(playerId, spot);
+      saveEdit(playerId, spot);
     } else {
       draw();
     }

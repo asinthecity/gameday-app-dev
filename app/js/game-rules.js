@@ -131,12 +131,14 @@ function withFirstHalf(game, changes) {
 }
 
 /**
- * Which line-up the line-up rules work on (GDA-20): the second half's from Half Time
- * on, the first half's before that. So the first-half line-up is never touched once
- * the second half's has been made from it. (The name withFirstHalf is older than this.)
+ * Which line-up the line-up rules work on (GDA-97): the second half's while the 2nd half is
+ * being played, the first half's before that (so half time no longer switches it). The one
+ * other case is the in-memory "plan view" (see planView), which points the rules at the
+ * 2nd-half plan so planning can never touch the running 1st half.
+ * (The name withFirstHalf is older than this.)
  */
 export function lineupKey(game) {
-  return game.state === SECOND_HALF || isHalfTime(game) ? "secondHalf" : "firstHalf";
+  return game.state === SECOND_HALF || game.planView ? "secondHalf" : "firstHalf";
 }
 function activePositions(game) {
   return game.lineups[lineupKey(game)].positions;
@@ -200,19 +202,23 @@ export function lineUpView(game, squad) {
 }
 
 /**
- * What a half screen shows (GDA-95). The half being played, or the half-time plan, is the live line-up.
- * The 2nd Half screen before half time shows the 1st-half line-up as it is now (for looking at only).
- * The 1st Half screen after that half has ended shows the line-up as it finished: its own positions,
- * with the bench as it was at End Half (so half-time planning does not change what the 1st half shows).
+ * What a half screen shows (GDA-95, GDA-97).
+ * - 2nd Half before it starts: the 2nd-half plan (see planView), whether or not it has been touched.
+ * - 2nd Half once started: the running line-up.
+ * - 1st Half: the 1st-half line-up. Once the 2nd half has started, its bench is as the 1st half finished
+ *   (`firstHalfBenchOrder`), because the running bench order now belongs to the 2nd half.
  */
 export function halfLineUpView(game, squad, half) {
-  if (half === 2 || lineupKey(game) === "firstHalf") {
+  if (half === 2) {
+    return lineUpView(game.state === SECOND_HALF ? game : planView(game, squad), squad);
+  }
+  if (game.state !== SECOND_HALF) {
     return lineUpView(game, squad);
   }
   const positions = game.lineups.firstHalf.positions;
   const onBench = (id) => squad.some((player) => player.id === id) && !positions.includes(id) && !game.absent.includes(id);
   const ids = [];
-  for (const id of [...(game.benchOrderAtEndHalf ?? game.benchOrder ?? []), ...squad.map((player) => player.id)]) {
+  for (const id of [...(game.firstHalfBenchOrder ?? game.benchOrder ?? []), ...squad.map((player) => player.id)]) {
     if (onBench(id) && !ids.includes(id)) {
       ids.push(id);
     }
@@ -222,6 +228,60 @@ export function halfLineUpView(game, squad, half) {
     bench: ids.map((id) => squad.find((player) => player.id === id)),
     absent: squad.filter((player) => game.absent.includes(player.id)),
   };
+}
+
+// ---- The 2nd-half plan (GDA-97) ----
+// `lineups.secondHalf` is the plan. Its `status` is the "touched" flag: NOT_PLANNED means nobody has
+// touched it, so it simply follows the 1st half as it is now; PLANNED means Ben has moved someone or
+// re-ordered the bench on the plan, so it is a copy with its own `positions` and `benchOrder` that
+// nothing in the 1st half can change. Looking at the plan never touches it.
+
+/** Can the 2nd-half plan be edited? From before kick-off until the 2nd half starts. */
+export function canPlan(game) {
+  return game.state === NOT_STARTED || game.state === FIRST_HALF;
+}
+
+/**
+ * The game as the plan sees it, in memory only: `planView: true` points the line-up rules at the
+ * plan's positions, and `benchOrder` is the plan's bench (completed with anyone unplaced and not absent,
+ * so a late arrival is at the end). Absent players, and players no longer in the squad, show as empty places.
+ * Games saved at half time by version 42 have a plan with no bench of its own: their `benchOrder` was it.
+ */
+export function planView(game, squad) {
+  const plan = game.lineups.secondHalf;
+  const touched = plan.status === PLANNED;
+  const source = touched ? plan.positions : game.lineups.firstHalf.positions;
+  const here = (id) => id !== null && id !== undefined && !game.absent.includes(id) && squad.some((player) => player.id === id);
+  const positions = source.map((id) => (here(id) ? id : null));
+  const bench = touched ? plan.benchOrder ?? game.benchOrder : game.benchOrder;
+  const view = { ...game, planView: true, benchOrder: bench ?? [], lineups: { ...game.lineups, secondHalf: { ...plan, positions } } };
+  return { ...view, benchOrder: benchIds(view, squad) };
+}
+
+/** Writes a changed plan view back: only the plan's positions and bench, marked touched. Nothing else changes. */
+function planSaved(game, view) {
+  const before = game.lineups.secondHalf.status === PLANNED ? game.lineups.secondHalf.positions : game.lineups.firstHalf.positions;
+  // An absent player's place shows empty; if it is still empty, it stays theirs for when they come back.
+  const positions = view.lineups.secondHalf.positions.map((id, place) => (id === null && before[place] != null && game.absent.includes(before[place]) ? before[place] : id));
+  return { ...game, lineups: { ...game.lineups, secondHalf: { status: PLANNED, positions, benchOrder: view.benchOrder } } };
+}
+
+/** A move on the plan (drag or tap). Gives the changed game, or null if not allowed. Logs nothing: a plan is not something that happened. */
+export function planMoved(game, playerId, spot, squad) {
+  if (!canPlan(game) || spot.zone) {
+    return null;
+  }
+  const moved = movedOnto(planView(game, squad), playerId, spot);
+  return moved && planSaved(game, moved.game);
+}
+
+/** A bench player dragged along the plan's bench. Gives the changed game, or null if not allowed. */
+export function planBenchReordered(game, playerId, targetId, squad) {
+  if (!canPlan(game)) {
+    return null;
+  }
+  const reordered = benchReordered(planView(game, squad), playerId, targetId);
+  return reordered && planSaved(game, reordered);
 }
 
 function firstHalfWithout(game, playerId) {
@@ -581,61 +641,87 @@ export function swapMessage(game, squad, now) {
 /**
  * End Half in the first half: saves the real time it was tapped (`at`) and opens Half
  * Time (GDA-31). The state stays FIRST_HALF on purpose, so the game still counts as in
- * progress for updates. The second-half line-up is made now as a copy of where
- * everyone stands, and the bench order is kept so the back arrow can put it back
- * (GDA-20). Ending twice, or a game not in its first half, gives the game back
+ * progress for updates. Nothing is copied any more (GDA-97): the 2nd-half plan is its own
+ * line-up. Ending twice, or a game not in its first half, gives the game back
  * unchanged: the first End Half time is kept.
  */
 export function endedFirstHalf(game, at) {
   if (game.state !== FIRST_HALF || isHalfEnded(game)) {
     return game;
   }
-  const positions = [...game.lineups.firstHalf.positions];
   return {
     ...game,
     firstHalfEndedAt: at,
     plannedPairs: [], // Planned pairs do not survive End Half, and do not come back with the back arrow (GDA-36).
-    benchOrderAtEndHalf: game.benchOrder ?? [],
-    lineups: { ...game.lineups, secondHalf: { status: PLANNED, positions } },
   };
 }
 
 /**
- * The back arrow on Half Time: takes the end time away, so the first half is running
- * again as if End Half was never tapped, and throws the half-time changes away (Ben,
- * 2026-11-08). The start time and the first-half line-up are never touched.
+ * Resume 1st half: takes the end time away, so the first half is running again as if End Half
+ * was never tapped. A touched 2nd-half plan stays as it is (GDA-97). The start time and the
+ * first-half line-up are never touched.
  */
 export function reopenedFirstHalf(game) {
   if (!isHalfTime(game)) {
     return game;
   }
   const { benchOrderAtEndHalf, ...rest } = game;
+  if (benchOrderAtEndHalf === undefined) {
+    return { ...rest, firstHalfEndedAt: null };
+  }
+  // A game saved by version 42 at half time: its bench order was the plan's, so give each its own back.
+  const plan = game.lineups.secondHalf;
   return {
     ...rest,
     firstHalfEndedAt: null,
-    benchOrder: benchOrderAtEndHalf ?? game.benchOrder,
-    lineups: { ...game.lineups, secondHalf: emptyLineUp(game.lineups?.firstHalf?.positions?.length) },
+    benchOrder: benchOrderAtEndHalf,
+    lineups: { ...game.lineups, secondHalf: { ...plan, benchOrder: plan.benchOrder ?? game.benchOrder } },
   };
 }
 
 /**
- * Start 2nd Half (GDA-31): the second half's clock starts at once from `at`. Bench
- * timers start again from 0:00 for everyone on the bench (benchSince is cleared, so
- * they fall back to the half's start). Bench numbers (benchNumbers) are left alone. Gives the
- * game back unchanged if it is not at Half Time, so a double tap starts it once.
+ * Start 2nd Half (GDA-31, GDA-97): the second half's clock starts at once from `at`. It starts from
+ * the plan if it was touched, otherwise from the 1st-half line-up and bench as they finished. Anyone
+ * absent is taken out of the line-up (their place stays empty). Bench timers start again from 0:00
+ * for everyone on the bench (benchSince is cleared, so they fall back to the half's start). Bench
+ * numbers (benchNumbers) are left alone. Gives the game back unchanged if it is not at Half Time,
+ * so a double tap starts it once, and the 2nd half cannot start while the 1st is running.
  */
 export function startedSecondHalf(game, at) {
   if (!isHalfTime(game)) {
     return game;
   }
   const { benchOrderAtEndHalf, ...rest } = game;
+  // The 1st half's bench: version 42 kept it as benchOrderAtEndHalf; now it is simply benchOrder.
+  const firstHalfBenchOrder = benchOrderAtEndHalf ?? game.benchOrder ?? [];
   // Bench time (GDA-29): the first half's bench time carries on. Everyone who was on the bench when the
   // half ended gets that last stint added now; the half-time break itself adds nothing (it stops at End Half).
   const benchTotals = { ...game.benchTotals };
-  for (const id of benchOrderAtEndHalf ?? []) {
+  for (const id of firstHalfBenchOrder) {
     benchTotals[id] = benchTotalSeconds(game, id, at);
   }
-  return { ...rest, state: SECOND_HALF, secondHalfStartedAt: at, benchSince: {}, benchTotals, plannedPairs: [] };
+  const plan = game.lineups.secondHalf;
+  const touched = plan.status === PLANNED;
+  const positions = (touched ? plan.positions : game.lineups.firstHalf.positions).map((id) => (game.absent.includes(id) ? null : id));
+  const planBench = touched ? plan.benchOrder ?? game.benchOrder ?? [] : firstHalfBenchOrder;
+  // The plan's bench, then anyone else unplaced and not absent (a late arrival) at the end.
+  const benchOrder = [];
+  for (const id of [...planBench, ...firstHalfBenchOrder]) {
+    if (!positions.includes(id) && !game.absent.includes(id) && !benchOrder.includes(id)) {
+      benchOrder.push(id);
+    }
+  }
+  return {
+    ...rest,
+    state: SECOND_HALF,
+    secondHalfStartedAt: at,
+    benchSince: {},
+    benchTotals,
+    plannedPairs: [],
+    firstHalfBenchOrder,
+    benchOrder,
+    lineups: { ...game.lineups, secondHalf: { status: PLANNED, positions } },
+  };
 }
 
 /** End Half in the second half: saves the time. The full-time screen is GDA-50. */
@@ -985,6 +1071,12 @@ export function hereDifferences(game, squadIds, hereIds) {
 export function hereToggled(game, playerId, at) {
   if (!canChangeWhoIsHere(game)) {
     return null;
+  }
+  if (isHalfTime(game)) {
+    // Half time (GDA-97): the 1st half is over, so nothing of it changes. Only who is here changes; the
+    // 2nd-half plan shows an absent player's place empty, and Start 2nd half takes them out of the line-up.
+    const absent = game.absent.includes(playerId) ? game.absent.filter((id) => id !== playerId) : [...game.absent, playerId];
+    return { game: { ...game, absent }, changes: [] };
   }
   if (game.absent.includes(playerId)) {
     const benchSince = { ...game.benchSince, [playerId]: at };

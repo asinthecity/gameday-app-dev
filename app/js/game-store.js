@@ -2,7 +2,7 @@
 // fully saved or not changed at all. See game-rules.js for what a game holds.
 
 import { change, read } from "./db.js";
-import { isInProgress, hereToggled, benchStints, lineUpMoved, SECOND_HALF, goalAdded, goalRemoved, playedToday, lineupKey, startedSecondHalf, endedHalf, reopenedHalf, benchReordered, fieldMoved, pairPlanned, pairRemoved, swapEvent, swapUndone, swapped, gamesInOrder, halfEndCancelledEvent, halfEndEvent, halfStartEvent, movedOnto, newGame, nextCreatedOrder, positionChangeEvent, prePlaced, startedFirstHalf, withBenchOrder } from "./game-rules.js";
+import { isInProgress, hereToggled, benchStints, lineUpMoved, SECOND_HALF, goalAdded, goalRemoved, playedToday, lineupKey, startedSecondHalf, endedHalf, reopenedHalf, benchReordered, planMoved, planBenchReordered, fieldMoved, pairPlanned, pairRemoved, swapEvent, swapUndone, swapped, gamesInOrder, halfEndCancelledEvent, halfEndEvent, halfStartEvent, movedOnto, newGame, nextCreatedOrder, positionChangeEvent, prePlaced, startedFirstHalf, withBenchOrder } from "./game-rules.js";
 import { buildRecord, gameAtFullTime } from "./record-rules.js";
 import { canDeleteGame, gameArchived } from "./sheet-rules.js";
 import { squadInOrder } from "./squad-rules.js";
@@ -189,6 +189,37 @@ export function reorderBench(db, gameId, playerId, targetId) {
       };
     };
   });
+}
+
+/**
+ * A move or a bench re-order on the 2nd-half plan (GDA-97). `rule(game, squad)` gives the changed game or
+ * null. Only the plan is saved: no event is logged, and the running half, bench order and timers are untouched.
+ */
+function changePlan(db, gameId, rule) {
+  return change(db, ["games", "players"], (tx) => {
+    const games = tx.objectStore("games");
+    tx.objectStore("players").getAll().onsuccess = (players) => {
+      games.get(gameId).onsuccess = (event) => {
+        const saved = event.target.result;
+        const changed = saved ? rule(saved, squadOf(players.target.result, saved)) : null;
+        if (changed) {
+          games.put(changed);
+        } else {
+          tx.abort();
+        }
+      };
+    };
+  });
+}
+
+/** A player moved on the 2nd-half plan. */
+export function movePlan(db, gameId, playerId, spot) {
+  return changePlan(db, gameId, (game, squad) => planMoved(game, playerId, spot, squad));
+}
+
+/** A bench player dragged along the 2nd-half plan's bench. */
+export function reorderPlanBench(db, gameId, playerId, targetId) {
+  return changePlan(db, gameId, (game, squad) => planBenchReordered(game, playerId, targetId, squad));
 }
 
 /** Places the squad in a game made before pre-placing existed. */

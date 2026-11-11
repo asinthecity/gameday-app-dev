@@ -6,7 +6,7 @@
 
 import { hasRecord, scorerSummary, csvFileName } from "./record-rules.js";
 import { trimmedLine } from "./drag.js";
-import { FINISHED, canChangeWhoIsHere, startedAtOf, endedAtOf, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, frozenRingLook, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationOf, halfOf, MIN_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, goalsOf } from "./game-rules.js";
+import { FINISHED, IN_PROGRESS_PHASE, NOT_STARTED_PHASE, phaseOf, canStartHalf, canResumeHalf, halfLineUpView, nextScreen, lineupKey, canChangeWhoIsHere, startedAtOf, endedAtOf, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, frozenRingLook, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationOf, halfOf, MIN_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, goalsOf } from "./game-rules.js";
 import { checkFormation, formatFormationDigits, pitchRows } from "./formation-rules.js";
 import { archiveWarning, canDeleteGame, setupCodeOf, sheetStatus } from "./sheet-rules.js";
 import { canSaveName, initialsFor } from "./squad-rules.js";
@@ -18,6 +18,7 @@ const ICONS = {
   settings: ["M4 7h9", "M17 7h3", "M4 17h3", "M11 17h9", "M13 4v6", "M7 14v6"],
   // Back arrow (GDA-75) and End half flag.
   back: ["M15 5l-7 7 7 7"],
+  next: ["M9 5l7 7-7 7"],
   flag: ["M6 21V4", "M6 5h11l-2.5 4 2.5 4H6"],
   // Goalkeeper glove (GDA-85): three fingers, a thumb and a cuff.
   glove: ["M9 13V6.5a1.5 1.5 0 0 1 3 0V11", "M12 11V5a1.5 1.5 0 0 1 3 0v6", "M15 11V6.5a1.5 1.5 0 0 1 3 0V15c0 3-2 5-5 5h-1.5c-2 0-3-1-4-2.5l-3-4.5a1.5 1.5 0 0 1 2.4-1.8L9 13", "M8.5 22h8"],
@@ -55,6 +56,52 @@ function header(title, onBack, right = null, extra = null, crest = null) {
 
 function problemLine(text) {
   return text ? h("p", { class: "problem", role: "alert" }, text) : null;
+}
+
+// ---- The four game screens and their arrows (GDA-95) ----
+// New game, 1st Half, 2nd Half and Full Time all start with the same row: a ‹ arrow at the left and a
+// › arrow at the right, the same box on every screen. The arrows only move between screens.
+
+/** Which half a screen shows: 1, 2, or 0 for a screen that is not a half screen. */
+export function screenHalf(screen) {
+  return screen === "half1" ? 1 : screen === "half2" ? 2 : 0;
+}
+
+/** True when the screen shows a half that is In progress (so the clock, swaps and bench timers are live). */
+function isLiveView(state) {
+  const half = screenHalf(state.screen);
+  const game = half === 0 ? null : openGame(state);
+  return !!game && phaseOf(game, half) === IN_PROGRESS_PHASE;
+}
+
+/** The same as isLiveView, for a game already in hand (drawClock runs every 250 ms, on any screen). */
+function isLiveViewOf(state, game) {
+  const half = screenHalf(state.screen);
+  return half !== 0 && !!game && phaseOf(game, half) === IN_PROGRESS_PHASE;
+}
+
+/** An arrow-only button. `onClick` null makes it greyed out and inert (aria-disabled), not removed. */
+function arrowButton(kind, onClick) {
+  const props = { class: onClick ? "arrow" : "arrow off", id: kind === "back" ? "navBack" : "navNext", "aria-label": kind === "back" ? "Back" : "Next" };
+  if (onClick) {
+    props.onclick = onClick;
+  } else {
+    props["aria-disabled"] = "true";
+  }
+  return h("button", props, icon(kind));
+}
+
+/** The arrows for a game screen: Back always works; Next works where the rules say there is a screen to go to. */
+function navArrows(state, actions) {
+  const game = openGame(state);
+  const hasNext = state.screen === "createGame" ? true : !!game && nextScreen(game, state.screen) !== null;
+  return [arrowButton("back", actions.goBack), arrowButton("next", hasNext ? actions.goNext : null)];
+}
+
+/** The top row of a screen with no clock: arrow, title (and a small state tag), arrow. Same box as the game header card. */
+function navBar(title, tag, state, actions) {
+  const [back, next] = navArrows(state, actions);
+  return h("div", { class: "clk bar" }, back, h("h1", {}, title), tag ? h("span", { class: "tag" }, tag) : null, next);
 }
 
 /** The player's photo if they have one (GDA-52), otherwise their coloured initials. */
@@ -562,14 +609,23 @@ function createGameScreen(state, actions) {
   );
   // GDA-96: says why Create game is greyed out until Home or Away is picked.
   const venueHint = h("div", { class: "hint", id: "venueHint", hidden: form.venueTag !== "" }, "Pick Home or Away to create the game");
+  // The › arrow does what Create game does, so it is greyed out in the same cases.
+  const nextArrow = arrowButton("next", actions.makeGame);
+  const syncNext = () => {
+    const ok = canCreateGame(form);
+    nextArrow.classList.toggle("off", !ok);
+    nextArrow.setAttribute("aria-disabled", String(!ok));
+  };
   const onChange = () => {
     make.disabled = !canCreateGame(form);
     venueHint.hidden = form.venueTag !== "";
+    syncNext();
   };
+  syncNext();
   const text = { type: "text", autocomplete: "off", autocapitalize: "words", autocorrect: "off", spellcheck: "false" };
   return {
     nodes: [
-      header("New game", actions.leaveCreateGame),
+      h("div", { class: "clk bar" }, arrowButton("back", actions.leaveCreateGame), h("h1", {}, "New game"), nextArrow),
       h(
         "div",
         { class: "body" },
@@ -601,21 +657,48 @@ function createGameScreen(state, actions) {
 }
 
 /**
+ * New game once the game exists (GDA-95): this game's details, read-only. They are changed in the
+ * cog's Game details on the half screens. Back goes Home; Next goes to the 1st Half.
+ */
+function newGameScreen(state, actions) {
+  const game = openGame(state);
+  const row = (label, value, id) => h("div", { class: "f" }, h("div", { class: "lb" }, h("span", {}, label)), h("div", { class: "ro", id }, value));
+  return {
+    nodes: [
+      navBar("New game", null, state, actions),
+      h(
+        "div",
+        { class: "body" },
+        row("Date", formatGameDate(game.date), "ngDate"),
+        row("Kick-off", formatKickOff(game.kickOff), "ngKickOff"),
+        row("Opposition", game.opposition, "ngOpposition"),
+        row("Home or away", game.venueTag || "Not set", "ngVenueTag"),
+        row("Field", game.venue || "Not set", "ngVenue"),
+        row("Rotation", `${rotationOf(game)} min`, "ngRotation"),
+        h("div", { class: "ro", id: "halfInfo" }, `Half length: ${halfOf(game)} min (from the team)`)
+      ),
+    ],
+  };
+}
+
+/**
  * One player on the pitch, the bench or the ABSENT row. There is no tap handler
  * here: drag.js reads data-player and data-place, so a tap and a drag take one
  * path. Slots without them, on the before-kick-off screen, do nothing.
  */
 function playerSlot(player, state, canMove, isKeeper = false, benchTimer = false, onPitch = false, dims = { size: 48, weight: 4 }) {
-  const game = state.screen === "game" ? openGame(state) : null;
+  const game = isLiveView(state) ? openGame(state) : null;
   const plannedOff = !!game && pairsOf(game).some((pair) => pair.fieldId === player.id);
   const plannedOn = !!game && pairsOf(game).some((pair) => pair.benchId === player.id);
   const planned = plannedOff || plannedOn;
   // The bench-order number (GDA-56): shown on field and bench circles during a game. A number, not just colour.
-  const number = (state.screen === "game" || state.screen === "halfTime") ? benchNumberOf(openGame(state), player.id) : null;
+  const started = screenHalf(state.screen) !== 0 && openGame(state).state !== NOT_STARTED;
+  const number = started ? benchNumberOf(openGame(state), player.id) : null;
   const turnMark = number ? h("span", { class: "turn", "aria-label": `Bench order ${number}`, title: `Bench order ${number}` }, String(number)) : null;
   // GDA-80: a pitch circle of someone who has been on the bench shows one thin frozen ring per stint (this half),
   // each at how full the bench ring was when they came on. Nobody benched, no rings. (Replaces the "4m" label of GDA-29.)
-  const stints = onPitch && (state.screen === "game" || state.screen === "halfTime") ? openGame(state).benchStints?.[player.id] : undefined;
+  // Frozen rings belong to the half being played, so only that half's screen shows them.
+  const stints = onPitch && started && (screenHalf(state.screen) === 2) === (lineupKey(openGame(state)) === "secondHalf") ? openGame(state).benchStints?.[player.id] : undefined;
   const frozen = stints ? frozenRings(stints, rotationOf(openGame(state)), dims) : null;
   // Room for the rings above and below the circle so they never cover the name (one ring step is weight + 1px gap).
   const frozenSpace = stints ? Math.min(stints.length, MAX_FROZEN_RINGS) * (dims.weight + 1) : 0;
@@ -679,7 +762,7 @@ function frozenRings(stints, rotation, dims) {
 
 /** A position with nobody in it. The no-break space keeps it the same height as a filled one. */
 function emptySlot(place, canMove, state) {
-  const planned = state.screen === "game" && pairsOf(openGame(state)).some((pair) => pair.fieldId === null && pair.place === place);
+  const planned = isLiveView(state) && pairsOf(openGame(state)).some((pair) => pair.fieldId === null && pair.place === place);
   return h(
     "div",
     { class: planned ? "slot plan" : "slot", ...(canMove ? { "data-place": place } : {}) },
@@ -696,21 +779,21 @@ function lineUpRow(title, rowClass, players, state, canMove, benchTimers = false
   return h("div", { class: rowClass, ...(zone ? { "data-zone": zone } : {}) }, h("span", { class: "t" }, title), ...slots);
 }
 
-/** The bottom button. While a player is selected it acts on them instead. */
+/** The 1st Half (Not started) main button: Start 1st half. While a player is selected it acts on them instead. */
 function lineUpButton(view, state, actions) {
   if (state.selectedId === null) {
-    return h("button", { class: "btn pri", onclick: actions.readyForKickOff }, "Ready for kick-off");
+    return h("button", { class: "btn pri main", id: "startFirst", onclick: actions.startFirstHalf }, "Start 1st half");
   }
   return view.absent.some((player) => player.id === state.selectedId)
-    ? h("button", { class: "btn pri", onclick: actions.markBackIn }, "Back in")
-    : h("button", { class: "btn pri", onclick: actions.markAbsent }, "Absent");
+    ? h("button", { class: "btn pri main", onclick: actions.markBackIn }, "Back in")
+    : h("button", { class: "btn pri main", onclick: actions.markAbsent }, "Absent");
 }
 
 /** The pitch and bench, shared by the line-up and the before-kick-off screen. */
 function openRowsTight(game) {
   return pitchRows(game.formation).length >= 5;
 }
-function pitchAndBench(view, state, canMove, crowded, live = false) {
+function pitchAndBench(view, state, canMove, crowded, live = false, benchZone = false) {
   const game = openGame(state);
   const tight = crowded || openRowsTight(game);
   const dims = tight ? { size: 40, weight: 3 } : { size: 48, weight: 4 };
@@ -736,36 +819,67 @@ function pitchAndBench(view, state, canMove, crowded, live = false) {
     const rowClass = view.bench.length > 6 ? "row live many" : "row live";
     return view.bench.length > 0 ? [pitch, lineUpRow("BENCH", rowClass, view.bench, state, canMove, true)] : [pitch];
   }
-  return [pitch, lineUpRow("BENCH", "row", view.bench, state, canMove, false, state.screen === "lineUp" ? "bench" : null)];
+  return [pitch, lineUpRow("BENCH", "row", view.bench, state, canMove, false, benchZone ? "bench" : null)];
 }
 
 function openGame(state) {
   return state.games.find((candidate) => candidate.id === state.gameId);
 }
 
-function lineUpActions(view, state, actions) {
-  return [problemLine(state.problem), lineUpButton(view, state, actions)].filter(Boolean);
+/** The bottom row of every half screen (GDA-95): the main button, always in the same spot, then the cog. */
+function bottomRow(state, actions, main) {
+  return [problemLine(state.problem), h("div", { class: "gr" }, main, cogButton(actions, "bot"))].filter(Boolean);
+}
+function bottomBar(state, actions, main) {
+  return h("div", { class: "acts game" }, ...bottomRow(state, actions, main));
 }
 
-function lineUpScreen(state, actions) {
+/** The pitch, bench and ABSENT row of a half that is Not started. `editable` false shows them for looking only. */
+function planBody(game, view, state, actions, { editable, firstHalf, note }) {
+  const crowded = view.bench.length > 6 || view.absent.length > 6;
+  return h(
+    "div",
+    { class: "lu" },
+    formationBox(game, actions, { locked: !firstHalf, note }),
+    ...pitchAndBench(view, state, editable, crowded, false, editable && firstHalf),
+    // GDA-62: always there, below the bench, even when empty (then slim). Only the 1st half's line-up can change who is absent.
+    lineUpRow("ABSENT", view.absent.length > 0 ? "row ab" : "row ab empty", view.absent, state, editable && firstHalf, false, editable && firstHalf ? "absent" : null)
+  );
+}
+
+/**
+ * A half that is Not started (GDA-95). 1st Half: the line-up and Start 1st half (today's line-up screen).
+ * 2nd Half: once the 1st half has ended, the half-time plan and Start 2nd half; before that, the line-up
+ * for looking at, and a greyed-out button saying when it can start.
+ */
+function notStartedHalf(state, actions, half) {
   const game = openGame(state);
-  const view = lineUpView(game, state.players);
+  const view = halfLineUpView(game, state.players, half);
+  if (half === 1) {
+    return {
+      fixed: true,
+      noMove: true,
+      nodes: [
+        navBar("1st Half", "Not started", state, actions),
+        planBody(game, view, state, actions, { editable: true, firstHalf: true }),
+        bottomBar(state, actions, lineUpButton(view, state, actions)),
+        gameDetailsSheet(state, game, actions),
+      ],
+    };
+  }
+  const startable = canStartHalf(game, 2);
+  const main = startable
+    ? h("button", { class: "btn pri main", id: "startSecond", onclick: actions.startSecondHalf }, "Start 2nd half")
+    : h("button", { class: "btn main", id: "startSecond", disabled: true }, "Starts when the 1st half ends");
   return {
     fixed: true,
     noMove: true,
     nodes: [
-      header("1st-half line-up", actions.goHome, cogButton(actions)),
-      h(
-        "div",
-        { class: "lu" },
-        formationBox(game, actions),
-        ...pitchAndBench(view, state, true, view.bench.length > 6 || view.absent.length > 6),
-        // GDA-62: always there, below the bench, even when empty (then slim).
-        lineUpRow("ABSENT", view.absent.length > 0 ? "row ab" : "row ab empty", view.absent, state, true, false, "absent")
-      ),
-      h("div", { class: "acts" }, ...lineUpActions(view, state, actions)),
+      navBar("2nd Half", "Not started", state, actions),
+      planBody(game, view, state, actions, { editable: startable, firstHalf: false, note: startable ? "plan the 2nd half" : "1st half comes first" }),
+      bottomBar(state, actions, main),
       gameDetailsSheet(state, game, actions),
-    ],
+    ].filter(Boolean),
   };
 }
 
@@ -775,8 +889,7 @@ function lineUpScreen(state, actions) {
  * invalid one shows what is wrong and the pitch keeps the last valid shape. From
  * kick-off the box is disabled and says so. Only the box locks.
  */
-function formationBox(game, actions) {
-  const locked = game.state !== NOT_STARTED;
+function formationBox(game, actions, { locked = game.state !== NOT_STARTED, note = null } = {}) {
   const size = game.lineups.firstHalf.positions.length;
   const message = h("div", { class: "fmsg", id: "fmMsg", role: "alert" });
   const input = h("input", {
@@ -808,14 +921,14 @@ function formationBox(game, actions) {
       actions.setFormation(result.formation);
     }
   });
-  return h("div", { class: "fm" }, h("label", { for: "formation" }, "Formation"), input, h("span", { class: "fsub" }, locked ? "locked from kick-off" : "defence to attack"), message);
+  return h("div", { class: "fm" }, h("label", { for: "formation" }, "Formation"), input, h("span", { class: "fsub" }, note ?? (locked ? "locked from kick-off" : "defence to attack")), message);
 }
 
 /** Redraws only the pitch (line-up screen), so the formation box keeps its focus while typing. */
 export function drawPitch(state) {
   const game = openGame(state);
   const view = lineUpView(game, state.players);
-  const [pitch] = pitchAndBench(view, state, true, view.bench.length > 6 || view.absent.length > 6);
+  const [pitch] = pitchAndBench(view, state, true, view.bench.length > 6 || view.absent.length > 6, false, true);
   document.querySelector(".pitch")?.replaceWith(pitch);
 }
 
@@ -948,23 +1061,6 @@ export function startScoreFlash() {
   scoreFlashAt = Date.now();
 }
 
-/** Short labels for the Half Time score: our team's name and the opposition, as in the game header (GDA-96). */
-function teamNames(game, state) {
-  const team = state.teams.find((t) => t.id === (game.teamId ?? state.currentTeamId));
-  return { us: team?.name ?? "Us", them: game.opposition };
-}
-
-function scoreBox(game, actions, names) {
-  const flashProps = scoreFlashProps("score");
-  const score = scoreOf(game);
-  const side = (label, n, id) => h("span", { class: "s" }, h("small", {}, label), h("span", { id }, String(n)));
-  const parts = [side(names.us, score.us, "scoreUs"), h("span", { class: "dash" }, "-"), side(names.them, score.them, "scoreThem")];
-  if (!actions) {
-    return h("div", { ...flashProps, id: "score" }, ...parts);
-  }
-  return h("button", { ...flashProps, id: "score", "aria-label": `Score, ${names.us} ${score.us}, ${names.them} ${score.them}. Tap to add or undo a goal`, onclick: actions.openGoalDialog }, ...parts);
-}
-
 /** Our crest, or a grey disc with initials for a team with no crest (the opponent, for now). */
 function teamLogo(name, isUs) {
   return isUs
@@ -973,12 +1069,12 @@ function teamLogo(name, isUs) {
 }
 
 /**
- * The header card at the top of the game screens (GDA-75): half and clock on the left,
- * two team rows (logo, name, score) on the right, and a thin bar along the bottom edge
- * that fills over the half (drawClock moves it). With `actions` the team rows are one
- * button (tap = Remove last goal, GDA-39); without, plain text (before kick-off).
+ * The header card at the top of a half that is In progress or Ended (GDA-75, GDA-95): ‹ arrow, half and
+ * clock, two team rows (logo, name, score), › arrow, and a thin bar along the bottom edge that fills over
+ * the half (drawClock moves it). With `actions` the team rows are one button (tap = Who scored? / Undo
+ * last goal); without, plain text.
  */
-function gameHeader(text, half, game, actions, state) {
+function gameHeader(text, label, game, actions, state, arrows) {
   const score = scoreOf(game);
   const team = state.teams.find((t) => t.id === (game.teamId ?? state.currentTeamId));
   const usName = team?.name ?? "Us";
@@ -990,82 +1086,63 @@ function gameHeader(text, half, game, actions, state) {
   return h(
     "div",
     { class: "clk" },
-    h("div", { class: "ck" }, h("span", { class: "hf" }, half), h("b", { id: "clock" }, text)),
+    arrows[0],
+    h("div", { class: "ck" }, h("span", { class: "hf" }, label), h("b", { id: "clock" }, text)),
     teams,
+    arrows[1],
     h("div", { class: "hp" }, h("i", { id: "halfBar" }))
   );
 }
 
-/** Before kick-off: look, but not touch. The game has not started and nothing here is saved. */
-function readyScreen(state, actions) {
-  const game = openGame(state);
-  const view = lineUpView(game, state.players);
-  return {
-    fixed: true,
-    noMove: true,
-    nodes: [
-      gameHeader("0:00", "1ST HALF", game, null, state),
-      h(
-        "div",
-        { class: "lu" },
-        ...pitchAndBench(view, state, false, view.bench.length > 6 || view.absent.length > 6),
-        // GDA-41: display only (canMove false), so a tap or drag on these does nothing.
-        view.absent.length > 0 ? lineUpRow("ABSENT", "row ab", view.absent, state, false) : null
-      ),
-      h(
-        "div",
-        { class: "acts two" },
-        problemLine(state.problem),
-        h(
-          "div",
-          { class: "pair" },
-          h("button", { class: "btn", onclick: actions.backToLineUp }, "Line-up"),
-          h("button", { class: "btn pri", onclick: actions.startFirstHalf }, "START 1ST HALF"),
-          cogButton(actions, "bot")
-        )
-      ),
-      gameDetailsSheet(state, game, actions),
-    ].filter(Boolean),
-  };
-}
-
 /**
- * The game under way. The time is worked out from the saved start time every time
- * it is drawn. There is no Back arrow and no pause. End Half is always in the
- * bottom bar, one tap, no confirmation. The TIME strip and the black End Half are
- * always drawn but hidden, and drawClock shows them, so nothing is rebuilt as the
- * clock runs.
+ * A half that is In progress or Ended (GDA-95). In progress: the time is worked out from the saved start
+ * time every time it is drawn; End Half is the main button. Ended: the clock is frozen at the saved end
+ * time, a note replaces the swap strip, nothing can be moved, and the main button is Resume half (only
+ * while the next half has not started). The header, strip, pitch and bottom row are the same size in both
+ * states, so nothing jumps. The TIME strip and the black End Half are always drawn but hidden, and
+ * drawClock shows them, so nothing is rebuilt as the clock runs.
  */
-function gameScreen(state, actions) {
+function runningHalf(state, actions, half) {
   const game = openGame(state);
-  const view = lineUpView(game, state.players);
+  const live = phaseOf(game, half) === IN_PROGRESS_PHASE;
+  const view = halfLineUpView(game, state.players, half);
+  const startedAt = half === 2 ? game.secondHalfStartedAt : game.firstHalfStartedAt;
+  const endedAt = half === 2 ? game.secondHalfEndedAt : game.firstHalfEndedAt;
+  const clock = clockText(startedAt, live ? Date.now() : endedAt, halfOf(game));
+  const label = half === 2 ? "2ND HALF" : "1ST HALF";
+  const strip = live
+    ? swapStrip(game, state, actions)
+    : h("div", { class: "strip", id: "strip" }, h("div", { class: "sl", id: "endedNote" }, h("b", {}, `${half === 2 ? "2nd" : "1st"} half ended.`), h("br"), `Clock stopped at ${clock}. Line-up as it finished.`));
+  let main;
+  if (live) {
+    main = h("button", { class: "btn eh wide", id: "endHalf", onclick: actions.endHalf }, icon("flag"), "End Half");
+  } else if (canResumeHalf(game, half)) {
+    main = h("button", { class: "btn eh wide", id: "resumeHalf", onclick: actions.resumeHalf }, "Resume half");
+  } else {
+    main = h("div", { class: "mainGap" }); // Keeps the cog where it is when there is nothing to resume.
+  }
   return {
     fixed: true,
     noMove: true,
     nodes: [
-      state.welcome ? h("div", { class: "welcome", id: "welcome" }, "Welcome back") : null,
-      gameHeader(clockText(startedAtOf(game), Date.now(), halfOf(game)), game.state === "second half" ? "2ND HALF" : "1ST HALF", game, actions, state),
-      swapStrip(game, state, actions),
-      h("div", { class: "lu" }, ...pitchAndBench(view, state, true, view.bench.length > 6, true)),
-      h(
-        "div",
-        { class: "acts game" },
-        problemLine(state.problem),
-        h(
-          "div",
-          { class: "gr" },
-          h("button", { class: "btn eh wide", id: "endHalf", onclick: actions.endHalf }, icon("flag"), "End Half"),
-          cogButton(actions, "bot")
-        )
-      ),
+      gameHeader(clock, label, game, canAddGoal(game) ? actions : null, state, navArrows(state, actions)),
+      strip,
+      h("div", { class: "lu" }, ...pitchAndBench(view, state, live, view.bench.length > 6, true)),
+      bottomBar(state, actions, main),
       gameDetailsSheet(state, game, actions),
       goalDialog(state, game, actions),
-    ].filter(Boolean),
+    ],
     after: () => {
       drawClock(state);
       drawPairLines(state);
     },
   };
+}
+
+/** The 1st Half and 2nd Half screens: Not started, In progress or Ended, whichever the saved game says. */
+function halfScreen(state, actions) {
+  const half = screenHalf(state.screen);
+  return phaseOf(openGame(state), half) === NOT_STARTED_PHASE ? notStartedHalf(state, actions, half) : runningHalf(state, actions, half);
 }
 
 /**
@@ -1151,7 +1228,7 @@ export function drawPairLines(state, actions = lastActions) {
   const area = document.querySelector(".lu");
   const game = openGame(state);
   area?.querySelectorAll(".pl, .px").forEach((old) => old.remove());
-  if (!area || !game || state.screen !== "game" || pairsOf(game).length === 0) {
+  if (!area || !game || !isLiveView(state) || pairsOf(game).length === 0) {
     return;
   }
   const box = area.getBoundingClientRect();
@@ -1194,7 +1271,7 @@ export function drawPairLines(state, actions = lastActions) {
 export function drawClock(state) {
   const game = openGame(state);
   const clock = document.getElementById("clock");
-  if (state.screen === "game" && game && clock) {
+  if (isLiveViewOf(state, game) && clock) {
     const now = Date.now();
     clock.textContent = clockText(startedAtOf(game), now, halfOf(game));
     const timeUp = isTimeUp(startedAtOf(game), now, halfOf(game));
@@ -1276,17 +1353,18 @@ function drawBenchTimers(game, now) {
 }
 
 /**
- * Full Time (GDA-50): shown after the second half's End Half. FULL TIME saves the
- * record and closes the game for good. Back returns to the game (for a last goal).
+ * Full Time (GDA-50, GDA-95): reached with › once the 2nd half has ended. End game and save stores the
+ * record and closes the game for good. ‹ only goes back to the 2nd Half (Ended), where Resume half is
+ * still there for a last goal.
  */
-function halfOverScreen(state, actions) {
+function fullTimeScreen(state, actions) {
   const game = openGame(state);
   const score = scoreOf(game);
   const nameOf = (id) => state.players.find((p) => p.id === id)?.name ?? null;
   const { named, ownGoals } = scorerSummary(goalsOf(game).map((g) => ({ side: g.side, scorer: g.side === US && g.scorerId !== null ? nameOf(g.scorerId) : null })));
   return {
     nodes: [
-      header("Full Time", actions.backToGame),
+      navBar("Full Time", null, state, actions),
       h(
         "div",
         { class: "body" },
@@ -1294,7 +1372,7 @@ function halfOverScreen(state, actions) {
         h("div", { class: "bigscore", id: "finalScore" }, `${score.us} - ${score.them}`),
         h("div", { class: "card", id: "scorers" }, h("b", {}, "Scorers"), named || ownGoals === 0 ? h("div", {}, named || "No goals for us") : null, ownGoals > 0 ? h("div", { id: "ownGoals" }, `Own goals ${ownGoals}`) : null),
         problemLine(state.problem),
-        h("p", { class: "final" }, "Cannot be reopened. Need a last goal? Tap Back first."),
+        h("p", { class: "final" }, "Ending the game saves it for good; it cannot be reopened. Need a last goal? Tap Back, then Resume half."),
         h("button", { class: "btn pri big", id: "fullTime", onclick: actions.fullTime }, "End game and save")
       ),
     ],
@@ -1323,28 +1401,6 @@ function savedScreen(state, actions) {
   };
 }
 
-/**
- * Half Time (GDA-31 and GDA-20): the second-half line-up, which starts as a copy of
- * where everyone stood at End Half. Same placing rules as the first-half line-up
- * (placed at once, by drag or tap). No clock, no timers, no ABSENT row (absent stays
- * absent). The back arrow cancels End Half. Start 2nd Half starts the clock at once.
- */
-function halfTimeScreen(state, actions) {
-  const game = openGame(state);
-  const view = lineUpView(game, state.players);
-  return {
-    fixed: true,
-    noMove: true,
-    nodes: [
-      h("div", { class: "hdr ht" }, h("button", { class: "back", "aria-label": "Back", onclick: actions.backToGame }, icon("back")), h("h1", {}, "Half Time"), scoreBox(game, canAddGoal(game) ? actions : null, teamNames(game, state)), cogButton(actions)),
-      h("div", { class: "lu" }, ...pitchAndBench(view, state, true, view.bench.length > 6)),
-      h("div", { class: "acts" }, problemLine(state.problem), h("button", { class: "btn pri", id: "startSecond", onclick: actions.startSecondHalf }, "Start 2nd Half")),
-      goalDialog(state, game, actions),
-      gameDetailsSheet(state, game, actions),
-    ],
-  };
-}
-
 function cannotOpenScreen(state, actions) {
   return {
     nodes: [
@@ -1365,11 +1421,10 @@ const SCREENS = {
   add: addScreen,
   edit: editScreen,
   createGame: createGameScreen,
-  lineUp: lineUpScreen,
-  ready: readyScreen,
-  game: gameScreen,
-  halfTime: halfTimeScreen,
-  over: halfOverScreen,
+  newGame: newGameScreen,
+  half1: halfScreen,
+  half2: halfScreen,
+  fullTime: fullTimeScreen,
   saved: savedScreen,
   sheetSettings: sheetSettingsScreen,
   teamForm: teamFormScreen,
@@ -1380,6 +1435,10 @@ const SCREENS = {
 export function drawScreen(state, actions) {
   lastActions = actions;
   const view = SCREENS[state.screen](state, actions);
+  // GDA-33: "Welcome back" after a restart, over whichever game screen opened.
+  if (state.welcome) {
+    view.nodes.unshift(h("div", { class: "welcome", id: "welcome" }, "Welcome back"));
+  }
   document.getElementById("screen").replaceChildren(...view.nodes.filter((n) => n != null)); // GDA-79: a closed sheet is null; never print it as text
   document.getElementById("frame").className = view.fixed ? "fix" : "flow";
   document.body.classList.toggle("lock", Boolean(view.fixed));
@@ -1393,5 +1452,5 @@ export function drawScreen(state, actions) {
  */
 export function drawLineUpActions(state, actions) {
   const view = lineUpView(openGame(state), state.players);
-  document.querySelector(".acts").replaceChildren(...lineUpActions(view, state, actions));
+  document.querySelector(".acts").replaceChildren(...bottomRow(state, actions, lineUpButton(view, state, actions)));
 }

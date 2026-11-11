@@ -244,14 +244,14 @@ function changeHalf(db, gameId, rule, eventFor) {
   });
 }
 
-/** End Half (either half): saves the real time of the tap. In the first half this opens Half Time. */
-export function endHalf(db, gameId, at) {
-  return changeHalf(db, gameId, (game) => endedHalf(game, at), (game) => halfEndEvent(gameId, at, game.state === SECOND_HALF ? "secondHalf" : "firstHalf"));
+/** End Half (either half): saves the real time of the tap. `half` is the half the screen shows; a screen that is out of date does nothing. */
+export function endHalf(db, gameId, at, half = null) {
+  return changeHalf(db, gameId, (game) => endedHalf(game, at, half), (game) => halfEndEvent(gameId, at, game.state === SECOND_HALF ? "secondHalf" : "firstHalf"));
 }
 
-/** The back arrow after End Half: the half runs again from its original start time. */
-export function reopenHalf(db, gameId, at) {
-  return changeHalf(db, gameId, reopenedHalf, (game) => halfEndCancelledEvent(gameId, at, game.state === SECOND_HALF ? "secondHalf" : "firstHalf"));
+/** Resume half: the half runs again from its original start time. Only while the next half has not started. */
+export function reopenHalf(db, gameId, at, half = null) {
+  return changeHalf(db, gameId, (game) => reopenedHalf(game, half), (game) => halfEndCancelledEvent(gameId, at, game.state === SECOND_HALF ? "secondHalf" : "firstHalf"));
 }
 
 /** Start 2nd Half: saves the start time on the game and in the event log, in one transaction. */

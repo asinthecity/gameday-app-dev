@@ -199,6 +199,31 @@ export function lineUpView(game, squad) {
   };
 }
 
+/**
+ * What a half screen shows (GDA-95). The half being played, or the half-time plan, is the live line-up.
+ * The 2nd Half screen before half time shows the 1st-half line-up as it is now (for looking at only).
+ * The 1st Half screen after that half has ended shows the line-up as it finished: its own positions,
+ * with the bench as it was at End Half (so half-time planning does not change what the 1st half shows).
+ */
+export function halfLineUpView(game, squad, half) {
+  if (half === 2 || lineupKey(game) === "firstHalf") {
+    return lineUpView(game, squad);
+  }
+  const positions = game.lineups.firstHalf.positions;
+  const onBench = (id) => squad.some((player) => player.id === id) && !positions.includes(id) && !game.absent.includes(id);
+  const ids = [];
+  for (const id of [...(game.benchOrderAtEndHalf ?? game.benchOrder ?? []), ...squad.map((player) => player.id)]) {
+    if (onBench(id) && !ids.includes(id)) {
+      ids.push(id);
+    }
+  }
+  return {
+    positions: positions.map((id) => squad.find((player) => player.id === id) ?? null),
+    bench: ids.map((id) => squad.find((player) => player.id === id)),
+    absent: squad.filter((player) => game.absent.includes(player.id)),
+  };
+}
+
 function firstHalfWithout(game, playerId) {
   const positions = activePositions(game).map((id) => (id === playerId ? null : id));
   return withFirstHalf(game, { positions });
@@ -626,13 +651,26 @@ export function reopenedSecondHalf(game) {
   return game.state === SECOND_HALF && isHalfEnded(game) ? { ...game, secondHalfEndedAt: null } : game;
 }
 
-/** End Half, whichever half is running. */
-export function endedHalf(game, at) {
+/**
+ * End Half, whichever half is running. `half` (1 or 2) is the half the tapped screen shows: if the
+ * saved game is no longer in that half, nothing changes (a screen that is out of date cannot end
+ * the wrong half). Leave `half` out to end whichever half is running.
+ */
+export function endedHalf(game, at, half = null) {
+  if (half !== null && phaseOf(game, half) !== "inProgress") {
+    return game;
+  }
   return game.state === SECOND_HALF ? endedSecondHalf(game, at) : endedFirstHalf(game, at);
 }
 
-/** The back arrow after End Half, whichever half it was. */
-export function reopenedHalf(game) {
+/**
+ * Resume half, for the half the screen shows (1 or 2): the half runs again. Allowed only while the
+ * next half has not started (see canResumeHalf); otherwise the game comes back unchanged.
+ */
+export function reopenedHalf(game, half = null) {
+  if (half !== null && !canResumeHalf(game, half)) {
+    return game;
+  }
   return game.state === SECOND_HALF ? reopenedSecondHalf(game) : reopenedFirstHalf(game);
 }
 
@@ -657,17 +695,75 @@ export function isHalfTime(game) {
 }
 
 /**
- * Which screen a game in progress opens on: Half Time after the first half's End Half,
- * the Full Time screen after the second half's, otherwise the game.
+ * Which screen a saved game opens on (GDA-95, and after a restart GDA-33): the 1st Half screen
+ * before kick-off and while the 1st half runs; the 2nd Half screen (the plan, where the next action
+ * is) once the 1st half has ended, and while the 2nd half runs; Full Time once the 2nd half has ended.
  */
 export function screenForOpening(game) {
   if (!isInProgress(game)) {
-    return "lineUp";
+    return "half1";
   }
-  if (isHalfTime(game)) {
-    return "halfTime";
+  if (game.state === SECOND_HALF) {
+    return isHalfEnded(game) ? "fullTime" : "half2";
   }
-  return isHalfEnded(game) ? "over" : "game";
+  return isHalfTime(game) ? "half2" : "half1";
+}
+
+// ---- The half screens (GDA-95) ----
+// Each half is in exactly one of three states. It is worked out from the saved game every time,
+// never stored, so a screen can never disagree with the game.
+export const NOT_STARTED_PHASE = "notStarted";
+export const IN_PROGRESS_PHASE = "inProgress";
+export const ENDED_PHASE = "ended";
+
+/** Where half 1 or 2 is: "notStarted", "inProgress" or "ended". A finished game has both halves ended. */
+export function phaseOf(game, half) {
+  if (game.state === NOT_STARTED) {
+    return NOT_STARTED_PHASE;
+  }
+  if (game.state === FINISHED) {
+    return ENDED_PHASE;
+  }
+  if (game.state === SECOND_HALF) {
+    return half === 1 ? ENDED_PHASE : isHalfEnded(game) ? ENDED_PHASE : IN_PROGRESS_PHASE;
+  }
+  // FIRST_HALF: the 1st half runs or has ended; the 2nd has not started.
+  if (half === 2) {
+    return NOT_STARTED_PHASE;
+  }
+  return isHalfEnded(game) ? ENDED_PHASE : IN_PROGRESS_PHASE;
+}
+
+/** Start 1st half is on for a game not started; Start 2nd half only once the 1st half has ended (half time). */
+export function canStartHalf(game, half) {
+  return half === 1 ? game.state === NOT_STARTED : isHalfTime(game);
+}
+
+/** Resume half shows only on an Ended half while the next half has not started (the 2nd half: until End game and save). */
+export function canResumeHalf(game, half) {
+  return phaseOf(game, half) === ENDED_PHASE && (half === 1 ? isHalfTime(game) : game.state === SECOND_HALF);
+}
+
+/** The screen the ‹ arrow goes to. null for Home's own screens (not part of the game flow). */
+export function backScreen(screen) {
+  return { createGame: "home", newGame: "home", half1: "newGame", half2: "half1", fullTime: "half2" }[screen] ?? null;
+}
+
+/**
+ * The screen the › arrow goes to, or null when it is greyed out: › on the 2nd Half screen is live only
+ * once the 2nd half has ended. (Create game's own › is the Create game button, handled by the screen.)
+ */
+export function nextScreen(game, screen) {
+  if (screen === "newGame") {
+    return "half1";
+  }
+  if (screen === "half1") {
+    return "half2";
+  }
+  if (screen === "half2") {
+    return phaseOf(game, 2) === ENDED_PHASE ? "fullTime" : null;
+  }
+  return null;
 }
 
 /**

@@ -163,6 +163,14 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .logo.disc { width: var(--s26); border-radius: 50%; background: var(--line); display: flex; align-items: center; justify-content: center; font-size: var(--s10); font-weight: 800; }
 .tn { flex: 1; min-width: 0; font-size: var(--s15); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tg { flex: none; font-size: var(--s28); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+/* The ‹ and › arrows on the four game screens (GDA-95): 44 x 44, in the same top row box (.clk) on every one. */
+.arrow { flex: none; width: var(--s44); height: var(--s44); border: 0; border-radius: var(--r-button); background: var(--line); color: var(--ink); padding: 0; display: flex; align-items: center; justify-content: center; }
+.arrow svg { width: var(--s26); height: var(--s26); }
+.arrow.off { color: var(--muted); border: var(--s2) dashed var(--outline); background: transparent; }
+.arrow:active { filter: brightness(.92); }
+/* The same row without the card: New game, 1st Half and 2nd Half not started, Full Time. */
+.clk.bar { background: transparent; overflow: visible; }
+.clk h1 { margin: 0; font-size: var(--s20); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hp { position: absolute; left: 0; right: 0; bottom: 0; height: var(--s5); background: var(--line); }
 .hp i { display: block; height: 100%; width: 0; background: var(--brand-bright); }
 .acts .pair { display: flex; gap: var(--s10); }
@@ -192,7 +200,7 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .r0 { stroke: var(--line); }
 .r1 { stroke: var(--brand-bright); stroke-linecap: round; }
 .lt .r0, .lt .r1 { stroke: var(--danger); }
-.tm { font-size: var(--s13); font-weight: 700; line-height: var(--s14); color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tm { font-size: var(--s13); font-weight: 700; line-height: var(--s14); min-height: var(--s14); color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .lt .tm { color: var(--danger); }
 /* Frozen bench rings on a pitch circle (GDA-80/85): same slot as the live ring but paler (white track, softened
    arcs) so they read as stopped. Late stints stay red. */
@@ -262,6 +270,10 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .gr .btn.eh svg { width: var(--s24); height: var(--s24); }
 .gr .btn.eh.pri { font-size: var(--s12); }
 .acts .pair .cog.bot { align-self: stretch; height: auto; }
+/* The main button of a half screen (Start / End Half / Resume half): same spot in all three states. */
+.gr .btn.main { flex: 1; min-width: 0; font-size: var(--s18); }
+.gr .btn.main:disabled { font-size: var(--s15); line-height: 1.2; }
+.gr .mainGap { flex: 1; }
 .sheet .pair { display: flex; gap: var(--s10); }
 .sheet .pair .btn { flex: 1; }
 
@@ -374,7 +386,3 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .score small { max-width: var(--s64); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 input:focus, input:focus-visible { outline: var(--bw-field) solid var(--focus); outline-offset: 1px; }
 /* GDA-96: on Half Time the title stays whole; the score box shrinks and the team names are cut short instead. */
-.hdr.ht h1 { flex: none; }
-.hdr.ht .score { flex: 0 1 auto; min-width: 0; }
-.hdr.ht .score .s { min-width: 0; }
-.hdr.ht .score small { max-width: 100%; }

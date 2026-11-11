@@ -8,7 +8,7 @@ import { hasRecord, scorerSummary, csvFileName } from "./record-rules.js";
 import { trimmedLine } from "./drag.js";
 import { FINISHED, canChangeWhoIsHere, startedAtOf, endedAtOf, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, frozenRingLook, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationOf, halfOf, MIN_ROTATION, NOT_STARTED, scoreOf, scoreText, canAddGoal, canRemoveLastGoal, fieldPlayerIds, lastGoal, US, goalsOf } from "./game-rules.js";
 import { checkFormation, formatFormationDigits, pitchRows } from "./formation-rules.js";
-import { archiveWarning, canDeleteGame, sheetStatus } from "./sheet-rules.js";
+import { archiveWarning, canDeleteGame, setupCodeOf, sheetStatus } from "./sheet-rules.js";
 import { canSaveName, initialsFor } from "./squad-rules.js";
 import { canSwitchTeams, deleteRefusal, deleteSummary, IN_PROGRESS_REFUSAL, LAST_TEAM_MESSAGE, LOCKED_MESSAGE, plural, UPGRADE_FAILED_MESSAGE } from "./team-rules.js";
 
@@ -269,9 +269,11 @@ function deleteTeamSheet(state, actions, refusal) {
   );
 }
 
-/** Sheet settings (GDA-47): the script's web address and secret, kept only on this phone. */
+/** Sheet settings (GDA-47): one pasted setup code (address + secret), kept only on this phone. */
 function sheetSettingsScreen(state, actions) {
-  const settings = state.sheetDraft ?? state.sheetSettings ?? {};
+  // What was typed if a message is showing, else the saved code. Settings saved by the old
+  // two-box setup have no setup mark, so the box starts empty and Ben pastes a new code.
+  const shown = state.sheetDraft ?? (state.sheetSettings?.setup === 2 ? setupCodeOf(state.sheetSettings) : "");
   const field = (id, label, value, type) => {
     const input = h("input", { id, type, autocomplete: "off", autocapitalize: "off", autocorrect: "off", spellcheck: "false" });
     input.value = value ?? "";
@@ -283,10 +285,10 @@ function sheetSettingsScreen(state, actions) {
       h(
         "div",
         { class: "body" },
-        field("sheetUrl", "Sheet web address", settings.url, "text"),
-        field("sheetSecret", "Secret", settings.secret, "password"),
+        field("sheetCode", "Setup code", shown, "password"),
+        h("p", { class: "hint" }, "In the Sheet: Game Day > Set up. Copy the code it shows and paste it here."),
         problemLine(state.problem),
-        state.sheetSaved ? h("p", { id: "sheetSaved" }, 'Saved. Games marked "Sheet not set up" now show Send now.') : null,
+        state.sheetResult ? h("p", { id: "sheetResult", class: state.sheetResult.ok ? "" : "problem", role: "status" }, state.sheetResult.text) : null,
         h("button", { class: "btn pri big", id: "saveSheet", onclick: actions.saveSheetSettings }, "Save")
       ),
     ],

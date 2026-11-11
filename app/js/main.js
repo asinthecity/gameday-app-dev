@@ -35,8 +35,8 @@ import {
   hereDifferences,
 } from "./game-rules.js";
 import { archiveGame, deleteGame, markSentToSheet, addGame, addGoal, removeGoal, changeGame, endHalf, fullTime, loadGames, moveFieldPlayer, movePlayer, planPair, prePlaceGame, reopenHalf, reorderBench, startFirstHalf, startSecondHalf, swapPlayers, toggleHere, undoSwap, unplanPair } from "./game-store.js";
-import { cleanSheetSettings, canSend, SETTINGS_KEY } from "./sheet-rules.js";
-import { sendGameToSheet } from "./sheet-send.js";
+import { canSend, checkMessage, parseSetupCode, SETTINGS_KEY, sheetTabOf } from "./sheet-rules.js";
+import { checkSheetConnection, sendGameToSheet } from "./sheet-send.js";
 import { shareCsv } from "./share-file.js";
 import { askToKeepDataOnce } from "./persistence.js";
 import { drawClock, drawLineUpActions, drawPairLines, drawPitch, drawScreen, setPhotos } from "./screens.js";
@@ -90,9 +90,9 @@ const state = {
   legacySheet: null, // The old shared Sheet setting, read only for the first team if it has none.
   teamForm: null, // The Add / Team settings form: { mode, values, errors }. Never saved until Save.
   deleteTeamOpen: false, // The "Delete team?" confirm. Never saved.
-  sheetSettings: null, // { url, secret } of the CURRENT team. Stored only on this phone.
+  sheetSettings: null, // { url, secret, setup: 2 } of the CURRENT team. Stored only on this phone.
   sheetDraft: null, // What is typed on Sheet settings when a message is shown. Never saved.
-  sheetSaved: false, // "Saved" note on the Sheet settings screen.
+  sheetResult: null, // { ok, text }: the connection message on the Sheet settings screen. Never saved.
   sendingId: null, // The game being sent to the Sheet right now. Never saved.
   sheetProblem: {}, // gameId -> "secret" after the script refused the secret. Never saved.
   menuId: null, // The game whose ⋯ menu is open. Never saved.
@@ -159,7 +159,7 @@ function goTo(screen) {
   state.goalSheet = false;
   state.removeOpen = false;
   state.fileProblemFor = null;
-  state.sheetSaved = false;
+  state.sheetResult = null;
   state.sheetDraft = null;
   state.deleteId = null;
   state.menuId = null;
@@ -781,29 +781,38 @@ const actions = {
     saveTeamThenHome(() => deleteTeam(db, state.currentTeamId));
   }),
   saveSheetSettings: tap(async () => {
-    const cleaned = cleanSheetSettings(document.getElementById("sheetUrl").value, document.getElementById("sheetSecret").value);
-    if (!cleaned.ok) {
-      // Keep what was typed, so a message does not wipe the box.
-      state.sheetDraft = { url: document.getElementById("sheetUrl").value, secret: document.getElementById("sheetSecret").value };
-      state.problem = cleaned.message;
+    const typed = document.getElementById("sheetCode").value;
+    const parsed = parseSetupCode(typed);
+    state.sheetResult = null;
+    if (!parsed.ok) {
+      // Keep what was typed, so a message does not wipe the box. Nothing is stored.
+      state.sheetDraft = typed;
+      state.problem = parsed.message;
       draw();
       return;
     }
+    const settings = { ...parsed.settings, setup: 2 }; // setup 2 = saved from a GDA-89 setup code.
     try {
-      await updateTeam(db, state.currentTeamId, { sheet: cleaned.settings }); // Each team has its own.
+      await updateTeam(db, state.currentTeamId, { sheet: settings }); // Each team has its own.
     } catch (error) {
       console.warn("Could not save the Sheet settings", error);
       state.problem = SAVE_PROBLEM;
       draw();
       return;
     }
-    state.sheetSettings = cleaned.settings;
-    state.teams = state.teams.map((team) => (team.id === state.currentTeamId ? { ...team, sheet: cleaned.settings } : team));
+    state.sheetSettings = settings;
+    state.teams = state.teams.map((team) => (team.id === state.currentTeamId ? { ...team, sheet: settings } : team));
     state.sheetProblem = {};
     state.problem = "";
-    state.sheetSaved = true;
     state.sheetDraft = null;
+    state.sheetResult = { ok: true, text: "Checking the connection..." };
     draw();
+    // The check writes no row. Whatever it says, the code stays saved.
+    const kind = await checkSheetConnection(settings);
+    if (state.screen === "sheetSettings") {
+      state.sheetResult = { ok: kind === "connected", text: checkMessage(kind, sheetTabOf(self.GAMEDAY_CONFIG)) };
+      draw();
+    }
   }),
   openMenu: tap((gameId) => {
     state.topMenuOpen = false;

@@ -7,4 +7,7 @@
 // that copy's saved data would be opened by this one.
 self.GAMEDAY_CONFIG = {
   storageName: "gameday-test",
+  // Which tab of the Sheet this copy writes to: "Test" here, "Season" on the real copy.
+  // Change it together with storageName when publishing the real copy.
+  sheetTab: "Test",
 };

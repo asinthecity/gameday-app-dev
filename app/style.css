@@ -81,7 +81,7 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .prow .btn { flex: none; width: auto; min-width: var(--s64); min-height: var(--s44); font-size: var(--s15); padding: 0 var(--s10); }
 
 /* Forms */
-.f label { display: flex; justify-content: space-between; font-size: var(--s14); font-weight: 700; margin-bottom: var(--s3); }
+.f label, .f .lb { display: flex; justify-content: space-between; font-size: var(--s14); font-weight: 700; margin-bottom: var(--s3); }
 .f input { display: block; width: 100%; min-width: 0; min-height: var(--s52); font-family: inherit; font-size: var(--s18); color: var(--ink); background: var(--card); border: var(--bw-field) solid var(--outline); border-radius: var(--r-field); padding: var(--s10) var(--s12); -webkit-appearance: none; appearance: none; margin: 0; }
 .f input::-webkit-date-and-time-value { text-align: left; min-height: 1.3em; }
 /* Thicker border, less padding: the box stays the same size, so nothing moves under a finger. */
@@ -295,8 +295,9 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .mi:last-child { border-bottom: 0; }
 .mi.d { color: var(--danger); font-weight: 700; }
 .hdr .menuwrap { position: relative; }
-.sheetStatus.ok { background: var(--brand); color: var(--card); border-radius: var(--r-small); padding: var(--s10); font-size: var(--s18); }
+.sheetStatus.ok { font-size: var(--s18); }
 .sheetStatus.ok b { font-size: var(--s18); }
+.sheetStatus.ok .tick { color: var(--brand); }
 .archiveNote { margin: 0; text-align: center; }
 .archiveWarn { margin: 0; color: var(--danger); font-weight: 700; border: var(--s2) solid var(--danger); border-radius: var(--r-small); padding: var(--s8); }
 
@@ -319,7 +320,7 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 
 /* Who is here list in the Game details sheet (GDA-43): scrolls if the squad is long. */
 /* Who is here row and the reusable player picker (GDA-43). */
-.prow-link { display: flex; justify-content: space-between; align-items: center; min-height: var(--s60); padding: 0 var(--s14); border: 0; border-radius: var(--r-card); background: var(--line); box-shadow: inset 0 0 0 var(--s2) var(--brand); font: inherit; font-size: var(--s17); font-weight: 700; color: var(--ink); text-align: left; }
+.prow-link { display: flex; justify-content: space-between; align-items: center; min-height: var(--s60); padding: 0 var(--s14); border: 0; border-radius: var(--r-card); background: var(--line); font: inherit; font-size: var(--s17); font-weight: 700; color: var(--ink); text-align: left; }
 .sheet.picker { height: calc(100% - var(--s56)); gap: 0; padding: 0; }
 .phead { flex: none; display: flex; align-items: center; gap: var(--s8); padding: var(--s16) var(--s12) var(--s10); border-bottom: 1.5px solid var(--line); }
 .phead h2 { flex: 1; margin: 0; text-align: left; }
@@ -365,3 +366,15 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 @keyframes scoreFlash { from { background-color: var(--flash); } } /* ends at the panel's own colour */
 .score.flash, .teams.flash { animation: scoreFlash 1.5s ease-out; }
 @media (prefers-reduced-motion: reduce) { .score.flash, .teams.flash { animation-timing-function: linear; } }
+
+/* GDA-96: wording and look fixes */
+.hint { margin-top: var(--s6); font-size: var(--s14); font-weight: 700; color: var(--muted); }
+.hint[hidden] { display: none; }
+.homeCrest { flex: none; height: var(--s46); width: auto; display: block; }
+.score small { max-width: var(--s64); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+input:focus, input:focus-visible { outline: var(--bw-field) solid var(--focus); outline-offset: 1px; }
+/* GDA-96: on Half Time the title stays whole; the score box shrinks and the team names are cut short instead. */
+.hdr.ht h1 { flex: none; }
+.hdr.ht .score { flex: 0 1 auto; min-width: 0; }
+.hdr.ht .score .s { min-width: 0; }
+.hdr.ht .score small { max-width: 100%; }

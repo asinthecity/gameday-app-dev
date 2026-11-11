@@ -50,7 +50,7 @@ import { rememberFirstTeamId, canSwitchTeams, cleanTeamForm, deleteRefusal, firs
 import { applyUpdate, currentUpdateNotice, startUpdates } from "./updates.js";
 
 const SAVE_PROBLEM = "That did not save. Please try again.";
-const FULL_TIME_PROBLEM = "Not saved. The game is still open. Tap FULL TIME to try again.";
+const FULL_TIME_PROBLEM = "Not saved. The game is still open. Tap End game and save to try again.";
 // After a screen change, ignore taps briefly, so the second half of a fast
 // double tap cannot land on whatever is now under the finger.
 const TAP_PAUSE_MS = 300;
@@ -436,7 +436,7 @@ async function saveUndo() {
 
 /**
  * A goal: saved first, shown after (the score is counted from the saved goals). The dialog closes.
- * `scorerId` is a player id, or null for a goal against and for "Their own goal".
+ * `scorerId` is a player id, or null for a goal against and for "Own goal".
  */
 async function saveGoal(side, scorerId) {
   const game = openGame();

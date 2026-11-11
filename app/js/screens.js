@@ -48,9 +48,9 @@ function h(tag, props = {}, ...children) {
   return element;
 }
 
-function header(title, onBack, right = null, extra = null) {
+function header(title, onBack, right = null, extra = null, crest = null) {
   const back = onBack ? h("button", { class: "back", "aria-label": "Back", onclick: onBack }, icon("back")) : null;
-  return h("div", { class: "hdr" }, back, h("h1", {}, title), right, extra);
+  return h("div", { class: "hdr" }, back, crest, h("h1", {}, title), right, extra);
 }
 
 function problemLine(text) {
@@ -127,7 +127,7 @@ function sheetLine(game, state, actions) {
   }
   const line = (text) => h("div", { class: "sheetStatus", "data-status": status.kind }, h("b", {}, text));
   if (status.kind === "sent") {
-    return [h("div", { class: "sheetStatus ok", "data-status": "sent" }, h("b", {}, "\u2713 Sent to the Sheet"))];
+    return [h("div", { class: "sheetStatus ok", "data-status": "sent" }, h("b", { class: "tick" }, "\u2713"), h("b", {}, " Sent to the Sheet"))];
   }
   if (status.kind === "sending") {
     return [line("Sending\u2026")];
@@ -360,7 +360,7 @@ function homeScreen(state, actions) {
   );
   return {
     nodes: [
-      header("Game Day", null, topMenu),
+      header("Game Day", null, topMenu, null, h("img", { class: "homeCrest", src: "crest.png", alt: "", draggable: false })),
       h(
         "div",
         { class: "body" },
@@ -560,8 +560,11 @@ function createGameScreen(state, actions) {
     { class: "btn pri big", id: "make", disabled: !canCreateGame(form), onclick: actions.makeGame },
     "Create game"
   );
+  // GDA-96: says why Create game is greyed out until Home or Away is picked.
+  const venueHint = h("div", { class: "hint", id: "venueHint", hidden: form.venueTag !== "" }, "Pick Home or Away to create the game");
   const onChange = () => {
     make.disabled = !canCreateGame(form);
+    venueHint.hidden = form.venueTag !== "";
   };
   const text = { type: "text", autocomplete: "off", autocapitalize: "words", autocorrect: "off", spellcheck: "false" };
   return {
@@ -573,7 +576,7 @@ function createGameScreen(state, actions) {
         detailField(form, "date", "Date", { type: "date" }, onChange),
         detailField(form, "kickOff", "Kick-off", { type: "time" }, onChange),
         detailField(form, "opposition", "Opposition", text, onChange),
-        h("div", { class: "f", id: "f-venueTag" }, h("div", { class: "lb" }, h("span", {}, "Home or away")), venueTagChoice(form.venueTag, (tag) => { form.venueTag = tag; onChange(); })),
+        h("div", { class: "f", id: "f-venueTag" }, h("div", { class: "lb" }, h("span", {}, "Home or away")), venueTagChoice(form.venueTag, (tag) => { form.venueTag = tag; onChange(); }), venueHint),
         detailField(form, "venue", "Field", { ...text, placeholder: "e.g. Field 3, Smith Park (optional)" }, onChange, true),
         h(
           "div",
@@ -751,7 +754,7 @@ function lineUpScreen(state, actions) {
     fixed: true,
     noMove: true,
     nodes: [
-      header("1st-half line-up", actions.goHome, h("span", { class: "tag" }, game.formation), cogButton(actions)),
+      header("1st-half line-up", actions.goHome, cogButton(actions)),
       h(
         "div",
         { class: "lu" },
@@ -814,10 +817,6 @@ export function drawPitch(state) {
   const view = lineUpView(game, state.players);
   const [pitch] = pitchAndBench(view, state, true, view.bench.length > 6 || view.absent.length > 6);
   document.querySelector(".pitch")?.replaceWith(pitch);
-  const tag = document.querySelector(".hdr .tag");
-  if (tag) {
-    tag.textContent = game.formation;
-  }
 }
 
 /** The settings cog (GDA-64): opens the Game details sheet. Sits at the far edge, away from the game buttons. */
@@ -834,7 +833,7 @@ function hereRow(state, game, actions) {
     return null;
   }
   const here = state.players.filter((p) => !game.absent.includes(p.id)).length;
-  return h("button", { class: "prow-link", id: "hereRow", onclick: actions.openHere }, h("span", {}, `Who is here \u00b7 ${here} of ${state.players.length}`), h("span", {}, "\u203a"));
+  return h("button", { class: "prow-link", id: "hereRow", onclick: actions.openHere }, h("span", {}, `Who is here \u00b7 ${here} of ${state.players.length}`));
 }
 
 /**
@@ -949,15 +948,21 @@ export function startScoreFlash() {
   scoreFlashAt = Date.now();
 }
 
-function scoreBox(game, actions) {
+/** Short labels for the Half Time score: our team's name and the opposition, as in the game header (GDA-96). */
+function teamNames(game, state) {
+  const team = state.teams.find((t) => t.id === (game.teamId ?? state.currentTeamId));
+  return { us: team?.name ?? "Us", them: game.opposition };
+}
+
+function scoreBox(game, actions, names) {
   const flashProps = scoreFlashProps("score");
   const score = scoreOf(game);
   const side = (label, n, id) => h("span", { class: "s" }, h("small", {}, label), h("span", { id }, String(n)));
-  const parts = [side("US", score.us, "scoreUs"), h("span", { class: "dash" }, "-"), side("THEM", score.them, "scoreThem")];
+  const parts = [side(names.us, score.us, "scoreUs"), h("span", { class: "dash" }, "-"), side(names.them, score.them, "scoreThem")];
   if (!actions) {
     return h("div", { ...flashProps, id: "score" }, ...parts);
   }
-  return h("button", { ...flashProps, id: "score", "aria-label": `Score, us ${score.us}, them ${score.them}. Tap to add or undo a goal`, onclick: actions.openGoalDialog }, ...parts);
+  return h("button", { ...flashProps, id: "score", "aria-label": `Score, ${names.us} ${score.us}, ${names.them} ${score.them}. Tap to add or undo a goal`, onclick: actions.openGoalDialog }, ...parts);
 }
 
 /** Our crest, or a grey disc with initials for a team with no crest (the opponent, for now). */
@@ -1079,7 +1084,7 @@ function goalDialog(state, game, actions) {
     "button",
     { class: "ptile og", id: "ownGoal", onclick: () => actions.chooseScorer(null) },
     h("span", { class: "pav" }, h("span", { class: "av" }, "OG")),
-    h("span", { class: "pnm" }, "Their own goal")
+    h("span", { class: "pnm" }, "Own goal")
   );
   return playerPicker({
     id: "goalDialog",
@@ -1288,9 +1293,9 @@ function halfOverScreen(state, actions) {
         h("div", { class: "lbl" }, `FINAL SCORE v ${game.opposition}`),
         h("div", { class: "bigscore", id: "finalScore" }, `${score.us} - ${score.them}`),
         h("div", { class: "card", id: "scorers" }, h("b", {}, "Scorers"), named || ownGoals === 0 ? h("div", {}, named || "No goals for us") : null, ownGoals > 0 ? h("div", { id: "ownGoals" }, `Own goals ${ownGoals}`) : null),
-        h("p", { class: "final" }, "Cannot be reopened. Need a last goal? Tap Back first."),
         problemLine(state.problem),
-        h("button", { class: "btn pri big", id: "fullTime", onclick: actions.fullTime }, "FULL TIME")
+        h("p", { class: "final" }, "Cannot be reopened. Need a last goal? Tap Back first."),
+        h("button", { class: "btn pri big", id: "fullTime", onclick: actions.fullTime }, "End game and save")
       ),
     ],
   };
@@ -1302,7 +1307,7 @@ function savedScreen(state, actions) {
   const record = game?.record;
   return {
     nodes: [
-      header("Saved"),
+      header("Game saved"),
       h(
         "div",
         { class: "body" },
@@ -1331,7 +1336,7 @@ function halfTimeScreen(state, actions) {
     fixed: true,
     noMove: true,
     nodes: [
-      h("div", { class: "hdr ht" }, h("button", { class: "back", "aria-label": "Back", onclick: actions.backToGame }, icon("back")), h("h1", {}, "HALF TIME"), scoreBox(game, canAddGoal(game) ? actions : null), cogButton(actions)),
+      h("div", { class: "hdr ht" }, h("button", { class: "back", "aria-label": "Back", onclick: actions.backToGame }, icon("back")), h("h1", {}, "Half Time"), scoreBox(game, canAddGoal(game) ? actions : null, teamNames(game, state)), cogButton(actions)),
       h("div", { class: "lu" }, ...pitchAndBench(view, state, true, view.bench.length > 6)),
       h("div", { class: "acts" }, problemLine(state.problem), h("button", { class: "btn pri", id: "startSecond", onclick: actions.startSecondHalf }, "Start 2nd Half")),
       goalDialog(state, game, actions),

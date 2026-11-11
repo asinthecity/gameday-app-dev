@@ -476,7 +476,14 @@ export function startedFirstHalf(game, at) {
   if (game.state !== NOT_STARTED) {
     return game;
   }
-  return { ...game, state: FIRST_HALF, firstHalfStartedAt: at };
+  // GDA-98: keep a copy of the game just before kick-off, so Undo kick-off can put it back.
+  return { ...game, state: FIRST_HALF, firstHalfStartedAt: at, atKickOff: { ...game.atKickOff, firstHalf: copyForUndo(game) } };
+}
+
+/** The game as it is now, without the saved kick-off copies (a copy never holds another copy). */
+function copyForUndo(game) {
+  const { atKickOff, ...copy } = game;
+  return copy;
 }
 
 /** The event log entry for a half starting, at the real time `at`. */
@@ -692,6 +699,7 @@ export function startedSecondHalf(game, at) {
     return game;
   }
   const { benchOrderAtEndHalf, ...rest } = game;
+  const atKickOff = { ...game.atKickOff, secondHalf: copyForUndo(game) }; // GDA-98: for Undo kick-off.
   // The 1st half's bench: version 42 kept it as benchOrderAtEndHalf; now it is simply benchOrder.
   const firstHalfBenchOrder = benchOrderAtEndHalf ?? game.benchOrder ?? [];
   // Bench time (GDA-29): the first half's bench time carries on. Everyone who was on the bench when the
@@ -713,6 +721,7 @@ export function startedSecondHalf(game, at) {
   }
   return {
     ...rest,
+    atKickOff,
     state: SECOND_HALF,
     secondHalfStartedAt: at,
     benchSince: {},
@@ -758,6 +767,39 @@ export function reopenedHalf(game, half = null) {
     return game;
   }
   return game.state === SECOND_HALF ? reopenedSecondHalf(game) : reopenedFirstHalf(game);
+}
+
+// ---- Undo kick-off (GDA-98) ----
+const HALF_KEYS = { 1: "firstHalf", 2: "secondHalf" };
+
+/** Undo kick-off is offered only for a half that is In progress and has a saved copy from its kick-off. */
+export function canUndoKickOff(game, half) {
+  return phaseOf(game, half) === IN_PROGRESS_PHASE && Boolean(game.atKickOff?.[HALF_KEYS[half]]);
+}
+
+/**
+ * Undo kick-off for half 1 or 2: the game goes back to the copy saved at that kick-off, so that half
+ * is Not started (clock, swaps, goals, bench times and late arrivals of that half all gone).
+ * Undoing the 1st half keeps the 2nd-half plan as it is NOW (the plan is Ben's work, not something
+ * that happened). Undoing the 2nd half leaves the 1st half Ended, with Resume half available.
+ * If the half is not running or there is no copy (stale screen, old game) the game comes back unchanged.
+ */
+export function undoneKickOff(game, half) {
+  if (!canUndoKickOff(game, half)) {
+    return game;
+  }
+  const saved = game.atKickOff[HALF_KEYS[half]];
+  if (half === 1) {
+    return { ...saved, lineups: { ...saved.lineups, secondHalf: game.lineups.secondHalf } };
+  }
+  // Keep the 1st half's own copy, so the game is exactly as before the 2nd half started.
+  return game.atKickOff.firstHalf ? { ...saved, atKickOff: { firstHalf: game.atKickOff.firstHalf } } : saved;
+}
+
+/** True for a log entry that Undo kick-off removes: this half's entries from its start on. `game` is the game BEFORE the undo. */
+export function isRemovedByUndo(game, half, event) {
+  const startedAt = half === 1 ? game.firstHalfStartedAt : game.secondHalfStartedAt;
+  return event.half === HALF_KEYS[half] && event.at >= startedAt;
 }
 
 /** The real start time of the half being played (or just ended). */

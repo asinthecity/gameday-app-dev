@@ -276,6 +276,8 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .gr .mainGap { flex: 1; }
 .sheet .pair { display: flex; gap: var(--s10); }
 .sheet .pair .btn { flex: 1; }
+.undoAsk { border: var(--bw-field) solid var(--danger); gap: var(--s8); }
+.undoAsk p { margin: 0; font-size: var(--s16); }
 
 /* Full Time and Saved (GDA-50) */
 .lbl { font-weight: 800; text-align: center; }

@@ -2,7 +2,7 @@
 // fully saved or not changed at all. See game-rules.js for what a game holds.
 
 import { change, read } from "./db.js";
-import { isInProgress, hereToggled, benchStints, lineUpMoved, SECOND_HALF, goalAdded, goalRemoved, playedToday, lineupKey, startedSecondHalf, endedHalf, reopenedHalf, benchReordered, planMoved, planBenchReordered, fieldMoved, pairPlanned, pairRemoved, swapEvent, swapUndone, swapped, gamesInOrder, halfEndCancelledEvent, halfEndEvent, halfStartEvent, movedOnto, newGame, nextCreatedOrder, positionChangeEvent, prePlaced, startedFirstHalf, withBenchOrder } from "./game-rules.js";
+import { isInProgress, hereToggled, benchStints, lineUpMoved, SECOND_HALF, goalAdded, goalRemoved, playedToday, lineupKey, startedSecondHalf, undoneKickOff, isRemovedByUndo, endedHalf, reopenedHalf, benchReordered, planMoved, planBenchReordered, fieldMoved, pairPlanned, pairRemoved, swapEvent, swapUndone, swapped, gamesInOrder, halfEndCancelledEvent, halfEndEvent, halfStartEvent, movedOnto, newGame, nextCreatedOrder, positionChangeEvent, prePlaced, startedFirstHalf, withBenchOrder } from "./game-rules.js";
 import { buildRecord, gameAtFullTime } from "./record-rules.js";
 import { canDeleteGame, gameArchived } from "./sheet-rules.js";
 import { squadInOrder } from "./squad-rules.js";
@@ -288,6 +288,38 @@ export function reopenHalf(db, gameId, at, half = null) {
 /** Start 2nd Half: saves the start time on the game and in the event log, in one transaction. */
 export function startSecondHalf(db, gameId, at) {
   return changeHalf(db, gameId, (game) => startedSecondHalf(game, at), () => halfStartEvent(gameId, at, "secondHalf"));
+}
+
+/**
+ * Undo kick-off (GDA-98) for half 1 or 2, all or nothing in ONE transaction: the game goes back to its
+ * copy from kick-off and that half's log entries are removed. A stale screen (half not running, no copy)
+ * changes nothing.
+ */
+export function undoKickOff(db, gameId, half) {
+  return change(db, ["games", "events"], (tx) => {
+    const games = tx.objectStore("games");
+    games.get(gameId).onsuccess = (found) => {
+      const saved = found.target.result;
+      const undone = saved ? undoneKickOff(saved, half) : null;
+      if (!undone) {
+        tx.abort();
+        return;
+      }
+      if (undone === saved) {
+        return; // Stale screen: nothing to undo, nothing changed.
+      }
+      games.put(undone);
+      tx.objectStore("events").index("gameId").openCursor(gameId).onsuccess = (e) => {
+        const cursor = e.target.result;
+        if (cursor) {
+          if (isRemovedByUndo(saved, half, cursor.value)) {
+            cursor.delete();
+          }
+          cursor.continue();
+        }
+      };
+    };
+  });
 }
 
 /**

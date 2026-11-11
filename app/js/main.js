@@ -40,7 +40,7 @@ import {
   withVenue,
   hereDifferences,
 } from "./game-rules.js";
-import { archiveGame, deleteGame, markSentToSheet, addGame, addGoal, removeGoal, changeGame, endHalf, fullTime, loadGames, moveFieldPlayer, movePlan, movePlayer, planPair, prePlaceGame, reopenHalf, reorderBench, reorderPlanBench, startFirstHalf, startSecondHalf, swapPlayers, toggleHere, undoSwap, unplanPair } from "./game-store.js";
+import { archiveGame, deleteGame, markSentToSheet, addGame, addGoal, removeGoal, changeGame, endHalf, fullTime, loadGames, moveFieldPlayer, movePlan, movePlayer, planPair, prePlaceGame, reopenHalf, reorderBench, reorderPlanBench, startFirstHalf, startSecondHalf, undoKickOff, swapPlayers, toggleHere, undoSwap, unplanPair } from "./game-store.js";
 import { canSend, checkMessage, parseSetupCode, SETTINGS_KEY, sheetTabOf } from "./sheet-rules.js";
 import { checkSheetConnection, sendGameToSheet } from "./sheet-send.js";
 import { shareCsv } from "./share-file.js";
@@ -82,6 +82,7 @@ const state = {
   addCameFrom: "home",
   showRemoveWarning: false,
   hereDraft: null, // GDA-43: the Who is here picker's unsaved draft (a Set of player ids), or null when closed.
+  undoKickOffAsk: false, // Undo kick-off confirm showing in the Game details sheet.
   rotationOpen: false, // The rotation stepper sheet on the ready and game screens.
   welcome: false, // The "Welcome back" banner after a restart. Never saved.
   goalOpen: false, // The "Who scored?" dialog (GDA-90).
@@ -156,6 +157,7 @@ function goTo(screen) {
   state.problem = "";
   state.showRemoveWarning = false;
   state.rotationOpen = false;
+  state.undoKickOffAsk = false;
   state.hereDraft = null;
   state.selectedId = null;
   state.undo = null;
@@ -621,8 +623,24 @@ const actions = {
       })
       .catch((error) => console.warn("Could not save the formation", error));
   },
+  // GDA-98: Undo kick-off asks first; Keep playing changes nothing.
+  askUndoKickOff: tap(() => {
+    state.undoKickOffAsk = true;
+    draw();
+  }),
+  keepPlaying: tap(() => {
+    state.undoKickOffAsk = false;
+    draw();
+  }),
+  confirmUndoKickOff: tap(async () => {
+    const half = screenHalf(state.screen);
+    state.undoKickOffAsk = false;
+    // Saved first (all or nothing); a screen that is out of date changes nothing. Then the screen the saved game opens on.
+    await saveThenGoTo(() => undoKickOff(db, state.gameId, half), state.screen);
+  }),
   closeRotation: tap(() => {
     state.rotationOpen = false;
+    state.undoKickOffAsk = false;
     state.hereDraft = null;
     draw();
   }),

@@ -6,7 +6,7 @@
 
 import { hasRecord, scorerSummary, csvFileName } from "./record-rules.js";
 import { trimmedLine } from "./drag.js";
-import { FINISHED, FIRST_HALF, canPlan, IN_PROGRESS_PHASE, NOT_STARTED_PHASE, phaseOf, canStartHalf, canResumeHalf, halfLineUpView, nextScreen, lineupKey, canChangeWhoIsHere, startedAtOf, endedAtOf, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, frozenRingLook, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationOf, halfOf, MIN_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, goalsOf } from "./game-rules.js";
+import { FINISHED, FIRST_HALF, canPlan, IN_PROGRESS_PHASE, NOT_STARTED_PHASE, phaseOf, canStartHalf, canResumeHalf, halfLineUpView, nextScreen, lineupKey, canChangeWhoIsHere, startedAtOf, endedAtOf, canUndoKickOff, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, frozenRingLook, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationOf, halfOf, MIN_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, goalsOf } from "./game-rules.js";
 import { checkFormation, formatFormationDigits, pitchRows } from "./formation-rules.js";
 import { archiveWarning, canDeleteGame, setupCodeOf, sheetStatus } from "./sheet-rules.js";
 import { canSaveName, initialsFor } from "./squad-rules.js";
@@ -1018,6 +1018,27 @@ function venueEditor(game, actions) {
 }
 
 /**
+ * Undo kick-off (GDA-98): in the Game details sheet only while the half shown is In progress and has a
+ * saved copy from its kick-off. Not shown at all otherwise (not just greyed). The first tap asks;
+ * "Keep playing" changes nothing; "Undo kick-off" undoes it.
+ */
+function undoKickOffRow(state, game, actions) {
+  if (!canUndoKickOff(game, screenHalf(state.screen))) {
+    return null;
+  }
+  if (!state.undoKickOffAsk) {
+    return h("button", { class: "btn del", id: "undoKickOff", onclick: actions.askUndoKickOff }, "Undo kick-off");
+  }
+  return h(
+    "div",
+    { class: "card undoAsk", id: "undoKickOffAsk" },
+    h("b", {}, "Undo kick-off?"),
+    h("p", {}, "The clock goes back to 0:00 and this half's swaps and goals are removed."),
+    h("div", { class: "pair" }, h("button", { class: "btn", id: "keepPlaying", onclick: actions.keepPlaying }, "Keep playing"), h("button", { class: "btn del", id: "confirmUndoKickOff", onclick: actions.confirmUndoKickOff }, "Undo kick-off"))
+  );
+}
+
+/**
  * The Game details sheet (GDA-64), drawn only while open: the rotation length stepper,
  * opposition and date as read-only text, and Done. Each tap on - or + is saved at once;
  * Done only closes the sheet.
@@ -1042,6 +1063,7 @@ function gameDetailsSheet(state, game, actions) {
       h("div", { class: "ro", id: "detDate" }, `Date: ${formatGameDate(game.date)}`),
       venueEditor(game, actions),
       hereRow(state, game, actions),
+      undoKickOffRow(state, game, actions),
       h("button", { class: "btn pri", id: "rotDone", onclick: actions.closeRotation }, "Done")
     )
   );

@@ -117,7 +117,8 @@ export function buildRecord(game, squad, events) {
  * `toSend` marks it for the season Sheet (GDA-47); games finished before that have no mark.
  */
 export function gameAtFullTime(game, record) {
-  return { ...game, state: FINISHED, record, toSend: true };
+  const { atKickOff, ...rest } = game; // GDA-98: no Undo kick-off after Full Time.
+  return { ...rest, state: FINISHED, record, toSend: true };
 }
 
 /**

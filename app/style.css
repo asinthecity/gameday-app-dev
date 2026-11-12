@@ -388,3 +388,21 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .score small { max-width: var(--s64); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 input:focus, input:focus-visible { outline: var(--bw-field) solid var(--focus); outline-offset: 1px; }
 /* GDA-96: on Half Time the title stays whole; the score box shrinks and the team names are cut short instead. */
+
+/* GDA-86: Carry over switches. Whole row is the tap target; On/Off is a word and the knob position, not colour alone. */
+.covs { display: flex; flex-direction: column; gap: var(--s10); }
+.cov { display: flex; align-items: center; gap: var(--s12); width: 100%; min-height: var(--s52); padding: 0 var(--s12); font: inherit; font-size: var(--s17); font-weight: 700; color: var(--ink); background: var(--card); border: var(--bw-field) solid var(--outline); border-radius: var(--r-field); cursor: pointer; text-align: left; }
+.cov .l { flex: 1; }
+.cov .st { font-size: var(--s14); font-weight: 800; text-align: right; }
+.cov .sw { position: relative; flex: none; width: var(--s56); height: var(--s34); border-radius: var(--s17); background: var(--line); border: var(--bw-field) solid var(--ink); }
+.cov .sw:after { content: ""; position: absolute; top: var(--s2); left: var(--s2); width: var(--s26); height: var(--s26); border-radius: var(--r-round); background: var(--card); border: var(--bw-field) solid var(--ink); font-size: var(--s14); font-weight: 800; line-height: var(--s22); text-align: center; }
+.cov.on .sw { background: var(--ink); }
+.cov.on .sw:after { left: calc(100% - var(--s28) - var(--s2)); content: "\2713"; color: var(--ink); }
+.cov.locked { cursor: default; background: var(--line); color: var(--muted); border-style: dashed; }
+.cov.locked .sw { background: var(--line); border-style: dashed; border-color: var(--muted); }
+.cov.locked .sw:after { border-color: var(--muted); color: var(--muted); }
+.cov.locked.on .sw { background: var(--muted); }
+.cov.locked.on .sw:after { background: var(--card); }
+
+/* GDA-86: a taller sheet (2nd Half, with the switches) scrolls instead of running off the top of the screen. */
+.sheet { max-height: 100%; overflow-y: auto; }

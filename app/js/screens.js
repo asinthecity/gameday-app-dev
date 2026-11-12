@@ -6,7 +6,7 @@
 
 import { hasRecord, scorerSummary, csvFileName } from "./record-rules.js";
 import { trimmedLine } from "./drag.js";
-import { FINISHED, FIRST_HALF, canPlan, IN_PROGRESS_PHASE, NOT_STARTED_PHASE, phaseOf, canStartHalf, canResumeHalf, halfLineUpView, nextScreen, lineupKey, canChangeWhoIsHere, startedAtOf, endedAtOf, canUndoKickOff, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, frozenRingLook, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationOf, halfOf, MIN_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, goalsOf } from "./game-rules.js";
+import { FINISHED, FIRST_HALF, canPlan, IN_PROGRESS_PHASE, NOT_STARTED_PHASE, phaseOf, canStartHalf, canResumeHalf, halfLineUpView, nextScreen, lineupKey, canChangeWhoIsHere, startedAtOf, endedAtOf, canUndoKickOff, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, frozenRingLook, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationOf, halfOf, carriesRotationOrder, carriesBenchTime, canChangeCarryOver, MIN_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, goalsOf } from "./game-rules.js";
 import { checkFormation, formatFormationDigits, pitchRows } from "./formation-rules.js";
 import { archiveWarning, canDeleteGame, setupCodeOf, sheetStatus } from "./sheet-rules.js";
 import { canSaveName, initialsFor } from "./squad-rules.js";
@@ -646,6 +646,7 @@ function createGameScreen(state, actions) {
             Math.min(25, form.halfMinutes)
           )
         ),
+        carryOverSwitches(form, false, actions),
         // GDA-22: the half length is the team's, fixed for this game. Shown so it is not a surprise.
         h("div", { class: "ro", id: "halfInfo" }, `Half length: ${form.halfMinutes} min (from the team)`),
         form.rotationNote ? h("div", { class: "ro", id: "rotNote" }, form.rotationNote) : null,
@@ -675,6 +676,7 @@ function newGameScreen(state, actions) {
         row("Home or away", game.venueTag || "Not set", "ngVenueTag"),
         row("Field", game.venue || "Not set", "ngVenue"),
         row("Rotation", `${rotationOf(game)} min`, "ngRotation"),
+        carryOverSwitches(carryValuesOf(game), !canChangeCarryOver(game), actions),
         h("div", { class: "ro", id: "halfInfo" }, `Half length: ${halfOf(game)} min (from the team)`)
       ),
     ],
@@ -1039,6 +1041,33 @@ function undoKickOffRow(state, game, actions) {
 }
 
 /**
+ * GDA-86: the two "Carry over" switches. The whole row is the tap target. On/Off is a word and the knob
+ * position, not colour alone. `locked` (2nd half started) makes them read-only and greyed.
+ */
+function carryOverSwitches(values, locked, actions) {
+  const row = (which, label, on) =>
+    h(
+      "button",
+      {
+        class: "cov" + (on ? " on" : "") + (locked ? " locked" : ""),
+        id: "tg-" + which,
+        type: "button",
+        role: "switch",
+        "aria-checked": String(on),
+        "aria-disabled": locked ? "true" : "false",
+        onclick: locked ? null : () => actions.toggleCarryOver(which),
+      },
+      h("span", { class: "l" }, label),
+      h("span", { class: "st" }, on ? (locked ? "On \u00b7 LOCKED" : "On") : locked ? "Off \u00b7 LOCKED" : "Off"),
+      h("span", { class: "sw" })
+    );
+  return h("div", { class: "covs", id: "carrySwitches" }, row("carryRotationOrder", "Carry over rotation order", values.carryRotationOrder), row("carryBenchTime", "Carry over bench time", values.carryBenchTime));
+}
+function carryValuesOf(game) {
+  return { carryRotationOrder: carriesRotationOrder(game), carryBenchTime: carriesBenchTime(game) };
+}
+
+/**
  * The Game details sheet (GDA-64), drawn only while open: the rotation length stepper,
  * opposition and date as read-only text, and Done. Each tap on - or + is saved at once;
  * Done only closes the sheet.
@@ -1059,6 +1088,8 @@ function gameDetailsSheet(state, game, actions) {
       h("h2", {}, "Game details"),
       h("div", { class: "lbl" }, "Rotation length"),
       rotationStepper(() => rotationOf(openGame(state)), actions.stepRotation, Math.min(25, halfOf(game))),
+      // GDA-86: on the 2nd Half screen only (editable while Not started, read-only once started). The 1st Half sheet stays as it was.
+      screenHalf(state.screen) === 2 ? carryOverSwitches(carryValuesOf(game), !canChangeCarryOver(game), actions) : null,
       h("div", { class: "ro", id: "detOpp" }, `Opposition: ${game.opposition}`),
       h("div", { class: "ro", id: "detDate" }, `Date: ${formatGameDate(game.date)}`),
       venueEditor(game, actions),

@@ -6,7 +6,7 @@
 // It is stored on the game itself, in the same save that closes the game.
 
 import { OLD_FORMATION, positionNameIn } from "./formation-rules.js";
-import { BENCH, FINISHED, SECOND_HALF, SWAP, POSITION_CHANGE, goalsOf, scoreOf, US } from "./game-rules.js";
+import { BENCH, FINISHED, SECOND_HALF, SWAP, POSITION_CHANGE, goalsOf, scoreOf, US, wholeGameBenchNumber } from "./game-rules.js";
 
 export const BENCH_NAME = "Bench";
 export const ABSENT_NAME = "Absent";
@@ -107,7 +107,7 @@ export function buildRecord(game, squad, events) {
       secondHalf: isAbsent(p) && !played(second, p) ? ABSENT_NAME : halfPosition(second.get(p.id), game.formation),
       goals: goals.filter((g) => g.side === US && g.scorerId === p.id).length,
       // GDA-56: the bench-order number, or blank if never off the bench (absent players too).
-      benchOrder: isAbsent(p) && !played(first, p) && !played(second, p) ? "" : game.benchNumbers?.[p.id] ?? "",
+      benchOrder: isAbsent(p) && !played(first, p) && !played(second, p) ? "" : wholeGameBenchNumber(game, p.id) ?? "",
     })),
   };
 }

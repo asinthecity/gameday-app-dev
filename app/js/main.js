@@ -37,6 +37,9 @@ import {
   IN_PROGRESS_PHASE,
   NOT_STARTED_PHASE,
   withRotation,
+  withCarryOver,
+  carriesRotationOrder,
+  carriesBenchTime,
   withVenue,
   hereDifferences,
 } from "./game-rules.js";
@@ -498,6 +501,11 @@ function saveBenchMove(playerId, targetId) {
   return saveThenShowLineUp(() => reorderBench(db, state.gameId, playerId, targetId));
 }
 
+/** The current value of a GDA-86 switch. */
+function carryValue(game, which) {
+  return which === "carryRotationOrder" ? carriesRotationOrder(game) : carriesBenchTime(game);
+}
+
 function openGame() {
   return state.games.find((game) => game.id === state.gameId);
 }
@@ -597,6 +605,22 @@ const actions = {
     // Show the new number straight away; the save follows within milliseconds.
     state.games = state.games.map((game) => (game.id === state.gameId ? withRotation(game, minutes) : game));
     drawClock(state);
+  },
+  // GDA-86: a carry-over switch. On New game it only changes the form; on a saved game it is saved at once,
+  // and only while the 2nd half has not started (a locked game comes back unchanged).
+  toggleCarryOver: (which) => {
+    const game = state.form ? null : openGame();
+    if (state.form) {
+      state.form[which] = !state.form[which];
+      draw();
+      return;
+    }
+    if (!game) {
+      return;
+    }
+    state.games = state.games.map((g) => (g.id === game.id ? withCarryOver(g, which, !carryValue(g, which)) : g));
+    draw();
+    changeGame(db, game.id, (g) => withCarryOver(g, which, !carryValue(game, which))).catch((error) => console.warn("Could not save the choice", error));
   },
   // GDA-88: the Home / Away / Other tag or the Field text, saved at once from the Game details sheet.
   changeVenue: (change) => {

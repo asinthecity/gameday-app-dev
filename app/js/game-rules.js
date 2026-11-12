@@ -47,7 +47,7 @@ export function isBlank(text) {
 
 /** What the New game screen holds before anything is typed. `marked` lists fields showing Needed. */
 export function blankGameForm() {
-  return { date: "", kickOff: "", opposition: "", venueTag: "", venue: "", rotationMinutes: ROTATION_MINUTES, marked: {} };
+  return { date: "", kickOff: "", opposition: "", venueTag: "", venue: "", rotationMinutes: ROTATION_MINUTES, carryRotationOrder: true, carryBenchTime: false, marked: {} };
 }
 
 /**
@@ -118,6 +118,8 @@ export function newGame(form, id, createdOrder, squad, team = null) {
     formation,
     halfMinutes,
     rotationMinutes: clampRotation(form.rotationMinutes, halfMinutes),
+    carryRotationOrder: form.carryRotationOrder !== false, // GDA-86: default ON (today's behaviour)
+    carryBenchTime: form.carryBenchTime === true, // GDA-86: default OFF (today's behaviour)
     absent: [],
     lineups: { firstHalf: emptyLineUp(placeCount(formation)), secondHalf: emptyLineUp(placeCount(formation)) },
   };
@@ -558,6 +560,30 @@ export function withFormation(game, formation) {
   return { ...game, formation };
 }
 
+/**
+ * GDA-86: the two 2nd-half switches. A game saved before this version has neither value, so it reads as
+ * today's behaviour: rotation order carried (ON), bench time not carried (OFF).
+ */
+export function carriesRotationOrder(game) {
+  return game.carryRotationOrder !== false;
+}
+export function carriesBenchTime(game) {
+  return game.carryBenchTime === true;
+}
+
+/** The switches can be changed only while the 2nd half has not started (and the game is not finished). */
+export function canChangeCarryOver(game) {
+  return game.state !== SECOND_HALF && game.state !== FINISHED;
+}
+
+/** Copies a game with one switch changed (`which` is "carryRotationOrder" or "carryBenchTime"). Locked games come back unchanged. */
+export function withCarryOver(game, which, value) {
+  if (!canChangeCarryOver(game) || (which !== "carryRotationOrder" && which !== "carryBenchTime")) {
+    return game;
+  }
+  return { ...game, [which]: Boolean(value) };
+}
+
 /** Copies a game with a new rotation length. Timers are not touched: they are measured against it from now on. */
 export function withRotation(game, minutes) {
   return { ...game, rotationMinutes: clampRotation(minutes, halfOf(game)) };
@@ -704,10 +730,6 @@ export function startedSecondHalf(game, at) {
   const firstHalfBenchOrder = benchOrderAtEndHalf ?? game.benchOrder ?? [];
   // Bench time (GDA-29): the first half's bench time carries on. Everyone who was on the bench when the
   // half ended gets that last stint added now; the half-time break itself adds nothing (it stops at End Half).
-  const benchTotals = { ...game.benchTotals };
-  for (const id of firstHalfBenchOrder) {
-    benchTotals[id] = benchTotalSeconds(game, id, at);
-  }
   const plan = game.lineups.secondHalf;
   const touched = plan.status === PLANNED;
   const positions = (touched ? plan.positions : game.lineups.firstHalf.positions).map((id) => (game.absent.includes(id) ? null : id));
@@ -719,13 +741,30 @@ export function startedSecondHalf(game, at) {
       benchOrder.push(id);
     }
   }
+  // GDA-86: Carry over bench time ON: each bench timer carries on from what it showed at End Half, so that
+  // stint is NOT added to the totals yet (it is added when the player goes on, as normal; adding it now too would count it twice).
+  // Anyone who is not on the bench now (absent) has their stint added now, as before.
+  const carryTime = carriesBenchTime(game);
+  const benchTotals = { ...game.benchTotals };
+  const benchSince = {};
+  for (const id of firstHalfBenchOrder) {
+    if (carryTime && benchOrder.includes(id)) {
+      benchSince[id] = at - benchSeconds(game, id, at) * 1000;
+    } else {
+      benchTotals[id] = benchTotalSeconds(game, id, at);
+    }
+  }
+  // GDA-86: Carry over rotation order OFF: the on-screen numbers clear and restart at 1. The 1st half's numbers
+  // are kept as recordNumbers (the whole-game counter, carried on by swapped()) so the Season record keeps whole-game numbering (and Undo kick-off restores all).
+  const clearNumbers = !carriesRotationOrder(game);
   return {
     ...rest,
     atKickOff,
     state: SECOND_HALF,
     secondHalfStartedAt: at,
-    benchSince: {},
+    benchSince,
     benchTotals,
+    ...(clearNumbers ? { benchNumbers: {}, recordNumbers: { ...game.benchNumbers } } : {}),
     plannedPairs: [],
     firstHalfBenchOrder,
     benchOrder,
@@ -790,7 +829,8 @@ export function undoneKickOff(game, half) {
   }
   const saved = game.atKickOff[HALF_KEYS[half]];
   if (half === 1) {
-    return { ...saved, lineups: { ...saved.lineups, secondHalf: game.lineups.secondHalf } };
+    // The plan and the GDA-86 switches are Ben's choices, not things that happened, so they stay as they are now.
+    return { ...saved, carryRotationOrder: game.carryRotationOrder, carryBenchTime: game.carryBenchTime, lineups: { ...saved.lineups, secondHalf: game.lineups.secondHalf } };
   }
   // Keep the 1st half's own copy, so the game is exactly as before the 2nd half started.
   return game.atKickOff.firstHalf ? { ...saved, atKickOff: { firstHalf: game.atKickOff.firstHalf } } : saved;
@@ -1049,6 +1089,10 @@ export function swapped(game, at) {
   // Bench time (GDA-29): seconds of finished bench stints, per player. A stint is added when the player goes on.
   const benchTotals = { ...game.benchTotals };
   let nextNumber = Math.max(0, ...Object.values(benchNumbers)) + 1;
+  // GDA-86: with Carry over rotation order OFF a separate whole-game counter exists (recordNumbers); it is
+  // given out exactly as the on-screen numbers were before this story, so the Season record never differs.
+  const recordNumbers = game.recordNumbers ? { ...game.recordNumbers } : null;
+  let nextRecord = recordNumbers ? Math.max(0, ...Object.values(recordNumbers)) + 1 : 0;
   const changes = [];
   for (const pair of pairsOf(game)) {
     const place = pair.fieldId !== null ? positions.indexOf(pair.fieldId) : pair.place;
@@ -1063,6 +1107,9 @@ export function swapped(game, at) {
     if (!benchNumbers[pair.benchId]) {
       benchNumbers[pair.benchId] = nextNumber++; // First time off the bench: takes the next number.
     }
+    if (recordNumbers && !recordNumbers[pair.benchId]) {
+      recordNumbers[pair.benchId] = nextRecord++;
+    }
     changes.push({ playerId: pair.benchId, from: BENCH, to: place });
     if (pair.fieldId !== null) {
       benchSince[pair.fieldId] = at;
@@ -1072,7 +1119,7 @@ export function swapped(game, at) {
   if (changes.length === 0) {
     return null;
   }
-  return { game: { ...withFirstHalf(game, { positions }), benchOrder: order, benchSince, benchNumbers, benchTotals, plannedPairs: [] }, changes };
+  return { game: { ...withFirstHalf(game, { positions }), benchOrder: order, benchSince, benchNumbers, benchTotals, ...(recordNumbers ? { recordNumbers } : {}), plannedPairs: [] }, changes };
 }
 
 /**
@@ -1081,7 +1128,7 @@ export function swapped(game, at) {
  */
 export function swapUndone(game, before) {
   const restored = withFirstHalf(game, { positions: before.lineups[lineupKey(before)].positions });
-  return { ...restored, benchOrder: before.benchOrder, benchSince: before.benchSince, benchNumbers: before.benchNumbers ?? {}, benchTotals: before.benchTotals ?? {}, plannedPairs: before.plannedPairs ?? [] };
+  return { ...restored, benchOrder: before.benchOrder, benchSince: before.benchSince, benchNumbers: before.benchNumbers ?? {}, ...(before.recordNumbers ? { recordNumbers: before.recordNumbers } : {}), benchTotals: before.benchTotals ?? {}, plannedPairs: before.plannedPairs ?? [] };
 }
 
 /**
@@ -1196,6 +1243,15 @@ export function benchStints(game, events) {
 export function benchTotalText(seconds) {
   const minutes = Math.floor(seconds / 60);
   return minutes >= 1 ? `${minutes}m` : "";
+}
+
+/**
+ * GDA-86: a player's number for the whole game (used by the Season record). With Carry over rotation order
+ * OFF the on-screen numbers restart at 1 in the 2nd half, so a 2nd-half number is placed after all the 1st half's.
+ * A player's FIRST number in the game wins.
+ */
+export function wholeGameBenchNumber(game, playerId) {
+  return (game.recordNumbers ?? game.benchNumbers)?.[playerId] ?? null;
 }
 
 /** The player's bench-order number (GDA-56), or null if they have not come off the bench. */

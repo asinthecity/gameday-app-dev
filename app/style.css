@@ -12,7 +12,7 @@ body {
   font-family: -apple-system, "Helvetica Neue", Arial, sans-serif;
   background: var(--page);
   color: var(--ink);
-  font-size: var(--s16);
+  font-size: var(--fs-body);
   -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
 }
@@ -38,65 +38,78 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
   display: flex; align-items: center; gap: var(--s8); flex: none; min-height: var(--s53);
   /* The mock-up's black bar kept clear of the phone's status area. It is gone, so this does. */
   padding: calc(var(--s4) + env(safe-area-inset-top)) var(--s12) var(--s4);
-  border-bottom: 1px solid var(--line); background: var(--page);
+  background: var(--page);
 }
-.hdr h1 { margin: 0; font-size: var(--s20); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.back { flex: none; width: var(--s48); height: var(--s44); border: 0; border-radius: var(--r-button); background: var(--line); color: var(--ink); padding: 0; display: flex; align-items: center; justify-content: center; }
+.hdr h1 { margin: 0; font-size: var(--fs-title); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.back { flex: none; width: var(--s48); height: var(--s44); border: 0; border-radius: var(--r-control); background: var(--line); color: var(--ink); padding: 0; display: flex; align-items: center; justify-content: center; }
 .back svg { width: var(--s24); height: var(--s24); }
-.tag { flex: none; background: var(--card); color: var(--brand); border-radius: var(--r-chip); padding: var(--s2) var(--s7); font-size: var(--s12); font-weight: 800; }
+.tag { flex: none; background: var(--card); color: var(--brand); border-radius: var(--r-control); padding: var(--s2) var(--s7); font-size: var(--fs-small); font-weight: var(--bold); }
 .body { padding: var(--s12); display: flex; flex-direction: column; gap: var(--s12); }
 .btn {
   display: flex; align-items: center; justify-content: center; width: 100%; min-height: var(--s54);
-  border: var(--s2) solid var(--outline); border-radius: var(--r-button); background: var(--card); color: var(--ink);
-  font-size: var(--s18); font-weight: 800; padding: var(--s6) var(--s12); text-align: center;
+  border: var(--bw) solid transparent; border-radius: var(--r-control); background: var(--line); color: var(--ink);
+  font-size: var(--fs-title); font-weight: var(--bold); padding: var(--s6) var(--s12); text-align: center;
 }
-/* The five kinds of button (style doc section 5): primary, secondary (the plain .btn above),
-   grey, danger, disabled. A press makes the fill slightly darker. */
+/* Buttons (GDA-99): standard (the plain .btn above: grey fill, no outline), primary (green, dark text),
+   danger, disabled. A press makes the fill slightly darker. */
 .btn:active, .back:active, .cog:active, .ic:active { filter: brightness(.92); }
-.btn.pri { background: var(--brand); border-color: var(--brand); color: var(--card); }
-.btn.grey, .btn.eh { background: var(--line); border-color: var(--line); color: var(--ink); }
+.btn.pri { background: var(--go); border-color: var(--go-edge); color: var(--ink); }
+.btn.grey, .btn.eh { background: var(--line); border-color: transparent; color: var(--ink); }
 .btn.big { min-height: var(--s60); }
 .btn.del { background: var(--danger); border-color: var(--danger); color: var(--card); }
-.btn[disabled] { background: var(--line); border-color: var(--line); color: var(--muted); opacity: 1; cursor: default; filter: none; }
+.btn[disabled] { background: var(--line); border-color: transparent; color: var(--muted); opacity: 1; cursor: default; filter: none; }
 .acts { flex: none; padding: var(--s8) var(--s12) calc(var(--s8) + env(safe-area-inset-bottom)); border-top: 1px solid var(--line); background: var(--page); }
-.acts .btn { min-height: var(--s56); font-size: var(--s20); }
-.msg { font-size: var(--s22); font-weight: 800; text-align: center; padding: var(--s28) 0 var(--s4); }
-.problem { margin: 0; font-weight: 800; color: var(--danger); }
-.av { width: 100%; height: 100%; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: var(--s17); color: var(--ink); border: var(--s2) solid var(--card); box-shadow: var(--ring); }
+.acts .btn { min-height: var(--s56); font-size: var(--fs-title); }
+.msg { font-size: var(--fs-title); font-weight: var(--bold); text-align: center; padding: var(--s28) 0 var(--s4); }
+.problem { margin: 0; font-weight: var(--bold); color: var(--danger); }
+.av { width: 100%; height: 100%; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: var(--bold); font-size: var(--fs-body); color: var(--ink); border: var(--s2) solid var(--card); box-shadow: var(--ring); }
 .c0 { background: var(--av0); } .c1 { background: var(--av1); } .c2 { background: var(--av2); } .c3 { background: var(--av3); }
 /* GDA-75: on the pitch and bench a player with no photo is a white disc with dark initials. */
 .lu .av.c0, .lu .av.c1, .lu .av.c2, .lu .av.c3, .lu .av.c4, .lu .av.c5, .lu .av.c6, .lu .av.c7 { background: var(--card); }
 .c4 { background: var(--av4); } .c5 { background: var(--av5); } .c6 { background: var(--av6); } .c7 { background: var(--av7); }
 
 /* Update notice and game cards on Home */
-.card { border: 0; border-radius: var(--r-card); padding: var(--s16); background: var(--card); display: flex; flex-direction: column; gap: var(--s3); overflow-wrap: anywhere; }
-.card b { font-size: var(--s18); }
+.card { border: 0; border-radius: var(--r-control); padding: var(--s16); background: var(--card); display: flex; flex-direction: column; gap: var(--s3); overflow-wrap: anywhere; }
+.card b { font-size: var(--fs-title); }
 .card .btn { margin-top: var(--s8); }
 
 /* Squad */
 .list { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; padding: var(--s8) var(--s12); display: flex; flex-direction: column; gap: var(--s5); }
-.prow { display: flex; flex: none; align-items: center; gap: var(--s10); min-height: var(--s54); padding: var(--s4) var(--s8); border: 0; border-radius: var(--r-chip); background: var(--card); }
-.prow .av { flex: none; width: var(--s36); height: var(--s36); font-size: var(--s13); }
-.prow .pn { flex: 1; min-width: 0; font-weight: 700; overflow-wrap: anywhere; }
-.prow .btn { flex: none; width: auto; min-width: var(--s64); min-height: var(--s44); font-size: var(--s15); padding: 0 var(--s10); }
+.prow { display: flex; flex: none; align-items: center; gap: var(--s10); min-height: var(--s54); padding: var(--s4) var(--s8); border: 0; border-radius: var(--r-control); background: var(--card); }
+.prow .av { flex: none; width: var(--s36); height: var(--s36); font-size: var(--fs-small); }
+.prow .pn { flex: 1; min-width: 0; font-weight: var(--bold); overflow-wrap: anywhere; }
+.prow .btn { flex: none; width: auto; min-width: var(--s64); min-height: var(--s44); font-size: var(--fs-body); padding: 0 var(--s10); }
 
-/* Forms */
-.f label, .f .lb { display: flex; justify-content: space-between; font-size: var(--s14); font-weight: 700; margin-bottom: var(--s3); }
-.f input { display: block; width: 100%; min-width: 0; min-height: var(--s52); font-family: inherit; font-size: var(--s18); color: var(--ink); background: var(--card); border: var(--bw-field) solid var(--outline); border-radius: var(--r-field); padding: var(--s10) var(--s12); -webkit-appearance: none; appearance: none; margin: 0; }
+/* Settings rows (GDA-99 rule 6): label left, control or value right, one row height, rows in one white card
+   with a 1px divider between them. Used on New game, Game details, Add team, Team settings, Sheet settings, Player. */
+.setcard { background: var(--card); border-radius: var(--r-control); overflow: hidden; }
+.setcard > * + * { border-top: var(--bw) solid var(--edge); }
+.setrow, .f, .swrow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; column-gap: var(--s12); min-height: var(--s56); padding: 0 var(--s16); font-size: var(--fs-body); }
+.f label { display: flex; align-items: baseline; gap: var(--s8); flex: none; font-weight: var(--regular); }
+.f input { display: block; flex: none; width: var(--s170); min-width: 0; min-height: var(--s44); font-family: inherit; font-size: var(--fs-body); color: var(--ink); background: var(--card); border: var(--bw) solid var(--edge); border-radius: var(--r-control); padding: var(--s6) var(--s12); -webkit-appearance: none; appearance: none; margin: var(--s6) 0; }
 .f input::-webkit-date-and-time-value { text-align: left; min-height: 1.3em; }
-/* Thicker border, less padding: the box stays the same size, so nothing moves under a finger. */
-.f.need input { border: var(--bw-need) solid var(--danger); padding: calc(var(--s10) - var(--bw-need) + var(--bw-field)) calc(var(--s12) - var(--bw-need) + var(--bw-field)); }
-.f .nw { color: var(--danger); font-weight: 800; }
+/* Thicker (signal) border, less padding: the box stays the same size, so nothing moves under a finger. */
+.f.need input { border: var(--bw-signal) solid var(--danger); padding: calc(var(--s6) - var(--bw-signal) + var(--bw)) calc(var(--s12) - var(--bw-signal) + var(--bw)); }
+.f .nw { color: var(--danger); font-weight: var(--bold); font-size: var(--fs-small); }
+.f .problem { flex: 1 0 100%; padding-bottom: var(--s8); font-size: var(--fs-small); }
+.rowbtn { width: 100%; border: 0; background: var(--card); color: var(--ink); font: inherit; text-align: left; }
 .gapbig { margin-top: var(--s44); }
+/* Destructive action (rule 4): red text on a plain white row, set apart from the main action. The red fill (.btn.del) is only inside a confirmation. */
+.btn.redtext { background: var(--card); border-color: transparent; color: var(--danger); min-height: var(--s56); }
+/* A section label: 12px, capitals, muted, the same everywhere (rule 10). */
+.mhd, .swhead, .glbl, .row .t { font-size: var(--fs-small); font-weight: var(--bold); text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
 
 /* Remove warning */
-.scrim { position: fixed; left: 0; right: 0; top: 0; bottom: 0; z-index: 20; background: var(--scrim); display: flex; align-items: flex-end; justify-content: center; }
-.sheet { width: 100%; max-width: var(--s393); background: var(--card); border-top: 0; border-radius: var(--r-sheet) var(--r-sheet) 0 0; padding: var(--s16) var(--s12) calc(var(--s14) + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: var(--s10); }
-.sheet h2 { margin: 0 0 var(--s4); font-size: var(--s22); text-align: center; overflow-wrap: anywhere; }
+.scrim { position: fixed; left: 0; right: 0; top: 0; bottom: 0; z-index: 22; background: var(--scrim); display: flex; align-items: flex-end; justify-content: center; }
+.sheet { width: 100%; max-width: var(--s393); background: var(--page); border-top: 0; border-radius: var(--r-sheet) var(--r-sheet) 0 0; padding: var(--s16) var(--s12) calc(var(--s14) + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: var(--s10); }
+.sheet h2 { margin: 0 0 var(--s4); font-size: var(--fs-title); text-align: left; overflow-wrap: anywhere; }
+/* One sheet layout (rule 7): title left, X top right, one full-width main action at the bottom. */
+.shead { display: flex; align-items: center; gap: var(--s8); }
+.shead h2 { flex: 1; margin: 0; }
 
 /* Line-up */
-.lu { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--s6); padding: var(--s6) var(--s10); }
-.pitch { flex: 1 1 0; min-height: 0; position: relative; display: grid; grid-template-rows: repeat(4, minmax(0, 1fr)); border: 0; border-radius: var(--r-card-big); isolation: isolate; background: repeating-linear-gradient(180deg, var(--pitch-a) 0, var(--pitch-a) var(--s48), var(--pitch-b) var(--s48), var(--pitch-b) var(--s96)); }
+.lu { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--s6); padding: var(--s6) var(--s12); }
+.pitch { flex: 1 1 0; min-height: 0; position: relative; display: grid; grid-template-rows: repeat(4, minmax(0, 1fr)); border: 0; border-radius: var(--r-control); isolation: isolate; background: repeating-linear-gradient(180deg, var(--pitch-a) 0, var(--pitch-a) var(--s48), var(--pitch-b) var(--s48), var(--pitch-b) var(--s96)); }
 .pitch:before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: var(--s2) solid var(--pitch-line); pointer-events: none; }
 /* The white box in front of the goal (bottom) and the small one at the top, behind the players (GDA-75). */
 .line:first-child:before { content: ""; position: absolute; z-index: -1; left: 30%; right: 30%; top: 0; height: var(--s30); border: var(--s2) solid var(--pitch-line); border-top: 0; pointer-events: none; }
@@ -107,43 +120,37 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 /* GDA-22: four or five across share the width, so nothing overlaps at var(--s360). */
 .line.across4 .slot { flex: 0 0 25%; max-width: 25%; }
 .line.across5 .slot { flex: 0 0 20%; max-width: 20%; }
-.line.across5 .nm { font-size: var(--s12); }
+.line.across5 .nm { font-size: var(--fs-small); }
 /* The formation box above the pitch (before kick-off). */
-.fm { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s4) var(--s8); }
-.fm label { font-weight: 800; }
-.fm input { width: var(--s130); min-height: var(--s44); box-sizing: border-box; padding: var(--s6) var(--s10); font-size: var(--s20); font-weight: 800; border: var(--bw-field) solid var(--outline); border-radius: var(--r-chip); }
-.fm input.bad { border-color: var(--danger); background: var(--card); }
+.fm { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: var(--s4) var(--s8); }
+.fm label { font-weight: var(--bold); }
+.fm input { width: var(--s130); min-height: var(--s44); box-sizing: border-box; padding: var(--s6) var(--s10); font-size: var(--fs-title); font-weight: var(--bold); border: var(--bw) solid var(--edge); border-radius: var(--r-control); }
+.fm input.bad { border: var(--bw-signal) solid var(--danger); background: var(--card); }
 .fm input:disabled { background: var(--line); color: var(--muted); border-color: var(--line); }
-.fm .fsub { font-size: var(--s13); color: var(--muted); }
-.fmsg { flex: 1 0 100%; font-weight: 800; font-size: var(--s14); color: var(--danger); }
-.fmsg:empty { display: none; }
 .ci { position: relative; flex: none; width: var(--s48); height: var(--s48); }
-.nm { width: 100%; margin-top: var(--s2); padding: 0 var(--s2); text-align: center; font-size: var(--s14); font-weight: 800; line-height: var(--s16); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* Keeper (GDA-85): a small white disc with a green glove at the circle's top-left, and "GK" after the name. */
+.nm { width: 100%; margin-top: var(--s2); padding: 0 var(--s2); text-align: center; font-size: var(--fs-body); font-weight: var(--bold); line-height: var(--s16); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* Keeper (GDA-85): a small white disc with a green glove at the circle's top-left (no "GK" text, GDA-99). */
 .gkb { position: absolute; left: calc(-1 * var(--s6)); top: calc(-1 * var(--s6)); z-index: 3; width: 21px; height: 21px; border-radius: 50%; background: var(--card); color: var(--brand); box-shadow: 0 1px 3px var(--shadow); display: flex; align-items: center; justify-content: center; }
 .gkb svg { width: 15px; height: 15px; }
 .tight .gkb { width: 18px; height: 18px; left: calc(-1 * var(--s5)); top: calc(-1 * var(--s5)); }
 .tight .gkb svg { width: 13px; height: 13px; }
-.nr { display: flex; align-items: baseline; justify-content: center; gap: var(--s4); width: 100%; margin-top: var(--s2); min-width: 0; }
-.nr .nm { width: auto; min-width: 0; margin-top: 0; }
-.gk { flex: none; color: var(--brand); font-size: var(--s11); font-weight: 800; letter-spacing: .06em; }
-.em { background: transparent; border: var(--s2) dashed var(--muted); }
+.em { background: transparent; border: var(--bw-signal) dashed var(--muted); }
 .tight .ci { width: var(--s40); height: var(--s40); }
-.tight .av { font-size: var(--s15); }
-.tight .nm { font-size: var(--s13); line-height: var(--s15); }
-.row { position: relative; flex: none; display: flex; flex-wrap: wrap; justify-content: space-around; min-height: var(--s22); padding: var(--s15) var(--s4) var(--s2); border: 0; border-radius: var(--r-card); background: var(--card); }
-.row .t { position: absolute; left: var(--s8); top: 1px; font-size: var(--s11); font-weight: 800; line-height: var(--s14); }
+.tight .av { font-size: var(--fs-body); }
+.tight .nm { font-size: var(--fs-small); line-height: var(--s15); }
+.row { position: relative; flex: none; display: flex; flex-wrap: wrap; justify-content: space-around; min-height: var(--s22); padding: var(--s15) var(--s4) var(--s2); border: 0; border-radius: var(--r-control); background: var(--card); }
+.row .t { position: absolute; left: var(--s8); top: 1px; line-height: var(--s14); }
 .row .slot { flex: 0 0 16.6%; max-width: 16.6%; padding: var(--s2) 0; }
 .row .ci { width: var(--s44); height: var(--s44); }
-.row .av { font-size: var(--s15); }
-.row .nm { font-size: var(--s13); }
+.row .av { font-size: var(--fs-body); }
+.row .nm { font-size: var(--fs-small); }
 .row.ab { border-style: dashed; }
 .row.ab .av { border-style: dashed; border-color: var(--ink); }
 .row.ab .nm { color: var(--muted); }
 .sel .av, .drop .av { border: var(--s4) solid var(--ink); box-shadow: 0 0 0 var(--s4) var(--alert); }
 .src .av { opacity: .4; }
 /* Planned swap: OFF and ON tags (GDA-75) and the dotted pair line (GDA-80). No outline (GDA-85). */
-.pt { position: absolute; top: calc(-1 * var(--s8)); right: calc(-1 * var(--s14)); z-index: 3; padding: var(--s2) var(--s7); border-radius: var(--r-chip); background: var(--alert); color: var(--ink); font-size: var(--s11); font-weight: 800; letter-spacing: .04em; }
+.pt { position: absolute; top: calc(-1 * var(--s8)); right: calc(-1 * var(--s14)); z-index: 3; padding: var(--s2) var(--s7); border-radius: var(--r-control); background: var(--alert); color: var(--ink); font-size: var(--fs-small); font-weight: var(--bold); letter-spacing: .04em; }
 .acts .problem { margin-bottom: var(--s6); }
 
 /* Drag layer */
@@ -153,24 +160,24 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 #ghost .av { border: var(--s3) solid var(--card); box-shadow: 0 var(--s3) var(--s8) var(--shadow); }
 
 /* Game header card (GDA-75): half and clock on the left, two team rows on the right, a half bar along the bottom. */
-.clk { position: relative; z-index: 21; flex: none; display: flex; align-items: center; gap: var(--s10); height: var(--s68); margin: calc(var(--s6) + env(safe-area-inset-top)) var(--s10) 0; padding: var(--s4) var(--s12) var(--s6); border-radius: var(--r-card); background: var(--card); overflow: hidden; }
-.clk .ck { flex: none; width: var(--s104); display: flex; flex-direction: column; }
-.clk .hf { font-size: var(--s12); font-weight: 800; line-height: var(--s14); letter-spacing: .1em; }
-.clk b { font-size: var(--s40); font-weight: 800; line-height: 1.05; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.teams { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--s2); align-self: stretch; justify-content: center; padding: 0 0 0 var(--s10); border: 0; border-left: 1px solid var(--line); border-radius: 0; background: transparent; color: var(--ink); font: inherit; text-align: left; }
+.clk { position: relative; z-index: 21; flex: none; display: flex; align-items: center; gap: var(--s8); height: var(--s68); margin: calc(var(--s6) + env(safe-area-inset-top)) var(--s12) 0; padding: var(--s4) var(--s12) var(--s6); border-radius: var(--r-control); background: var(--card); overflow: hidden; }
+.clk .ck { flex: none; width: var(--clock-w); display: flex; flex-direction: column; }
+.clk .hf { font-size: var(--fs-small); font-weight: var(--bold); line-height: var(--s14); letter-spacing: .1em; }
+.clk b { font-size: var(--fs-clock); font-weight: var(--bold); line-height: 1.05; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.teams { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--s2); align-self: stretch; justify-content: center; padding: 0 0 0 var(--s10); border: 0; border-left: var(--bw) solid var(--edge); border-radius: 0; background: transparent; color: var(--ink); font: inherit; text-align: left; }
 .trow { display: flex; align-items: center; gap: var(--s8); min-width: 0; }
 .logo { flex: none; height: var(--s26); width: auto; max-width: var(--s34); display: block; }
-.logo.disc { width: var(--s26); border-radius: 50%; background: var(--line); display: flex; align-items: center; justify-content: center; font-size: var(--s10); font-weight: 800; }
-.tn { flex: 1; min-width: 0; font-size: var(--s15); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tg { flex: none; font-size: var(--s28); font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+.logo.disc { width: var(--s26); border-radius: 50%; background: var(--line); display: flex; align-items: center; justify-content: center; font-size: var(--fs-small); font-weight: var(--bold); }
+.tn { flex: 1; min-width: 0; font-size: var(--fs-body); font-weight: var(--bold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tg { flex: none; font-size: var(--fs-big); font-weight: var(--bold); line-height: 1; font-variant-numeric: tabular-nums; }
 /* The ‹ and › arrows on the four game screens (GDA-95): 44 x 44, in the same top row box (.clk) on every one. */
-.arrow { flex: none; width: var(--s44); height: var(--s44); border: 0; border-radius: var(--r-button); background: var(--line); color: var(--ink); padding: 0; display: flex; align-items: center; justify-content: center; }
+.arrow { flex: none; width: var(--s44); height: var(--s44); border: 0; border-radius: var(--r-control); background: var(--line); color: var(--ink); padding: 0; display: flex; align-items: center; justify-content: center; }
 .arrow svg { width: var(--s26); height: var(--s26); }
-.arrow.off { color: var(--muted); border: var(--s2) dashed var(--outline); background: transparent; }
+.arrow.off { color: var(--muted); }  /* a forward arrow that cannot be used: plain grey, nothing dashed */
 .arrow:active { filter: brightness(.92); }
 /* The same row without the card: New game, 1st Half and 2nd Half not started, Full Time. */
 .clk.bar { background: transparent; overflow: visible; }
-.clk h1 { margin: 0; font-size: var(--s20); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.clk h1 { margin: 0; font-size: var(--fs-title); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hp { position: absolute; left: 0; right: 0; bottom: 0; height: var(--s5); background: var(--line); }
 .hp i { display: block; height: 100%; width: 0; background: var(--brand-bright); }
 .acts .pair { display: flex; gap: var(--s10); }
@@ -178,122 +185,121 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .acts .pair .btn:not(.pri) { flex: 1; }
 
 /* End Half and the TIME strip (GDA-36) */
-.strip .time { text-align: center; }
-.strip .time .big { font-size: var(--s34); font-weight: 900; letter-spacing: var(--s2); }
-.btn.eh { font-size: var(--s15); }
-.btn.eh.pri { background: var(--brand); border-color: var(--brand); color: var(--card); font-size: var(--s20); }
+.btn.eh { font-size: var(--fs-body); }
+.btn.eh.pri { background: var(--go); border-color: var(--go-edge); color: var(--ink); font-size: var(--fs-title); }
 /* Half over (temporary, goes with GDA-50) */
-.stop { padding: var(--s40) 0 var(--s28); text-align: center; font-size: var(--s64); font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; }
+.stop { padding: var(--s40) 0 var(--s28); text-align: center; font-size: var(--fs-final); font-weight: var(--bold); line-height: 1; font-variant-numeric: tabular-nums; }
 
 /* Bench timers on the game screen (GDA-23): ring fills to the rotation length, red once late.
    GDA-75: rings stay smaller than the mock-up (52px, not 66px) to protect the pitch; time under the name. */
-.row.live { padding-top: var(--s14); }
+.row.live { padding-top: var(--s4); }
+.row.live .t { display: none; }  /* no BENCH label on a live game: the row sits under the pitch (GDA-99) */
 .row.live .slot { flex: 1 1 0; max-width: 25%; }
-.row.live .ci { width: var(--s52); height: var(--s52); }
-.row.live .av { position: absolute; left: var(--s6); top: var(--s6); width: var(--s40); height: var(--s40); }
+.row.live .ci { width: var(--s48); height: var(--s48); }
+.row.live .av { position: absolute; left: var(--s4); top: var(--s4); width: var(--s40); height: var(--s40); }
+.row.live .nm { font-size: var(--fs-body); }
 .row.live.many .slot { max-width: 16.6%; }
 .row.live.many .ci { width: var(--s44); height: var(--s44); }
-.row.live.many .av { left: var(--s5); top: var(--s5); width: var(--s34); height: var(--s34); font-size: var(--s13); }
+.row.live.many .nm { font-size: var(--fs-small); }
+.row.live.many .av { left: var(--s5); top: var(--s5); width: var(--s34); height: var(--s34); font-size: var(--fs-small); }
 /* Status rings (GDA-85): a 140px box centred on the circle; the rings sit flush against its white edge. */
 .rg, .fz { position: absolute; left: 50%; top: 50%; width: 140px; height: 140px; margin: -70px 0 0 -70px; overflow: visible; pointer-events: none; }
 .rg circle, .fz circle { fill: none; }
 .r0 { stroke: var(--line); }
 .r1 { stroke: var(--brand-bright); stroke-linecap: round; }
 .lt .r0, .lt .r1 { stroke: var(--danger); }
-.tm { font-size: var(--s13); font-weight: 700; line-height: var(--s14); min-height: var(--s14); color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.lt .tm { color: var(--danger); }
+.tm { position: absolute; right: calc(-1 * var(--s17)); bottom: calc(-1 * var(--s4)); z-index: 3; padding: 0 var(--s5); border: var(--bw) solid var(--edge); border-radius: var(--r-control); background: var(--card); color: var(--ink); font-size: var(--fs-small); font-weight: var(--bold); line-height: var(--s16); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.row.live.many .tm { right: calc(-1 * var(--s12)); }
+.lt .tm { color: var(--danger); border-color: var(--danger); }
 /* Frozen bench rings on a pitch circle (GDA-80/85): same slot as the live ring but paler (white track, softened
    arcs) so they read as stopped. Late stints stay red. */
 .fz { z-index: -1; }
-.fz .r0 { stroke: rgba(31, 41, 55, .16); }
+.fz .r0 { stroke: var(--track); }
 .fz .r1 { stroke: var(--brand-bright); stroke-opacity: .55; stroke-linecap: butt; }
 .fz .r1.late { stroke: var(--danger); stroke-opacity: .55; }
-.turn { position: absolute; right: calc(-1 * var(--s7)); bottom: calc(-1 * var(--s5)); z-index: 2; width: var(--s22); height: var(--s22); border-radius: 50%; background: var(--ink); color: var(--card); border: var(--s2) solid var(--card); font-size: var(--s12); font-weight: 800; line-height: var(--s18); text-align: center; }
+.row .turn { left: calc(-1 * var(--s8)); top: calc(-1 * var(--s6)); right: auto; bottom: auto; }  /* bench: top-left, so the time tag has the bottom-right to itself */
+.turn { position: absolute; right: calc(-1 * var(--s7)); bottom: calc(-1 * var(--s5)); z-index: 2; width: var(--s22); height: var(--s22); border-radius: 50%; background: var(--ink); color: var(--card); border: var(--s2) solid var(--card); font-size: var(--fs-small); font-weight: var(--bold); line-height: var(--s18); text-align: center; }
 
 /* Rotation chip, stepper and sheet (GDA-32) */
 /* GDA-63: one strip, one height, every state. Only colours change, never size. */
-.strip { flex: none; box-sizing: border-box; height: var(--s84); margin: var(--s6) var(--s10) 0; padding: 0 var(--s8) 0 var(--s16); border-radius: var(--r-card); background: var(--card); color: var(--ink); display: flex; align-items: center; gap: var(--s8); overflow: hidden; }
-.strip.quiet { background: var(--line); }
-.cog { flex: none; width: var(--s48); height: var(--s48); margin-left: var(--s8); padding: 0; border: 0; border-radius: var(--r-button); background: var(--line); color: var(--ink); line-height: 1; display: flex; align-items: center; justify-content: center; }
+/* GDA-99: the same layout in every state: words on the left (a bold line, then the names), one button on the right.
+   Only the background changes: white, yellow when a swap is near or due, pink once late. */
+.strip { flex: none; box-sizing: border-box; height: var(--s84); margin: var(--s6) var(--s12) 0; padding: 0 var(--s12) 0 var(--s16); border-radius: var(--r-control); background: var(--card); color: var(--ink); display: flex; align-items: center; gap: var(--s10); overflow: hidden; }
+.cog { flex: none; width: var(--s48); height: var(--s48); margin-left: var(--s8); padding: 0; border: 0; border-radius: var(--r-control); background: var(--line); color: var(--ink); line-height: 1; display: flex; align-items: center; justify-content: center; }
 .cog svg, .ic svg { width: var(--s24); height: var(--s24); }
 .hdr .cog { margin-left: 0; }
 /* Settings in the bottom row of the game screen (GDA-75). */
 .cog.bot { width: var(--s52); height: var(--s64); margin-left: 0; }
 /* GDA-86: carry-over switches: a plain settings list around native switch inputs */
-.swlist { display: flex; flex-direction: column; background: var(--card); border-radius: var(--r-card); padding: 0 var(--s16); }
-.swhead { padding: var(--s10) 0 var(--s4); font-size: var(--s14); font-weight: 800; color: var(--muted); }
-.swrow { display: flex; align-items: center; justify-content: space-between; gap: var(--s12); min-height: var(--s52); font-size: var(--s17); font-weight: 700; color: var(--ink); border-top: 1px solid var(--line); cursor: pointer; }
+.swlist { display: flex; flex-direction: column; gap: var(--s6); }
+.swhead { padding: var(--s6) var(--s4) 0; }
+.swrow { flex-wrap: nowrap; cursor: pointer; }
 .swrow input { flex: none; margin: 0; }
 .swrow:has(input:disabled) { color: var(--muted); cursor: default; }
-.ro { font-size: var(--s17); font-weight: 700; color: var(--muted); }
-.step { display: flex; align-items: center; gap: var(--s10); }
-.step .btn { flex: none; width: var(--s72); min-height: var(--s72); padding: 0; font-size: var(--s34); touch-action: manipulation; }
-.val { flex: 1; min-width: 0; min-height: var(--s72); display: flex; align-items: center; justify-content: center; border: var(--bw-field) solid var(--outline); border-radius: var(--r-field); background: var(--card); font-size: var(--s32); font-weight: 900; white-space: nowrap; }
-.scrim { position: fixed; left: 0; right: 0; top: 0; bottom: 0; z-index: 20; background: var(--scrim); display: flex; align-items: flex-end; justify-content: center; }
-.sheet { width: 100%; max-width: var(--s393); background: var(--card); border-top: 0; border-radius: var(--r-sheet) var(--r-sheet) 0 0; padding: var(--s16) var(--s12) calc(var(--s14) + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: var(--s10); }
+.ro { font-size: var(--fs-body); font-weight: var(--regular); color: var(--muted); }
+/* The slim stepper (rule 5): [-] value [+], 44px buttons in one row. */
+.step { display: flex; align-items: center; }
+.step .btn { flex: none; width: var(--s44); min-height: var(--s44); height: var(--s44); padding: 0; font-size: var(--fs-title); touch-action: manipulation; }
+.val { min-width: var(--s64); text-align: center; font-size: var(--fs-body); font-weight: var(--bold); white-space: nowrap; }
+.scrim { position: fixed; left: 0; right: 0; top: 0; bottom: 0; z-index: 22; background: var(--scrim); display: flex; align-items: flex-end; justify-content: center; }
+.sheet { width: 100%; max-width: var(--s393); background: var(--page); border-top: 0; border-radius: var(--r-sheet) var(--r-sheet) 0 0; padding: var(--s16) var(--s12) calc(var(--s14) + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: var(--s10); }
 
 /* Planned pairs, Swap and Undo (GDA-30) */
 .lu { position: relative; }
 /* One look for the planned-swap line and the drag line (GDA-80): dark, 4px, round ends. Planned is dotted, a drag is solid. */
 .dl { stroke: var(--ink); stroke-width: 4; stroke-linecap: round; }
+/* GDA-99: the planned-swap line is the quiet grey 2px dotted one; the drag line above stays dark. */
+.dl.plan { stroke: var(--edge); stroke-width: var(--bw-signal); }
 .pl { position: absolute; left: 0; top: 0; width: 100%; height: 100%; z-index: 4; pointer-events: none; overflow: visible; }
 .px { position: absolute; left: 0; top: 0; width: 100%; height: 100%; z-index: 5; pointer-events: none; }
 .xx { position: absolute; width: var(--s44); height: var(--s44); margin: calc(-1 * var(--s22)) 0 0 calc(-1 * var(--s22)); padding: 0; border: 0; background: none; pointer-events: auto; display: flex; align-items: center; justify-content: center; }
-.xx span { width: var(--s26); height: var(--s26); border-radius: 50%; background: var(--card); border: var(--s3) solid var(--ink); color: var(--ink); font-size: var(--s18); font-weight: 900; line-height: 1; display: flex; align-items: center; justify-content: center; }
-.strip .swp { flex: none; width: var(--s104); min-height: var(--s60); font-size: var(--s22); }
-.undo { flex: none; width: var(--s104); box-sizing: border-box; display: flex; flex-direction: column; align-items: stretch; justify-content: center; gap: var(--s2); padding: var(--s4); border-radius: var(--r-button); background: var(--ink); color: var(--card); font-size: var(--s13); font-weight: 800; text-align: center; }
-.undo button { min-height: var(--s44); border: var(--s2) solid var(--card); border-radius: var(--r-chip); background: transparent; color: var(--card); font-size: var(--s18); font-weight: 800; }
+.xx span { width: var(--s26); height: var(--s26); border-radius: 50%; background: var(--card); border: var(--bw-signal) solid var(--ink); color: var(--ink); font-size: var(--fs-title); font-weight: var(--bold); line-height: 1; display: flex; align-items: center; justify-content: center; }
 
-/* The swap message in the strip (GDA-35): yellow warning, black Swap Time, red once 30 seconds late. */
-.strip .sl { flex: 1; min-width: 0; line-height: 1.2; font-size: var(--s15); font-weight: 700; }
-.strip .sl .big { font-size: var(--s22); font-weight: 900; font-variant-numeric: tabular-nums; }
-.strip .idle .lab { font-size: var(--s12); font-weight: 800; letter-spacing: .1em; color: var(--muted); }
-.strip .idle .val2 { font-size: var(--s26); font-weight: 800; font-variant-numeric: tabular-nums; }
-/* Only colours change between states, never size. Words always carry the message too. */
-.strip.warn { background: var(--alert); color: var(--ink); }
-.strip.swap, .strip.timeup { background: var(--ink); color: var(--alert); }
-.strip.late { background: var(--danger); color: var(--card); }
-.strip .swp { background: var(--ink); border-color: var(--ink); color: var(--card); }
-.strip.swap .swp, .strip.timeup .swp { background: var(--alert); border-color: var(--alert); color: var(--ink); }
-.strip.late .swp { background: var(--card); border-color: var(--card); color: var(--ink); }
+/* The words in the strip (GDA-35, GDA-99): a bold line, then who swaps. Words always carry the message, not colour alone. */
+.strip .sl { flex: 1; min-width: 0; }
+.strip .sl .a { display: block; font-size: var(--fs-title); font-weight: var(--bold); line-height: var(--s24); font-variant-numeric: tabular-nums; }
+.strip .sl .b { margin-top: var(--s2); font-size: var(--fs-body); font-weight: var(--bold); line-height: var(--s20); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.strip.warn, .strip.swap, .strip.timeup { background: var(--alert); }
+.strip.late { background: var(--late); }
+/* Swap (black) and, after a swap, Undo (standard grey) sit in the same place. */
+.strip .swp { flex: none; width: var(--s96); min-height: var(--s56); padding: 0; background: var(--ink); border-color: var(--ink); color: var(--card); }
+.strip .swp.undoBtn { background: var(--line); border-color: transparent; color: var(--ink); }
 
 /* GDA-33: "Welcome back" after a restart. Floats over the top so nothing moves. */
-.welcome { position: absolute; top: 0; left: 0; right: 0; z-index: 5; background: var(--ink); color: var(--card); text-align: center; font-weight: 700; padding: var(--s6) 0; pointer-events: none; }
+.welcome { position: absolute; top: 0; left: 0; right: 0; z-index: 5; background: var(--ink); color: var(--card); text-align: center; font-weight: var(--bold); padding: var(--s6) 0; pointer-events: none; }
 #frame.fix #screen { position: relative; }
 
 /* Goals and score (GDA-37, 38, 39, 40). The score is as large as the clock; 10 or more still fits. */
-.score { display: flex; align-items: center; gap: var(--s6); border: 0; border-radius: var(--r-chip); padding: var(--s2) var(--s10); background: var(--card); color: var(--ink); font: inherit; font-size: var(--s42); font-weight: 900; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.score { display: flex; align-items: center; gap: var(--s6); border: 0; border-radius: var(--r-control); padding: var(--s2) var(--s10); background: var(--card); color: var(--ink); font: inherit; font-size: var(--fs-big); font-weight: var(--bold); line-height: 1.1; font-variant-numeric: tabular-nums; }
 .score .s { display: flex; flex-direction: column; align-items: center; }
-.score small { font-size: var(--s11); font-weight: 800; line-height: var(--s12); letter-spacing: 1px; }
+.score small { font-size: var(--fs-small); font-weight: var(--bold); line-height: var(--s12); letter-spacing: 1px; }
 .fscore { display: flex; justify-content: center; padding: var(--s20) 0; }
-.hdr .score { flex: none; font-size: var(--s30); }
-.acts.game { border-top: 0; padding: var(--s4) var(--s10) calc(var(--s6) + env(safe-area-inset-bottom)); }
+.hdr .score { flex: none; font-size: var(--fs-big); }
+.acts.game { border-top: 0; padding: var(--s4) var(--s12) calc(var(--s6) + env(safe-area-inset-bottom)); }
 .gr { display: flex; gap: var(--s8); }
-.gr .btn { flex: 1; min-width: 0; height: var(--s64); min-height: var(--s64); font-size: var(--s17); line-height: 1.15; padding: 0 var(--s4); }
-.gr .btn:not(.pri):not(.eh) { border-color: var(--card); }
-.gr .btn.eh.wide { flex: 1; width: auto; flex-direction: row; gap: var(--s8); padding: 0 var(--s12); font-size: var(--s18); }
-.gr .btn.eh:not(.wide) { flex: none; width: var(--s64); flex-direction: column; gap: var(--s3); padding: 0; font-size: var(--s12); }
+.gr .btn { flex: 1; min-width: 0; height: var(--s64); min-height: var(--s64); font-size: var(--fs-body); line-height: 1.15; padding: 0 var(--s4); }
+.gr .btn.eh.wide { flex: 1; width: auto; flex-direction: row; gap: var(--s8); padding: 0 var(--s12); font-size: var(--fs-title); }
+.gr .btn.eh:not(.wide) { flex: none; width: var(--s64); flex-direction: column; gap: var(--s3); padding: 0; font-size: var(--fs-small); }
 .gr .btn.eh svg { width: var(--s24); height: var(--s24); }
-.gr .btn.eh.pri { font-size: var(--s12); }
+.gr .btn.eh.pri { font-size: var(--fs-small); }
 .acts .pair .cog.bot { align-self: stretch; height: auto; }
 /* The main button of a half screen (Start / End Half / Resume half): same spot in all three states. */
-.gr .btn.main { flex: 1; min-width: 0; font-size: var(--s18); }
-.gr .btn.main:disabled { font-size: var(--s15); line-height: 1.2; }
+.gr .btn.main { flex: 1; min-width: 0; font-size: var(--fs-title); }
+.gr .btn.main:disabled { font-size: var(--fs-body); line-height: 1.2; }
 .gr .mainGap { flex: 1; }
 .sheet .pair { display: flex; gap: var(--s10); }
 .sheet .pair .btn { flex: 1; }
-.undoAsk { border: var(--bw-field) solid var(--danger); gap: var(--s8); }
-.undoAsk p { margin: 0; font-size: var(--s16); }
+.undoAsk { gap: var(--s8); }
+.undoAsk p { margin: 0; font-size: var(--fs-body); }
 
 /* Full Time and Saved (GDA-50) */
-.lbl { font-weight: 800; text-align: center; }
-.bigscore { font-size: var(--s72); font-weight: 900; text-align: center; line-height: 1.1; padding: var(--s12) 0; font-variant-numeric: tabular-nums; }
-.fname { text-align: center; font-weight: 700; overflow-wrap: anywhere; }
-.final { font-weight: 800; margin: var(--s6) 0 var(--s10); }
+.lbl { font-weight: var(--bold); text-align: center; }
+.bigscore { font-size: var(--fs-final); font-weight: var(--bold); text-align: center; line-height: 1.1; padding: var(--s12) 0; font-variant-numeric: tabular-nums; }
+.fname { text-align: center; font-weight: var(--bold); overflow-wrap: anywhere; }
 
 /* GDA-62: the ABSENT row is always there on the line-up, below the bench; slim when empty. */
 .row.ab.empty { min-height: var(--s22); padding-bottom: var(--s14); }
-.row.ab.empty:after { content: "drag a player here"; display: block; width: 100%; text-align: center; font-size: var(--s12); color: var(--muted); }
+.row.ab.empty:after { content: "drag a player here"; display: block; width: 100%; text-align: center; font-size: var(--fs-small); color: var(--muted); }
 [data-zone].drop { outline: var(--s4) solid var(--alert); outline-offset: 0; }
 
 /* Sheet status on a finished game, and Delete on a game not started (GDA-47, GDA-66) */
@@ -305,81 +311,81 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .card .head { display: flex; align-items: stretch; gap: var(--s8); }
 .card .info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--s3); }
 .menuwrap { flex: none; display: flex; align-items: flex-start; position: relative; }
-.ic { width: var(--s48); height: var(--s48); border: 0; border-radius: var(--r-button); background: var(--line); color: var(--ink); font-size: var(--s24); line-height: 1; padding: 0; }
+.ic { width: var(--s48); height: var(--s48); border: 0; border-radius: var(--r-control); background: var(--line); color: var(--ink); font-size: var(--fs-big); line-height: 1; padding: 0; }
 .card { position: relative; }
 .menuCover { position: fixed; left: 0; right: 0; top: 0; bottom: 0; z-index: 10; background: transparent; }
-.pop { position: absolute; right: var(--s10); top: var(--s60); z-index: 11; background: var(--card); border: 0; border-radius: var(--r-field); min-width: var(--s170); box-shadow: 0 var(--s3) var(--s12) var(--shadow); display: none; flex-direction: column; }
+.pop { position: absolute; right: var(--s10); top: var(--s60); z-index: 11; background: var(--card); border: 0; border-radius: var(--r-control); min-width: var(--s170); box-shadow: 0 var(--s3) var(--s12) var(--shadow); display: none; flex-direction: column; }
 .pop.show, .cardMenu { display: flex; }
 .pop.topMenu { top: var(--s52); right: 0; }
-.mi { display: block; width: 100%; min-height: var(--s48); padding: var(--s12) var(--s14); border: 0; border-bottom: 1px solid var(--line); background: var(--card); font-size: var(--s16); text-align: left; color: var(--ink); }
+.mi { display: block; width: 100%; min-height: var(--s48); padding: var(--s12) var(--s14); border: 0; border-bottom: 1px solid var(--line); background: var(--card); font-size: var(--fs-body); text-align: left; color: var(--ink); }
 .mi:last-child { border-bottom: 0; }
-.mi.d { color: var(--danger); font-weight: 700; }
+.mi.d { color: var(--danger); font-weight: var(--bold); }
 .hdr .menuwrap { position: relative; }
-.sheetStatus.ok { font-size: var(--s18); }
-.sheetStatus.ok b { font-size: var(--s18); }
+.sheetStatus.ok { font-size: var(--fs-title); }
+.sheetStatus.ok b { font-size: var(--fs-title); }
+.sheetStatus.ok .sentOk { font-size: var(--fs-body); font-weight: var(--regular); color: var(--muted); }
 .sheetStatus.ok .tick { color: var(--brand); }
 .archiveNote { margin: 0; text-align: center; }
-.archiveWarn { margin: 0; color: var(--danger); font-weight: 700; border: var(--s2) solid var(--danger); border-radius: var(--r-small); padding: var(--s8); }
+.archiveWarn { margin: 0; color: var(--danger); font-weight: var(--bold); border: var(--bw-signal) solid var(--danger); border-radius: var(--r-control); padding: var(--s8); }
 
 /* Teams (GDA-68) */
-.team { margin: 0 0 var(--s8); font-size: var(--s16); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mhd { padding: var(--s8) var(--s14) var(--s2); font-size: var(--s12); font-weight: 800; text-transform: uppercase; color: var(--muted); }
-.mlock { padding: var(--s4) var(--s14) var(--s8); color: var(--danger); font-weight: 700; font-size: var(--s14); }
+.team { margin: 0 0 var(--s8); font-size: var(--fs-body); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mhd { padding: var(--s8) var(--s14) var(--s2); }
+.mlock { padding: var(--s4) var(--s14) var(--s8); color: var(--danger); font-weight: var(--bold); font-size: var(--fs-body); }
 .mi:disabled { color: var(--muted); }
 .mi.teamItem { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .f input.bad { border-color: var(--danger); }
-.hint { font-size: var(--s14); color: var(--muted); }
+.hint { font-size: var(--fs-body); color: var(--muted); }
 
 /* Player photos (GDA-52) */
 .av.pic { overflow: hidden; background: var(--av-photo); }
 .av.pic img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
 .photoBlock { display: flex; flex-direction: column; align-items: center; gap: var(--s8); }
 .photoBig { width: var(--s96); height: var(--s96); }
-.photoBig .av { font-size: var(--s32); }
-.photoNote { margin: 0; font-size: var(--s13); color: var(--muted); }
+.photoBig .av { font-size: var(--fs-big); }
+.photoNote { margin: 0; font-size: var(--fs-small); color: var(--muted); }
 
 /* Who is here list in the Game details sheet (GDA-43): scrolls if the squad is long. */
 /* Who is here row and the reusable player picker (GDA-43). */
-.prow-link { display: flex; justify-content: space-between; align-items: center; min-height: var(--s60); padding: 0 var(--s14); border: 0; border-radius: var(--r-card); background: var(--line); font: inherit; font-size: var(--s17); font-weight: 700; color: var(--ink); text-align: left; }
 .sheet.picker { height: calc(100% - var(--s56)); gap: 0; padding: 0; }
-.phead { flex: none; display: flex; align-items: center; gap: var(--s8); padding: var(--s16) var(--s12) var(--s10); border-bottom: 1.5px solid var(--line); }
+.phead { flex: none; display: flex; align-items: center; gap: var(--s8); padding: var(--s16) var(--s12) var(--s10); }
 .phead h2 { flex: 1; margin: 0; text-align: left; }
-.phead small { display: block; font-size: var(--s14); font-weight: 700; color: var(--muted); }
-.pkx { flex: none; width: var(--s48); height: var(--s48); border: 0; border-radius: var(--r-button); background: var(--line); font: inherit; font-size: var(--s22); font-weight: 800; color: var(--ink); }
+.phead small { display: block; font-size: var(--fs-body); font-weight: var(--bold); color: var(--muted); }
+.pkx { flex: none; width: var(--s48); height: var(--s48); border: 0; border-radius: var(--r-control); background: var(--line); font: inherit; font-size: var(--fs-title); font-weight: var(--bold); color: var(--ink); }
 .pgrid.cols4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .pgrid { flex: 1; min-height: 0; overflow-y: auto; touch-action: pan-y; padding: var(--s12) var(--s10); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s8); align-content: start; }
-.pfoot { flex: none; display: flex; gap: var(--s8); padding: var(--s10) var(--s12) calc(var(--s14) + env(safe-area-inset-bottom)); border-top: 1.5px solid var(--line); background: var(--card); }
-.pfoot .btn { min-height: var(--s60); font-size: var(--s18); }
+.pfoot { flex: none; display: flex; gap: var(--s8); padding: var(--s10) var(--s12) calc(var(--s14) + env(safe-area-inset-bottom)); background: var(--page); }
+.pfoot .btn { min-height: var(--s60); font-size: var(--fs-title); }
 .pfoot .btn.pri { flex: 1; }
-.pfoot .btn:not(.pri) { flex: none; width: var(--s110); }
-.ptile { position: relative; height: var(--s94); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s5); padding: var(--s4); border: var(--s2) solid var(--outline); border-radius: var(--r-card); background: var(--card); font: inherit; color: var(--ink); }
+.ptile { position: relative; height: var(--s94); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s5); padding: var(--s4); border: var(--bw) solid var(--edge); border-radius: var(--r-control); background: var(--card); font: inherit; color: var(--ink); }
 .pav { width: var(--s52); height: var(--s52); flex: none; }
-.pnm { font-size: var(--s16); font-weight: 800; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pchk { position: absolute; top: var(--s5); right: var(--s5); width: var(--s26); height: var(--s26); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: var(--s16); font-weight: 900; border: var(--s2) solid var(--muted); background: var(--card); color: var(--card); }
-.ptile.here { border: var(--s4) solid var(--brand); background: #E8F4EA; }
+.pnm { font-size: var(--fs-body); font-weight: var(--bold); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pchk { position: absolute; top: var(--s5); right: var(--s5); width: var(--s26); height: var(--s26); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: var(--fs-body); font-weight: var(--bold); border: var(--bw) solid var(--muted); background: var(--card); color: var(--card); }
+.ptile.here { border: var(--bw) solid var(--brand); background: var(--here-bg); }  /* the tick and green fill carry the meaning (Ben: thinner outline) */
 .ptile.here .pchk { background: var(--brand); border-color: var(--brand); }
 .ptile.away { border-style: dashed; background: var(--line); color: var(--muted); }
 .ptile.away .pav { filter: grayscale(1); opacity: .45; }
 
 /* GDA-88: the Home / Away / Other choice (three buttons side by side) and the cog-sheet block that holds it. */
-.vtChoice { display: flex; gap: var(--s8); }
-.vtBtn { flex: 1; min-height: var(--s52); font: inherit; font-size: var(--s17); font-weight: 700; color: var(--ink); background: var(--card); border: var(--bw-field) solid var(--outline); border-radius: var(--r-field); touch-action: manipulation; }
-.vtBtn.vtOn { background: var(--brand); border-color: var(--brand); color: var(--card); }
-.vtEditor { display: flex; flex-direction: column; gap: var(--s6); }
-.vtEditor input { min-height: var(--s52); font-family: inherit; font-size: var(--s18); color: var(--ink); background: var(--card); border: var(--bw-field) solid var(--outline); border-radius: var(--r-field); padding: var(--s10) var(--s12); }
+.vtChoice { display: flex; flex: none; background: var(--line); border-radius: var(--r-control); padding: var(--s2); }
+.vtBtn { position: relative; display: block; }
+.vtBtn input { position: absolute; left: 0; top: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.vtBtn span { display: flex; align-items: center; justify-content: center; width: var(--s72); height: var(--s44); border-radius: calc(var(--r-control) - var(--s2)); font-size: var(--fs-body); font-weight: var(--bold); color: var(--ink); }
+.vtBtn input:checked + span { background: var(--card); box-shadow: 0 1px 3px var(--shadow); }
+.vtBtn input:focus-visible + span { outline: var(--bw-signal) solid var(--ink); }
 
 /* Who scored? (GDA-90/91): the picker, above the score header (its z-index is 21), with two sections and a footer. */
 .scrim#goalDialog { z-index: 30; align-items: stretch; }
 #goalDialog .sheet.picker { height: 100%; border-radius: 0; }
 #goalDialog .phead { border-bottom: 0; padding-top: calc(var(--s8) + env(safe-area-inset-top)); padding-bottom: var(--s6); }
-.glbl { grid-column: 1 / -1; font-size: var(--s14); font-weight: 800; color: var(--muted); }
-.gagainst { flex: none; display: flex; flex-direction: column; gap: var(--s6); padding: var(--s10) var(--s12); border-top: 1.5px solid var(--line); }
+.glbl { grid-column: 1 / -1; }
+.gagainst { flex: none; display: flex; flex-direction: column; gap: var(--s6); padding: var(--s10) var(--s12); border-top: var(--bw) solid var(--line); }
 .gagainst .btn { min-height: var(--s60); }
 .ptile.og { border-style: dashed; }
-.ptile.og .av { background: var(--line); font-size: var(--s17); }
-.ptile.og .pnm { font-size: var(--s14); }
-.pfoot .btn.undo2 { flex: 1; width: auto; flex-direction: column; line-height: 1.15; font-size: var(--s16); }
-.pfoot .btn.undo2 small { font-size: var(--s12); font-weight: 700; color: var(--muted); }
+.ptile.og .av { background: var(--line); font-size: var(--fs-body); }
+.ptile.og .pnm { font-size: var(--fs-body); }
+.pfoot .btn.undo2 { flex: 1; width: auto; flex-direction: column; line-height: 1.15; font-size: var(--fs-body); }
+.pfoot .btn.undo2 small { font-size: var(--fs-small); font-weight: var(--bold); color: var(--muted); }
 .pfoot .btn.undo2:disabled { opacity: .45; }
 
 /* Score flash (GDA-90): only the background colour changes, so nothing moves. Reduced motion: no pop, a plain fade. */
@@ -388,16 +394,18 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 @media (prefers-reduced-motion: reduce) { .score.flash, .teams.flash { animation-timing-function: linear; } }
 
 /* GDA-96: wording and look fixes */
-.hint { margin-top: var(--s6); font-size: var(--s14); font-weight: 700; color: var(--muted); }
+.hint { margin-top: var(--s6); font-size: var(--fs-body); font-weight: var(--bold); color: var(--muted); }
 .hint[hidden] { display: none; }
 .homeCrest { flex: none; height: var(--s46); width: auto; display: block; }
 .score small { max-width: var(--s64); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-input:focus, input:focus-visible { outline: var(--bw-field) solid var(--focus); outline-offset: 1px; }
+input:focus, input:focus-visible { outline: var(--bw-signal) solid var(--focus); outline-offset: 1px; }
 /* GDA-96: on Half Time the title stays whole; the score box shrinks and the team names are cut short instead. */
 
 /* GDA-86: Carry over switches. Whole row is the tap target; On/Off is a word and the knob position, not colour alone. */
 
 /* GDA-86: a taller sheet (2nd Half, with the switches) scrolls instead of running off the top of the screen. */
 .sheet { max-height: 100%; overflow-y: auto; }
-/* The clock card (z-index 21) must not draw over the sheet title, so the cog sheet sits above it. */
-.scrim#rotSheet { z-index: 22; }
+/* GDA-99: every scrim is above the clock card (z-index 21), so a sheet's dimmed background covers it. */
+
+/* Home: the team name is the heading (GDA-99). */
+.team b { font-size: var(--fs-title); color: var(--ink); }

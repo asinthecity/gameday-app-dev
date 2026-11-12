@@ -42,6 +42,7 @@ import {
   carriesBenchTime,
   withVenue,
   hereDifferences,
+  pairsOf,
 } from "./game-rules.js";
 import { archiveGame, deleteGame, markSentToSheet, addGame, addGoal, removeGoal, changeGame, endHalf, fullTime, loadGames, moveFieldPlayer, movePlan, movePlayer, planPair, prePlaceGame, reopenHalf, reorderBench, reorderPlanBench, startFirstHalf, startSecondHalf, undoKickOff, swapPlayers, toggleHere, undoSwap, unplanPair } from "./game-store.js";
 import { canSend, checkMessage, parseSetupCode, SETTINGS_KEY, sheetTabOf } from "./sheet-rules.js";
@@ -105,6 +106,7 @@ const state = {
   sheetProblem: {}, // gameId -> "secret" after the script refused the secret. Never saved.
   menuId: null, // The game whose ⋯ menu is open. Never saved.
   topMenuOpen: false, // The ☰ menu on Home. Never saved.
+  fullTimeAsk: false, // "End the game?" is showing on Full Time. Never saved.
   archiveId: null, // The finished game being asked about ("Archive?"). Never saved.
   deleteId: null, // The not-started game being asked about ("Delete?"). Never saved.
   updateNotice: currentUpdateNotice(),
@@ -172,6 +174,7 @@ function goTo(screen) {
   state.menuId = null;
   state.topMenuOpen = false;
   state.archiveId = null;
+  state.fullTimeAsk = false;
   state.deleteTeamOpen = false;
   ignoreTapsUntil = Date.now() + TAP_PAUSE_MS;
   draw();
@@ -400,10 +403,14 @@ function saveLive(playerId, spot) {
 const UNDO_MS = 5000;
 async function saveSwap() {
   saving = true;
+  // Who swapped, for the strip's "Swapped" line (GDA-99). Worked out first: the planned pairs are cleared by the swap.
+  const planned = pairsOf(openGame());
+  const nameOf = (id) => state.players.find((player) => player.id === id)?.name ?? "";
+  const names = { off: planned.filter((pair) => pair.fieldId !== null).map((pair) => nameOf(pair.fieldId)), on: planned.map((pair) => nameOf(pair.benchId)) };
   try {
     const done = await swapPlayers(db, state.gameId, Date.now());
     state.games = await gamesNow();
-    state.undo = { before: done.before, eventId: done.eventId, until: Date.now() + UNDO_MS };
+    state.undo = { before: done.before, eventId: done.eventId, names, until: Date.now() + UNDO_MS };
   } catch (error) {
     console.warn("Swap did not save", error);
     saving = false;
@@ -757,7 +764,16 @@ const actions = {
     saveThenGoTo(() => reopenHalf(db, state.gameId, Date.now(), half), state.screen);
   }),
   startSecondHalf: tap(() => saveThenGoTo(() => startSecondHalf(db, state.gameId, Date.now()), "half2")),
+  askFullTime: tap(() => {
+    state.fullTimeAsk = true;
+    draw();
+  }),
+  cancelFullTime: tap(() => {
+    state.fullTimeAsk = false;
+    draw();
+  }),
   fullTime: tap(async () => {
+    state.fullTimeAsk = false;
     const gameId = state.gameId;
     await saveThenGoTo(() => fullTime(db, gameId), "saved", FULL_TIME_PROBLEM);
     // One try only, after the game is safely saved. Never waits for it, never retries (GDA-47).
@@ -792,7 +808,8 @@ const actions = {
     goTo("teamForm");
   }),
   saveTeam: tap(() => {
-    const typed = { name: document.getElementById("teamName").value, size: document.getElementById("teamSize").value, minutes: document.getElementById("teamMinutes").value };
+    // Size and half length are steppers, so their values are already in the form (name is the only text box).
+    const typed = { name: document.getElementById("teamName").value, size: state.teamForm.values.size, minutes: state.teamForm.values.minutes };
     const cleaned = cleanTeamForm(typed.name, typed.size, typed.minutes);
     if (!cleaned.ok) {
       state.teamForm = { ...state.teamForm, values: typed, errors: cleaned.errors };

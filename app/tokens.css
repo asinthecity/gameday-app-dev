@@ -8,7 +8,12 @@
   --ink: #111418;
   --muted: #5B636D;
   --line: #E4E6EA;
-  --outline: #C9CDD3;          /* outline of fields and white buttons */
+  --edge: #858B94;             /* the one line colour for field edges and outlines: 3.4:1 on white (GDA-99) */
+  --go: #6FCF7F;               /* primary button fill, dark text on it (9.6:1) */
+  --go-edge: #2E7D32;          /* 1px edge that keeps the primary button visible on the grey page */
+  --late: #FF8A80;             /* late swap strip, dark text on it; the dark red below is for text on white */
+  --here-bg: #E8F4EA;          /* pale green behind a player who is here */
+  --track: rgba(31, 41, 55, .16); /* frozen bench ring track */
   --focus: #0A5C1E;            /* focus ring on text boxes (same green as --brand) */
   --brand: #0A5C1E;
   --brand-bright: #1E9E3A;     /* graphics only, never text */
@@ -26,17 +31,23 @@
   --av4: #fff0a8; --av5: #cdeff0; --av6: #e1d4ff; --av7: #e6e6e6; --av-photo: #d6d6d6;
 
   /* Shape */
-  --r-card: 16px;
-  --r-card-big: 20px;
-  --r-button: 14px;
-  --r-field: 12px;
-  --r-chip: 10px;
+  --r-control: 12px;           /* controls, cards, pitch, tags */
   --r-sheet: 24px;
-  --r-small: 6px;
   --r-round: 50%;
   --tap: 44px;
-  --bw-field: 2px;             /* whole pixels: a half pixel is rounded differently on each screen */
-  --bw-need: 4px;              /* thicker border for a missing required field */
+  --bw: 1px;                   /* the one border width, whole pixels */
+  --bw-signal: 2px;            /* selected, error and focus signals (never the only signal: a tick, fill or words go with it) */
+
+  /* Type: four sizes, plus the clock and the Full Time score. Two weights. */
+  --fs-small: 12px;
+  --fs-body: 16px;
+  --fs-title: 20px;
+  --fs-big: 32px;
+  --fs-clock: 40px;
+  --fs-final: 72px;
+  --regular: 400;
+  --bold: 700;
+  --clock-w: 102px;            /* the clock box: just wide enough for 25:00 */
 
   /* Sizes: every other measurement the stylesheet uses. --s48 is 48px. 0, 1px and % are written directly. */
   --s2: 2px;

@@ -74,13 +74,13 @@ export function cleanTeamForm(name, size, minutes) {
   const side = wholeNumber(size);
   const half = wholeNumber(minutes);
   if (!cleanedName) {
-    errors.name = "Enter a team name.";
+    errors.name = "Name needed";
   }
   if (!(side >= MIN_SIDE && side <= MAX_SIDE)) {
-    errors.size = `Players per side must be ${MIN_SIDE} to ${MAX_SIDE}.`;
+    errors.size = `${MIN_SIDE} to ${MAX_SIDE}`;
   }
   if (!(half >= 1)) {
-    errors.minutes = "Half length must be a whole number, 1 or more.";
+    errors.minutes = "1 or more";
   }
   if (Object.keys(errors).length) {
     return { ok: false, errors };

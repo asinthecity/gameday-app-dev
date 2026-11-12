@@ -1041,27 +1041,25 @@ function undoKickOffRow(state, game, actions) {
 }
 
 /**
- * GDA-86: the two "Carry over" switches. The whole row is the tap target. On/Off is a word and the knob
- * position, not colour alone. `locked` (2nd half started) makes them read-only and greyed.
+ * GDA-86: the two "Carry over" switches, as native `<input type="checkbox" switch>` (the real iOS switch on
+ * iOS Safari 17.4+, a plain checkbox elsewhere). The whole label row is the tap target. Once the 2nd half
+ * has started (`locked`) the inputs are disabled and the heading says LOCKED.
  */
 function carryOverSwitches(values, locked, actions) {
-  const row = (which, label, on) =>
+  const row = (which, text, on) =>
     h(
-      "button",
-      {
-        class: "cov" + (on ? " on" : "") + (locked ? " locked" : ""),
-        id: "tg-" + which,
-        type: "button",
-        role: "switch",
-        "aria-checked": String(on),
-        "aria-disabled": locked ? "true" : "false",
-        onclick: locked ? null : () => actions.toggleCarryOver(which),
-      },
-      h("span", { class: "l" }, label),
-      h("span", { class: "st" }, on ? (locked ? "On \u00b7 LOCKED" : "On") : locked ? "Off \u00b7 LOCKED" : "Off"),
-      h("span", { class: "sw" })
+      "label",
+      { class: "swrow", id: "tg-" + which },
+      h("span", {}, text),
+      h("input", { type: "checkbox", switch: "", id: "tgi-" + which, checked: on, disabled: locked, onchange: () => actions.toggleCarryOver(which) })
     );
-  return h("div", { class: "covs", id: "carrySwitches" }, row("carryRotationOrder", "Carry over rotation order", values.carryRotationOrder), row("carryBenchTime", "Carry over bench time", values.carryBenchTime));
+  return h(
+    "div",
+    { class: "swlist", id: "carrySwitches" },
+    h("div", { class: "swhead" }, "Carry over from 1st half", locked ? h("span", { class: "swlock" }, " \u00b7 LOCKED") : null),
+    row("carryRotationOrder", "Carry over rotation order", values.carryRotationOrder),
+    row("carryBenchTime", "Carry over bench time", values.carryBenchTime)
+  );
 }
 function carryValuesOf(game) {
   return { carryRotationOrder: carriesRotationOrder(game), carryBenchTime: carriesBenchTime(game) };

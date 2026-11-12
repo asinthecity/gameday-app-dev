@@ -207,7 +207,13 @@ function finishedCard(game, state, actions) {
   const failed = state.fileProblemFor === game.id;
   return h(
     "div",
-    { class: "card finished", "data-game": game.id },
+    { class: "card finished", "data-game": game.id, onclick: (event) => {
+        // GDA-100: a tap anywhere on the card opens the game, except on its own buttons and menu.
+        if (!event.target.closest("button, .menuCover, .cardMenu")) {
+          actions.viewGame(game.id);
+        }
+      },
+    },
     h(
       "div",
       { class: "head" },
@@ -867,13 +873,14 @@ function pitchAndBench(view, state, canMove, crowded, live = false, benchZone = 
   return [pitch, lineUpRow("BENCH", "row", view.bench, state, canMove, false, benchZone ? "bench" : null)];
 }
 
+/** The game the game screens show: the finished game being looked at (GDA-100), otherwise the open game. */
 function openGame(state) {
-  return state.games.find((candidate) => candidate.id === state.gameId);
+  return state.games.find((candidate) => candidate.id === (state.viewId ?? state.gameId));
 }
 
 /** The bottom row of every half screen (GDA-95): the main button, always in the same spot, then the cog. */
 function bottomRow(state, actions, main) {
-  return [problemLine(state.problem), h("div", { class: "gr" }, main, cogButton(actions, "bot"))].filter(Boolean);
+  return [problemLine(state.problem), h("div", { class: "gr" }, main, cogButton(actions, "bot", state))].filter(Boolean);
 }
 function bottomBar(state, actions, main) {
   return h("div", { class: "acts game" }, ...bottomRow(state, actions, main));
@@ -978,7 +985,11 @@ export function drawPitch(state) {
 }
 
 /** The settings cog (GDA-64): opens the Game details sheet. Sits at the far edge, away from the game buttons. */
-function cogButton(actions, extra = "") {
+function cogButton(actions, extra = "", state = null) {
+  // GDA-100: looking at a finished game keeps the cog's place (nothing moves) but it cannot be seen or used.
+  if (state?.viewId) {
+    return h("span", { class: ("cog gone " + extra).trim(), "aria-hidden": "true" });
+  }
   return h("button", { class: ("cog " + extra).trim(), id: "cog", "aria-label": "Game details", onclick: actions.openRotation }, icon("settings"));
 }
 
@@ -1472,7 +1483,7 @@ function fullTimeScreen(state, actions) {
         h("div", { class: "bigscore", id: "finalScore" }, `${score.us} - ${score.them}`),
         h("div", { class: "card", id: "scorers" }, named || ownGoals === 0 ? h("div", {}, named || "No goals for us") : null, ownGoals > 0 ? h("div", { id: "ownGoals" }, `Own goals ${ownGoals}`) : null),
         problemLine(state.problem),
-        h("button", { class: "btn pri big", id: "fullTime", onclick: actions.askFullTime }, "End game and save")
+        state.viewId ? null : h("button", { class: "btn pri big", id: "fullTime", onclick: actions.askFullTime }, "End game and save")
       ),
       state.fullTimeAsk ? fullTimeSheet(actions) : null,
     ],

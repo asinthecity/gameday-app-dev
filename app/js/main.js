@@ -80,6 +80,7 @@ const state = {
   games: [],
   form: null, // What is typed on the New game screen, until it is saved or left.
   gameId: null, // The game whose line-up is open.
+  viewId: null, // GDA-100: the finished game being looked at from Home. Never saved; gameId (a game in progress) is not touched.
   selectedId: null, // The player selected on the line-up. Never saved.
   editId: null,
   photos: {}, // playerId -> small photo, kept on this phone only (GDA-52).
@@ -159,6 +160,9 @@ function draw() {
 
 function goTo(screen) {
   state.screen = screen;
+  if (screen === "home") {
+    state.viewId = null; // Leaving a finished game's view.
+  }
   state.problem = "";
   state.showRemoveWarning = false;
   state.rotationOpen = false;
@@ -514,7 +518,7 @@ function carryValue(game, which) {
 }
 
 function openGame() {
-  return state.games.find((game) => game.id === state.gameId);
+  return state.games.find((game) => game.id === (state.viewId ?? state.gameId));
 }
 
 const actions = {
@@ -583,8 +587,17 @@ const actions = {
   markBackIn: tap(() => saveSelectedPlayer(markedBackIn)),
   // The ‹ and › arrows (GDA-95). They only change which screen is shown: nothing is saved, and the
   // clock, swap alert and bench timers (all worked out from saved times) carry on underneath.
+  // GDA-100: open a finished game for looking. It starts on 1st Half; ‹ there goes back to Home. Nothing is written.
+  viewGame: tap((gameId) => {
+    const game = state.games.find((g) => g.id === gameId);
+    if (!game || !game.record || game.archived) {
+      return;
+    }
+    state.viewId = gameId;
+    goTo("half1");
+  }),
   goBack: tap(() => {
-    const to = backScreen(state.screen);
+    const to = state.viewId && state.screen === "half1" ? "home" : backScreen(state.screen);
     if (to) {
       goTo(to);
     }

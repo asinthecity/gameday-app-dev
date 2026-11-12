@@ -226,6 +226,7 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
    Only the background changes: white, yellow when a swap is near or due, pink once late. */
 .strip { flex: none; box-sizing: border-box; height: var(--s84); margin: var(--s6) var(--s12) 0; padding: 0 var(--s12) 0 var(--s16); border-radius: var(--r-control); background: var(--card); color: var(--ink); display: flex; align-items: center; gap: var(--s10); overflow: hidden; }
 .cog { flex: none; width: var(--s48); height: var(--s48); margin-left: var(--s8); padding: 0; border: 0; border-radius: var(--r-control); background: var(--line); color: var(--ink); line-height: 1; display: flex; align-items: center; justify-content: center; }
+.cog.gone { visibility: hidden; }
 .cog svg, .ic svg { width: var(--s24); height: var(--s24); }
 .hdr .cog { margin-left: 0; }
 /* Settings in the bottom row of the game screen (GDA-75). */

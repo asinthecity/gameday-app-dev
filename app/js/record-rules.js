@@ -121,7 +121,9 @@ export function buildRecord(game, squad, events) {
  */
 export function gameAtFullTime(game, record) {
   const { atKickOff, ...rest } = game; // GDA-98: no Undo kick-off after Full Time.
-  return { ...rest, state: FINISHED, record, toSend: true };
+  // GDA-116: keep only the 1st half as it ended, so the finished game's 1st Half screen can still show its rings and numbers.
+  const firstHalfAtWhistle = atKickOff?.secondHalf ?? game.firstHalfAtWhistle;
+  return { ...rest, ...(firstHalfAtWhistle ? { firstHalfAtWhistle } : {}), state: FINISHED, record, toSend: true };
 }
 
 /** One CSV cell. Wrapped in quotes if it holds a comma, quote or line break; quotes are doubled. */

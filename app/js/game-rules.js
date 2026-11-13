@@ -1252,9 +1252,11 @@ export function benchStints(game, events) {
     .filter((e) => (e.type === SWAP || e.type === POSITION_CHANGE) && e.half === half && e.at >= start)
     .sort((a, b) => a.at - b.at || (a.id ?? 0) - (b.id ?? 0));
   const benchedAt = {}; // playerId -> when the current stint began
+  const firstFrom = {}; // playerId -> where their first move this half started (BENCH means they began the half on the bench)
   const stints = {};
   for (const event of live) {
     for (const change of event.changes) {
+      firstFrom[change.playerId] ??= change.from;
       if (change.to === BENCH && change.from !== BENCH) {
         benchedAt[change.playerId] = event.at;
       } else if (change.from === BENCH && typeof change.to === "number") {
@@ -1264,7 +1266,61 @@ export function benchStints(game, events) {
       }
     }
   }
-  return stints;
+  return game.state === SECOND_HALF ? withCarriedRings(game, events, stints, firstFrom) : stints;
+}
+
+/** The game as it stood at the 1st-half whistle: the kick-off copy, or (after Full Time, which drops the Undo copies) the one kept under its own name. */
+export function firstHalfCopyOf(game) {
+  return game.atKickOff?.secondHalf ?? game.firstHalfAtWhistle ?? null;
+}
+
+/**
+ * The 1st half's frozen rings (GDA-116): the bench spells that ended with a swap on, worked out from the events
+ * up to the whistle, for the copy of the game saved at 2nd-half kick-off. Empty for older games without the copy.
+ */
+export function firstHalfStintsOf(game, events) {
+  const copy = firstHalfCopyOf(game);
+  if (!copy || typeof copy.firstHalfEndedAt !== "number") {
+    return {};
+  }
+  return benchStints(copy, events.filter((e) => e.at <= copy.firstHalfEndedAt));
+}
+
+/**
+ * GDA-116: with Carry over bench time ON the live 2nd Half keeps the 1st half's rings and adds its own.
+ * Order, oldest first: the 1st half's finished spells; the spell running at the whistle (for someone who began the
+ * 2nd half on the pitch, a ring of its own; for someone who began it on the bench, it is added to their first
+ * 2nd-half spell, because their timer carried on from it); then the 2nd half's spells. OFF: the 2nd half starts fresh.
+ */
+function withCarriedRings(game, events, stints, firstFrom) {
+  const copy = firstHalfCopyOf(game);
+  if (!carriesBenchTime(game) || !copy) {
+    return stints;
+  }
+  const out = {};
+  for (const [id, list] of Object.entries(firstHalfStintsOf(game, events))) {
+    out[id] = [...list];
+  }
+  const second = game.lineups.secondHalf.positions;
+  const atWhistle = copy.benchOrderAtEndHalf ?? copy.benchOrder ?? [];
+  const mine = {};
+  for (const [id, list] of Object.entries(stints)) {
+    mine[id] = [...list];
+  }
+  for (const id of atWhistle) {
+    const seconds = benchSeconds(copy, id, 0);
+    if (firstFrom[id] === BENCH) {
+      if (mine[id]?.length) {
+        mine[id][0] += seconds;
+      }
+    } else if (seconds >= 1 && (firstFrom[id] !== undefined || second.includes(id))) {
+      (out[id] ??= []).push(seconds);
+    }
+  }
+  for (const [id, list] of Object.entries(mine)) {
+    out[id] = [...(out[id] ?? []), ...list];
+  }
+  return out;
 }
 
 /**
@@ -1283,6 +1339,20 @@ export function planFigures(game, now) {
     bench[id] = benchSeconds(game, id, now);
   }
   return { stints: game.benchStints ?? {}, bench };
+}
+
+/**
+ * The 1st Half screen once the 2nd half has started, and in a finished game (GDA-116): the 1st half exactly as it
+ * ended, drawn from the copy saved at 2nd-half kick-off, in the same shape as planFigures. `stints` are the 1st
+ * half's rings (the game's in-memory `firstHalfStints`). Gives null for an older game that has no copy.
+ */
+export function firstHalfFigures(game) {
+  const copy = firstHalfCopyOf(game);
+  if (!copy || (game.state !== SECOND_HALF && game.state !== FINISHED)) {
+    return null;
+  }
+  const figures = planFigures({ ...copy, state: FIRST_HALF }, 0);
+  return figures && { ...figures, stints: game.firstHalfStints ?? {} };
 }
 
 /**

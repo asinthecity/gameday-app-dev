@@ -21,12 +21,15 @@ const ICONS = {
   next: ["M9 5l7 7-7 7"],
   flag: ["M6 21V4", "M6 5h11l-2.5 4 2.5 4H6"],
   // Goalkeeper glove (GDA-85): three fingers, a thumb and a cuff.
+  // Football (GDA-108): a circle with a centre patch and seam lines.
+  // A path starting with "F " is filled (the solid centre patch makes it read as a ball, not a wheel, at text size).
+  ball: ["M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18", "F M12 7.8L16 10.7L14.47 15.4H9.53L8 10.7Z", "M12 7.8V3", "M16 10.7L20.56 9.22", "M14.47 15.4L17.29 19.28", "M9.53 15.4L6.71 19.28", "M8 10.7L3.44 9.22"],
   glove: ["M9 13V6.5a1.5 1.5 0 0 1 3 0V11", "M12 11V5a1.5 1.5 0 0 1 3 0v6", "M15 11V6.5a1.5 1.5 0 0 1 3 0V15c0 3-2 5-5 5h-1.5c-2 0-3-1-4-2.5l-3-4.5a1.5 1.5 0 0 1 2.4-1.8L9 13", "M8.5 22h8"],
 };
 function icon(name) {
   // The HTML parser makes a real SVG element from this text; no web address is needed.
   const holder = document.createElement("span");
-  const paths = ICONS[name].map((d) => `<path d="${d}"/>`).join("");
+  const paths = ICONS[name].map((d) => (d.startsWith("F ") ? `<path d="${d.slice(2)}" fill="currentColor"/>` : `<path d="${d}"/>`)).join("");
   holder.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${paths}</svg>`;
   return holder.firstChild;
 }
@@ -1494,16 +1497,17 @@ function fullTimeSheet(actions) {
 function summaryBody(state, game, actions, { canChoose, soFar }) {
   const ourName = (state.teams.find((t) => t.id === (game.teamId ?? state.currentTeamId))?.name) ?? "Our team";
   const summary = summaryOf(game, state.players);
+  const potdPlayer = potdOf(game) === null ? null : state.players.find((p) => p.id === potdOf(game)) ?? null;
   const potdRow = canChoose
-    ? h("button", { class: "setrow rowbtn card", id: "potdRow", onclick: actions.openPotdPicker }, h("span", {}, "Player of the day"), h("span", { class: "ro", id: "potdValue" }, summary.potd ? h("b", {}, summary.potd) : "Choose", " \u203a"))
+    ? h("button", { class: "setrow rowbtn card", id: "potdRow", onclick: actions.openPotdPicker }, h("span", {}, "Player of the day"), h("span", { class: "ro", id: "potdValue" }, potdPlayer ? h("span", { class: "mini" }, avatar(potdPlayer)) : null, summary.potd ? h("b", {}, summary.potd) : "Choose", " \u203a"))
     : summary.potd
-      ? h("div", { class: "setrow card", id: "potdRow" }, h("span", {}, "Player of the day"), h("span", { class: "ro", id: "potdValue" }, h("b", {}, summary.potd)))
+      ? h("div", { class: "setrow card", id: "potdRow" }, h("span", {}, "Player of the day"), h("span", { class: "ro", id: "potdValue" }, potdPlayer ? h("span", { class: "mini" }, avatar(potdPlayer)) : null, h("b", {}, summary.potd)))
       : null;
   return [
     h("div", { class: "lbl", id: "fullTimeTitle" }, `${ourName} v ${game.opposition}${soFar ? " \u00b7 so far" : ""}`),
     h("div", { class: "bigscore", id: "finalScore" }, `${summary.score.us} - ${summary.score.them}`),
     summary.goals.length > 0
-      ? h("div", { class: "card", id: "timeline" }, ...summary.goals.map((g) => h("div", { class: "tl" }, h("span", { class: "t" }, g.when), h("span", { class: g.side === US ? "" : "ro" }, g.who))))
+      ? h("div", { class: "card", id: "timeline" }, ...summary.goals.map((g) => h("div", { class: g.side === US ? "tl" : "tl them" }, h("span", { class: "t" }, g.when), h("span", { class: "ball" }, icon("ball")), h("span", { class: g.side === US ? "" : "ro" }, g.who))))
       : null,
     summary.notes.length > 0 ? h("div", { class: "card nt", id: "notesCard" }, ...summary.notes.map((n) => h("div", {}, h("b", {}, n.name), " ", n.text))) : null,
     potdRow,

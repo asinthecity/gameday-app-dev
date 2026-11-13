@@ -418,6 +418,12 @@ input:focus, input:focus-visible { outline: var(--bw-signal) solid var(--focus);
 .pkx.txt { width: auto; padding: 0 var(--s12); font-size: var(--fs-body); }
 .card.setrow { flex-direction: row; }
 .tl { display: flex; gap: var(--s12); min-height: var(--s28); align-items: baseline; }
+.tl.them { justify-content: flex-end; text-align: right; }
+.tl .ball { flex: none; display: inline-flex; width: var(--fs-body); height: var(--fs-body); align-self: center; }
+.tl .ball svg { width: 100%; height: 100%; }
+#potdValue { display: inline-flex; align-items: center; gap: var(--s8); }
+#potdValue .mini { flex: none; width: var(--s36); height: var(--s36); }
+#potdValue .mini .av { font-size: var(--fs-small); }
 .tl .t { flex: none; width: var(--s64); font-weight: var(--bold); color: var(--muted); font-variant-numeric: tabular-nums; }
 .nt { gap: var(--s6); white-space: pre-line; }
 .nt b { font-size: var(--fs-body); }

@@ -4,6 +4,7 @@
 
 import { getMeta, openDatabase } from "./db.js";
 import { watchLineUpPresses } from "./drag.js";
+import { NO_SWIPE_START, POPUP_OPEN, swipeOf } from "./swipe-rules.js";
 import {
   afterTap,
   blankGameForm,
@@ -1255,5 +1256,43 @@ document.addEventListener("visibilitychange", () => drawClock(state));
 window.addEventListener("pageshow", () => drawClock(state));
 // GDA-80: the planned-swap lines follow the circles when the window changes size or turns.
 window.addEventListener("resize", () => drawPairLines(state));
+
+// GDA-122: swipe left or right to move between the game screens, exactly as the › and ‹ arrows do.
+// Decided when the finger lifts. Touch events (not pointer events) so it never interferes with drag.js,
+// which owns every press that starts on a circle. A swipe saves nothing: it calls the same actions as the arrows.
+const SWIPE_SCREENS = ["newGame", "half1", "half2", "fullTime"];
+let swipeStart = null; // Where the one finger went down, or null when this touch cannot be a swipe.
+document.addEventListener("touchstart", (event) => {
+  const blocked = event.touches.length !== 1 || !SWIPE_SCREENS.includes(state.screen) || event.target.closest(NO_SWIPE_START) || document.querySelector(POPUP_OPEN);
+  swipeStart = blocked ? null : { x: event.touches[0].clientX, y: event.touches[0].clientY };
+}, { passive: true });
+document.addEventListener("touchmove", (event) => {
+  if (event.touches.length > 1) {
+    swipeStart = null; // A second finger joined: not a swipe.
+  }
+}, { passive: true });
+document.addEventListener("touchcancel", () => { swipeStart = null; }, { passive: true });
+document.addEventListener("touchend", (event) => {
+  const from = swipeStart;
+  swipeStart = null;
+  const lift = event.changedTouches[0];
+  const way = from && event.touches.length === 0 && !presses.isActive() && !document.querySelector(POPUP_OPEN) ? swipeOf(lift.clientX - from.x, lift.clientY - from.y) : null;
+  if (!way) {
+    return;
+  }
+  const before = state.screen;
+  if (way === "next") {
+    actions.goNext();
+  } else {
+    actions.goBack();
+  }
+  if (state.screen !== before) {
+    // Slide the new screen in from the side the finger moved towards. Restarting the animation needs a reflow.
+    const screen = document.getElementById("screen");
+    screen.classList.remove("slideFromRight", "slideFromLeft");
+    void screen.offsetWidth;
+    screen.classList.add(way === "next" ? "slideFromRight" : "slideFromLeft");
+  }
+}, { passive: true });
 
 start();

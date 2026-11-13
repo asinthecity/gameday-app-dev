@@ -109,6 +109,7 @@
   --s360: 360px;
   --s393: 393px;
   --s852: 852px;
+  --slide-time: 0.25s;
 }
 
 /* Shorter screens (360x640): the pitch is already only about 300px tall, so the circles stay near their old size. */

@@ -435,3 +435,11 @@ input:focus, input:focus-visible { outline: var(--bw-signal) solid var(--focus);
 #noteSheet textarea:focus, #noteSheet textarea:focus-visible { outline: var(--bw-signal) solid var(--focus); outline-offset: 1px; }
 /* Press and hold on a circle must not select text or show the iPhone magnifier or menu. */
 .slot, .slot * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+
+/* GDA-122: a swipe between game screens slides the new one in from the side. Arrows stay instant (no class). */
+@keyframes slideFromRight { from { transform: translateX(100%); } }
+@keyframes slideFromLeft { from { transform: translateX(-100%); } }
+#frame { overflow-x: clip; } /* the sliding screen must not make the page scroll sideways */
+#screen.slideFromRight { animation: slideFromRight var(--slide-time) ease-out; }
+#screen.slideFromLeft { animation: slideFromLeft var(--slide-time) ease-out; }
+@media (prefers-reduced-motion: reduce) { #screen.slideFromRight, #screen.slideFromLeft { animation: none; } }

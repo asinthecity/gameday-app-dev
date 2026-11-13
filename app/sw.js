@@ -44,6 +44,7 @@ const APP_FILES = [
   "./js/screens.js",
   "./js/squad-rules.js",
   "./js/squad-store.js",
+  "./js/swipe-rules.js",
   "./js/storage-rules.js",
   "./js/team-rules.js",
   "./js/team-store.js",

@@ -93,6 +93,9 @@ export function openDatabase(name) {
       const db = request.result;
       // A newer version of the app needs this database: let go so it can upgrade.
       db.onversionchange = () => db.close();
+      names.set(db, name);
+      live.set(db, db);
+      watch(db, db);
       resolve(db);
     };
     request.onerror = () => {
@@ -108,24 +111,94 @@ export function openDatabase(name) {
   });
 }
 
-function run(db, storeNames, mode, work) {
+// GDA-117: the phone can leave a connection dead (rotate, lock) or a save that never answers.
+// The handle the app holds never changes; this table says which live connection it stands for.
+const SAVE_TIME_LIMIT_MS = 5000;
+const names = new Map(); // app's handle -> database name
+const live = new Map(); // app's handle -> the connection to use now (null = open a fresh one)
+
+/** The connection to use now, opening a new one if the old one died. */
+async function connection(handle) {
+  if (!live.get(handle)) {
+    live.set(handle, await openDatabase(names.get(handle)));
+    watch(handle, live.get(handle));
+  }
+  return live.get(handle);
+}
+
+/** When the browser closes a connection behind our back, the next save opens a new one. */
+function watch(handle, connectionNow) {
+  connectionNow.onclose = () => live.get(handle) === connectionNow && live.set(handle, null);
+}
+
+/** Runs one transaction. Settles only on complete/abort/error, or fails after the time limit. */
+function once(db, storeNames, mode, work, limit) {
   return new Promise((resolve, reject) => {
-    // "strict" asks the browser to reach the disk before saying it has finished.
-    const tx = db.transaction(storeNames, mode, { durability: "strict" });
+    let settled = false;
+    const end = (finish, value) => {
+      if (!settled) {
+        settled = true;
+        clearTimeout(timer);
+        finish(value);
+      }
+    };
+    let tx;
+    try {
+      // "strict" asks the browser to reach the disk before saying it has finished.
+      tx = db.transaction(storeNames, mode, { durability: "strict" });
+    } catch (error) {
+      error.connectionDead = true;
+      reject(error);
+      return;
+    }
     let answer;
+    // A save that has not settled in time is ended as failed. A late "complete" is ignored.
+    const timer = setTimeout(() => {
+      try {
+        tx.abort(); // If it never committed, it never will.
+      } catch {
+        // Already finished or gone.
+      }
+      const problem = new Error("Save timed out");
+      problem.timedOut = true;
+      end(reject, problem);
+    }, limit);
     // Resolves on "complete", never earlier: until then nothing is safely saved.
-    tx.oncomplete = () => resolve(answer);
-    tx.onabort = () => reject(tx.error ?? new Error("Save was cancelled"));
-    tx.onerror = () => reject(tx.error);
+    tx.oncomplete = () => end(resolve, answer);
+    tx.onabort = () => end(reject, tx.error ?? new Error("Save was cancelled"));
+    tx.onerror = () => end(reject, tx.error);
     try {
       work(tx, (value) => {
         answer = value;
       });
     } catch (error) {
-      tx.abort();
-      reject(error);
+      try {
+        tx.abort();
+      } catch {
+        // Already finished.
+      }
+      end(reject, error);
     }
   });
+}
+
+async function run(db, storeNames, mode, work, limit = SAVE_TIME_LIMIT_MS) {
+  if (!names.has(db)) {
+    return once(db, storeNames, mode, work, limit); // Not opened by openDatabase (should not happen).
+  }
+  try {
+    return await once(await connection(db), storeNames, mode, work, limit);
+  } catch (error) {
+    if (error?.timedOut) {
+      live.set(db, null); // The connection is suspect: the next save opens a fresh one. No retry here.
+    }
+    if (!error?.connectionDead) {
+      throw error;
+    }
+    // Dead connection: drop it, open a fresh one, and try once more.
+    live.set(db, null);
+    return once(await connection(db), storeNames, mode, work, limit);
+  }
 }
 
 /** One all-or-nothing change. Finishes only once the change is saved. */

@@ -212,13 +212,19 @@ export function watchLineUpPresses(rules) {
   });
 
   // The app going to the background mid-press also loses the touch. Let go cleanly.
+  // GDA-117: the same on rotate, resize and coming back (pageshow, visible): clear any press, hold timer and
+  // drag layer, so a touch the phone lost can never leave the screen ignoring taps.
   const letGo = () => {
     if (press) {
       finish(false);
     }
+    clearTimeout(holdTimer);
+    layer.hidden = true;
   };
-  document.addEventListener("visibilitychange", () => document.visibilityState === "hidden" && letGo());
-  window.addEventListener("pagehide", letGo);
+  document.addEventListener("visibilitychange", letGo);
+  for (const type of ["pagehide", "pageshow", "resize", "orientationchange"]) {
+    window.addEventListener(type, letGo);
+  }
 
   // Guards so the page cannot scroll, zoom or select text on the line-up. These
   // must not be passive, or preventDefault is ignored.

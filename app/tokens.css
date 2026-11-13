@@ -38,6 +38,14 @@
   --bw: 1px;                   /* the one border width, whole pixels */
   --bw-signal: 2px;            /* selected, error and focus signals (never the only signal: a tick, fill or words go with it) */
 
+  /* Player circles (GDA-118): the picture's width. A bench circle's ring box is 8px wider (2px border/halo, 2px ring each side).
+     screens.js reads these to draw the rings, so there is one source. Taller phones get bigger circles; see the two
+     @media blocks at the bottom of this file. Small-phone values are the ones before GDA-118 except the 4-row pitch. */
+  --circle-pitch: 58px;        /* on the pitch, 4 rows or fewer */
+  --circle-pitch-tight: 52px;  /* on the pitch, 5 rows or more */
+  --circle-bench: 46px;        /* live bench, up to 6 subs */
+  --circle-bench-many: 40px;   /* live bench, 7 or more subs (they share one row) */
+
   /* Type: four sizes, plus the clock and the Full Time score. Two weights. */
   --fs-small: 12px;
   --fs-body: 16px;
@@ -101,4 +109,13 @@
   --s360: 360px;
   --s393: 393px;
   --s852: 852px;
+}
+
+/* Shorter screens (360x640): the pitch is already only about 300px tall, so the circles stay near their old size. */
+@media (max-height: 700px) {
+  :root { --circle-pitch: 50px; --circle-pitch-tight: 40px; --circle-bench: 44px; }
+}
+/* Narrower screens: seven subs share one row 47px apiece. */
+@media (max-width: 380px) {
+  :root { --circle-bench-many: 38px; }
 }

@@ -62,7 +62,7 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .acts .btn { min-height: var(--s56); font-size: var(--fs-title); }
 .msg { font-size: var(--fs-title); font-weight: var(--bold); text-align: center; padding: var(--s28) 0 var(--s4); }
 .problem { margin: 0; font-weight: var(--bold); color: var(--danger); }
-.av { width: 100%; height: 100%; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: var(--bold); font-size: var(--fs-body); color: var(--ink); border: var(--s2) solid var(--card); box-shadow: var(--ring); }
+.av { width: 100%; height: 100%; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: var(--bold); font-size: var(--fs-body); color: var(--ink); border: var(--bw) solid var(--card); box-shadow: var(--ring); }
 .c0 { background: var(--av0); } .c1 { background: var(--av1); } .c2 { background: var(--av2); } .c3 { background: var(--av3); }
 /* GDA-75: on the pitch and bench a player with no photo is a white disc with dark initials. */
 .lu .av.c0, .lu .av.c1, .lu .av.c2, .lu .av.c3, .lu .av.c4, .lu .av.c5, .lu .av.c6, .lu .av.c7 { background: var(--card); }
@@ -127,15 +127,15 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .fm input { width: var(--s130); min-height: var(--s44); box-sizing: border-box; padding: var(--s6) var(--s10); font-size: var(--fs-title); font-weight: var(--bold); border: var(--bw) solid var(--edge); border-radius: var(--r-control); }
 .fm input.bad { border: var(--bw-signal) solid var(--danger); background: var(--card); }
 .fm input:disabled { background: var(--line); color: var(--muted); border-color: var(--line); }
-.ci { position: relative; flex: none; width: var(--s48); height: var(--s48); }
+.ci { position: relative; flex: none; width: var(--circle-pitch); height: var(--circle-pitch); }
 .nm { width: 100%; margin-top: var(--s2); padding: 0 var(--s2); text-align: center; font-size: var(--fs-body); font-weight: var(--bold); line-height: var(--s16); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Keeper (GDA-85, GDA-114): a small white disc with a green glove at the circle's bottom-left (also kept by a player who has had a full turn in goal) (no "GK" text, GDA-99). */
-.gkb { position: absolute; left: calc(-1 * var(--s6)); bottom: calc(-1 * var(--s6)); z-index: 3; width: 21px; height: 21px; border-radius: 50%; background: var(--card); color: var(--brand); box-shadow: 0 1px 3px var(--shadow); display: flex; align-items: center; justify-content: center; }
+.gkb { position: absolute; left: calc(-1 * var(--s6)); bottom: 0; z-index: 3; width: 21px; height: 21px; border-radius: 50%; background: var(--card); color: var(--brand); box-shadow: 0 1px 3px var(--shadow); display: flex; align-items: center; justify-content: center; }
 .gkb svg { width: 15px; height: 15px; }
-.tight .gkb { width: 18px; height: 18px; left: calc(-1 * var(--s5)); bottom: calc(-1 * var(--s5)); }
+.tight .gkb { width: 18px; height: 18px; left: calc(-1 * var(--s5)); bottom: 0; }
 .tight .gkb svg { width: 13px; height: 13px; }
 .em { background: transparent; border: var(--bw-signal) dashed var(--muted); }
-.tight .ci { width: var(--s40); height: var(--s40); }
+.tight .ci { width: var(--circle-pitch-tight); height: var(--circle-pitch-tight); }
 .tight .av { font-size: var(--fs-body); }
 .tight .nm { font-size: var(--fs-small); line-height: var(--s15); }
 .row { position: relative; flex: none; display: flex; flex-wrap: wrap; justify-content: space-around; min-height: var(--s22); padding: var(--s15) var(--s4) var(--s2); border: 0; border-radius: var(--r-control); background: var(--card); }
@@ -195,13 +195,18 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .row.live { padding-top: var(--s4); }
 .row.live .t { display: none; }  /* no BENCH label on a live game: the row sits under the pitch (GDA-99) */
 .row.live .slot { flex: 1 1 0; max-width: 25%; }
-.row.live .ci { width: var(--s48); height: var(--s48); }
-.row.live .av { position: absolute; left: var(--s4); top: var(--s4); width: var(--s40); height: var(--s40); }
+.row.live .ci { width: calc(var(--circle-bench) + var(--s8)); height: calc(var(--circle-bench) + var(--s8)); }
+.row.live .av { position: absolute; left: var(--s4); top: var(--s4); width: var(--circle-bench); height: var(--circle-bench); }
 .row.live .nm { font-size: var(--fs-body); }
+/* How much room a live bench circle has beside it before the next one (GDA-118): its slot (the row's width shared by --subs,
+   at least 4, set in screens.js) less its ring box. The time tag and bench number hang out by up to that much, never into the neighbour. */
+.row.live { --spare: calc((100vw - var(--s32)) / var(--subs, 4) - var(--circle-bench) - var(--s8)); }
+.row.live.many { --spare: calc((100vw - var(--s32)) / var(--subs, 4) - var(--circle-bench-many) - var(--s8)); }
+.row.live .turn { right: calc(-1 * clamp(0px, var(--spare), var(--s7))); }
 .row.live.many .slot { max-width: 16.6%; }
-.row.live.many .ci { width: var(--s44); height: var(--s44); }
+.row.live.many .ci { width: calc(var(--circle-bench-many) + var(--s8)); height: calc(var(--circle-bench-many) + var(--s8)); }
 .row.live.many .nm { font-size: var(--fs-small); }
-.row.live.many .av { left: var(--s5); top: var(--s5); width: var(--s34); height: var(--s34); font-size: var(--fs-small); }
+.row.live.many .av { left: var(--s4); top: var(--s4); width: var(--circle-bench-many); height: var(--circle-bench-many); font-size: var(--fs-small); }
 /* Status rings (GDA-85): a 140px box centred on the circle; the rings sit flush against its white edge. */
 .rg, .fz { position: absolute; left: 50%; top: 50%; width: 140px; height: 140px; margin: -70px 0 0 -70px; overflow: visible; pointer-events: none; }
 .rg circle, .fz circle { fill: none; }
@@ -209,8 +214,7 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .r1 { stroke: var(--brand-bright); stroke-linecap: round; }
 .lt .r0, .lt .r1 { stroke: var(--danger); }
 /* GDA-115: top-right of the circle, a touch lower than its top edge so it stays inside the bench row (4px padding above) */
-.tm { position: absolute; right: calc(-1 * var(--s17)); top: var(--s2); z-index: 3; padding: 0 var(--s5); border: var(--bw) solid var(--edge); border-radius: var(--r-control); background: var(--card); color: var(--ink); font-size: var(--fs-small); font-weight: var(--bold); line-height: var(--s16); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.row.live.many .tm { right: calc(-1 * var(--s12)); }
+.tm { position: absolute; right: calc(-1 * clamp(1px, var(--spare, var(--s17)), var(--s17))); top: var(--s2); z-index: 3; padding: 0 var(--s5); border: var(--bw) solid var(--edge); border-radius: var(--r-control); background: var(--card); color: var(--ink); font-size: var(--fs-small); font-weight: var(--bold); line-height: var(--s16); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .lt .tm { color: var(--danger); border-color: var(--danger); }
 /* Frozen bench rings on a pitch circle (GDA-80/85): same slot as the live ring but paler (white track, softened
    arcs) so they read as stopped. Late stints stay red. */
@@ -218,7 +222,7 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .fz .r0 { stroke: var(--track); }
 .fz .r1 { stroke: var(--brand-bright); stroke-opacity: .55; stroke-linecap: butt; }
 .fz .r1.late { stroke: var(--danger); stroke-opacity: .55; }
-.turn { position: absolute; right: calc(-1 * var(--s7)); bottom: calc(-1 * var(--s5)); z-index: 2; width: var(--s22); height: var(--s22); border-radius: 50%; background: var(--ink); color: var(--card); border: var(--s2) solid var(--card); font-size: var(--fs-small); font-weight: var(--bold); line-height: var(--s18); text-align: center; }
+.turn { position: absolute; right: calc(-1 * var(--s7)); bottom: 0; z-index: 2; width: var(--s22); height: var(--s22); border-radius: 50%; background: var(--ink); color: var(--card); border: var(--s2) solid var(--card); font-size: var(--fs-small); font-weight: var(--bold); line-height: var(--s18); text-align: center; }
 
 /* Rotation chip, stepper and sheet (GDA-32) */
 /* GDA-63: one strip, one height, every state. Only colours change, never size. */

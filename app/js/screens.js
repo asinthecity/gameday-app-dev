@@ -817,6 +817,17 @@ function playerSlot(player, state, canMove, isKeeper = false, benchTimer = false
  */
 /** Ring thickness everywhere (GDA-99): thin, about 2px. */
 const RING_WEIGHT = 2;
+/** Circle widths in px (GDA-118), read from the --circle-* tokens in tokens.css (the one place they are set) so the rings fit. */
+function circleSize(token, fallback) {
+  const px = parseFloat(getComputedStyle(document.documentElement).getPropertyValue(token));
+  return Number.isFinite(px) ? px : fallback;
+}
+const CIRCLE_SIZES = {
+  get pitch() { return circleSize("--circle-pitch", 50); },
+  get pitchTight() { return circleSize("--circle-pitch-tight", 40); },
+  get bench() { return circleSize("--circle-bench", 44); },
+  get benchMany() { return circleSize("--circle-bench-many", 38); },
+};
 function ringCircles(dims, arcs, className) {
   const { size, weight } = dims;
   let out = "";
@@ -866,10 +877,10 @@ function emptySlot(place, canMove, state) {
 
 function lineUpRow(title, rowClass, players, state, canMove, benchTimers = false, zone = null) {
   // Circle size and ring weight (GDA-85): a crowded live bench has smaller circles and thinner rings.
-  const dims = rowClass.includes("many") ? { size: 34, weight: RING_WEIGHT } : { size: 40, weight: RING_WEIGHT };
+  const dims = { size: rowClass.includes("many") ? CIRCLE_SIZES.benchMany : CIRCLE_SIZES.bench, weight: RING_WEIGHT };
   const slots = players.map((player) => playerSlot(player, state, canMove, false, benchTimers, false, dims));
   // `zone` makes the whole row a drop target (GDA-62): "absent" or "bench", line-up screen only.
-  return h("div", { class: rowClass, ...(zone ? { "data-zone": zone } : {}) }, h("span", { class: "t" }, title), ...slots);
+  return h("div", { class: rowClass, ...(rowClass.includes("live") ? { style: `--subs: ${Math.max(players.length, 4)}` } : {}), ...(zone ? { "data-zone": zone } : {}) }, h("span", { class: "t" }, title), ...slots);
 }
 
 /** The 1st Half (Not started) main button: Start 1st half. While a player is selected it acts on them instead. */
@@ -889,7 +900,7 @@ function openRowsTight(game) {
 function pitchAndBench(view, state, canMove, crowded, live = false, benchZone = false) {
   const game = openGame(state);
   const tight = crowded || openRowsTight(game);
-  const dims = tight ? { size: 40, weight: RING_WEIGHT } : { size: 48, weight: RING_WEIGHT };
+  const dims = { size: tight ? CIRCLE_SIZES.pitchTight : CIRCLE_SIZES.pitch, weight: RING_WEIGHT };
   const line = (places) =>
     h(
       "div",

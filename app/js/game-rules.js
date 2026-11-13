@@ -1268,19 +1268,19 @@ export function benchStints(game, events) {
 }
 
 /**
- * The 1st half's bench figures for the 2nd-half plan (GDA-107), worked out at half time and frozen at the
- * whistle (they do not tick). Nothing is stored: `stints` is the in-memory `benchStints` of the 1st half
- * (from the saved events) and `bench` is the length of the spell each player on the bench at the whistle
- * had reached (the same `benchSeconds` the live bench tag uses, which stops at End Half).
- * Gives null unless the 1st half has ended and the 2nd has not started.
+ * The 1st half's bench figures for the 2nd-half plan (GDA-107), the same ones the live 1st Half screen shows at
+ * `now`: while the 1st half runs they move with it; once it has ended they are frozen at the whistle (benchSeconds
+ * stops at End Half). Nothing is stored: `stints` is the in-memory `benchStints` of the 1st half (from the saved
+ * events) and `bench` is each bench player's spell so far. Gives null before kick-off and once the 2nd half has started.
  */
-export function halfTimeFigures(game) {
-  if (!isHalfTime(game)) {
+export function planFigures(game, now) {
+  if (game.state !== FIRST_HALF || typeof game.firstHalfStartedAt !== "number") {
     return null;
   }
+  const benchNow = isHalfEnded(game) ? game.benchOrderAtEndHalf ?? game.benchOrder : game.benchOrder;
   const bench = {};
-  for (const id of game.benchOrderAtEndHalf ?? game.benchOrder ?? []) {
-    bench[id] = benchSeconds(game, id, 0);
+  for (const id of benchNow ?? []) {
+    bench[id] = benchSeconds(game, id, now);
   }
   return { stints: game.benchStints ?? {}, bench };
 }

@@ -6,7 +6,7 @@
 
 import { hasRecord, scorerSummary } from "./record-rules.js";
 import { trimmedLine } from "./drag.js";
-import { FINISHED, FIRST_HALF, canPlan, IN_PROGRESS_PHASE, NOT_STARTED_PHASE, phaseOf, canStartHalf, canResumeHalf, halfLineUpView, nextScreen, lineupKey, canChangeWhoIsHere, startedAtOf, endedAtOf, canUndoKickOff, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, halfTimeFigures, planFiguresFor, frozenRingLook, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationSecondsOf, rotationText, ROTATION_EXTRA_SECONDS, snappedSeconds, clampRotation, halfOf, carriesRotationOrder, carriesBenchTime, canChangeCarryOver, MIN_ROTATION, MAX_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, goalsOf } from "./game-rules.js";
+import { FINISHED, FIRST_HALF, canPlan, IN_PROGRESS_PHASE, NOT_STARTED_PHASE, phaseOf, canStartHalf, canResumeHalf, halfLineUpView, nextScreen, lineupKey, canChangeWhoIsHere, startedAtOf, endedAtOf, canUndoKickOff, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, planFigures, planFiguresFor, frozenRingLook, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationSecondsOf, rotationText, ROTATION_EXTRA_SECONDS, snappedSeconds, clampRotation, halfOf, carriesRotationOrder, carriesBenchTime, canChangeCarryOver, MIN_ROTATION, MAX_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, goalsOf } from "./game-rules.js";
 import { checkFormation, formatFormationDigits, pitchRows } from "./formation-rules.js";
 import { archiveWarning, canDeleteGame, setupCodeOf, sheetStatus } from "./sheet-rules.js";
 import { canSaveName, initialsFor } from "./squad-rules.js";
@@ -772,9 +772,9 @@ function playerSlot(player, state, canMove, isKeeper = false, benchTimer = false
   // GDA-80: a pitch circle of someone who has been on the bench shows one thin frozen ring per stint (this half),
   // each at how full the bench ring was when they came on. Nobody benched, no rings. (Replaces the "4m" label of GDA-29.)
   // Frozen rings belong to the half being played, so only that half's screen shows them.
-  // GDA-107: the 2nd Half plan at half time draws the 1st half's figures the same way, frozen at the whistle,
+  // GDA-107: the 2nd Half plan draws the 1st half's figures the same way (moving while it runs, frozen at the whistle),
   // by where the player is on the plan now.
-  const figures = screenHalf(state.screen) === 2 && started ? halfTimeFigures(openGame(state)) : null;
+  const figures = screenHalf(state.screen) === 2 && started ? planFigures(openGame(state), Date.now()) : null;
   const shown = figures ? planFiguresFor(figures, player.id, onPitch) : null;
   const liveStints = onPitch && started && (screenHalf(state.screen) === 2) === (lineupKey(openGame(state)) === "secondHalf") ? openGame(state).benchStints?.[player.id] : undefined;
   const stints = shown ? (shown.rings.length > 0 ? shown.rings : undefined) : liveStints;
@@ -793,6 +793,7 @@ function playerSlot(player, state, canMove, isKeeper = false, benchTimer = false
     {
       class: ["slot", player.id === state.selectedId ? "sel" : "", planned ? "plan" : "", isKeeper ? "keeper" : "", planBench && shown.seconds !== null && isBenchLate(shown.seconds, rotation) ? "lt" : ""].join(" ").trim(),
       ...(canMove ? { "data-player": player.id } : {}),
+      ...(planBench ? { "data-plan-bench": player.id } : {}), // GDA-107: the plan's bench circles move with the 1st half
       ...(benchTimer ? { "data-bench": player.id } : {}), // Marks a timer circle; it is not draggable.
     },
     h("div", { class: "ci", ...(frozen ? { style: `margin: ${frozenSpace}px 0` } : {}) }, avatar(player), benchTimer ? ring(dims) : planBench ? ring(dims, shown.seconds === null ? 0 : ringFraction(shown.seconds, rotation)) : null, frozen, isKeeper || openGame(state).keeperTurns?.includes(player.id) ? h("span", { class: "gkb", "aria-hidden": "true" }, icon("glove")) : null, turnMark, planTag, benchTimer ? h("div", { class: "tm" }) : planBench && shown.seconds !== null ? h("div", { class: "tm" }, benchTimerText(shown.seconds)) : null), // Bench time: a small tag at the circle's bottom-right; drawBenchTimers fills it.
@@ -903,7 +904,7 @@ function pitchAndBench(view, state, canMove, crowded, live = false, benchZone = 
     return view.bench.length > 0 ? [pitch, lineUpRow("BENCH", rowClass, view.bench, state, canMove, true)] : [pitch];
   }
   // GDA-107: the 2nd Half plan at half time carries the bench ring and tag, so its bench row is drawn the way the live one is.
-  const atHalfTime = screenHalf(state.screen) === 2 && halfTimeFigures(game) !== null;
+  const atHalfTime = screenHalf(state.screen) === 2 && planFigures(game, 0) !== null;
   const benchClass = atHalfTime ? (view.bench.length > 6 ? "row live many" : "row live") : "row";
   return [pitch, lineUpRow("BENCH", benchClass, view.bench, state, canMove, false, benchZone ? "bench" : null)];
 }
@@ -1416,6 +1417,9 @@ export function drawClock(state) {
     drawBenchTimers(game, now);
     drawSwapMessage(game, state.players, now, timeUp);
     // The strip never changes height, so the pair lines never need redrawing here.
+  } else if (clock === null && screenHalf(state.screen) === 2 && game && game.state === FIRST_HALF && typeof game.firstHalfStartedAt === "number" && typeof game.firstHalfEndedAt !== "number") {
+    // GDA-107: the 2nd Half plan while the 1st half runs: only the bench rings and tags move (text and ring length, no redraw).
+    drawBenchTimers(game, Date.now());
   }
 }
 
@@ -1450,8 +1454,9 @@ function drawSwapMessage(game, squad, now, timeUp) {
 /** Sets each bench circle's time and ring from the saved times. Same path as the clock, so a lock or reload cannot skew it. */
 function drawBenchTimers(game, now) {
   const rotation = rotationSecondsOf(game); // Read every tick, so a changed length shows at once.
-  for (const slot of document.querySelectorAll(".row.live .slot[data-bench]")) {
-    const seconds = benchSeconds(game, slot.dataset.bench, now);
+  for (const slot of document.querySelectorAll(".row.live .slot[data-bench], .row.live .slot[data-plan-bench]")) {
+    if (!slot.querySelector(".tm")) continue; // a plan circle with no spell running: empty ring, no tag
+    const seconds = benchSeconds(game, slot.dataset.bench ?? slot.dataset.planBench, now);
     slot.querySelector(".tm").textContent = benchTimerText(seconds);
     const arc = slot.querySelector(".r1");
     const length = Number(arc.getAttribute("data-len"));

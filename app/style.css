@@ -208,7 +208,8 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .r0 { stroke: var(--line); }
 .r1 { stroke: var(--brand-bright); stroke-linecap: round; }
 .lt .r0, .lt .r1 { stroke: var(--danger); }
-.tm { position: absolute; right: calc(-1 * var(--s17)); bottom: calc(-1 * var(--s4)); z-index: 3; padding: 0 var(--s5); border: var(--bw) solid var(--edge); border-radius: var(--r-control); background: var(--card); color: var(--ink); font-size: var(--fs-small); font-weight: var(--bold); line-height: var(--s16); white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* GDA-115: top-right of the circle, a touch lower than its top edge so it stays inside the bench row (4px padding above) */
+.tm { position: absolute; right: calc(-1 * var(--s17)); top: var(--s2); z-index: 3; padding: 0 var(--s5); border: var(--bw) solid var(--edge); border-radius: var(--r-control); background: var(--card); color: var(--ink); font-size: var(--fs-small); font-weight: var(--bold); line-height: var(--s16); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .row.live.many .tm { right: calc(-1 * var(--s12)); }
 .lt .tm { color: var(--danger); border-color: var(--danger); }
 /* Frozen bench rings on a pitch circle (GDA-80/85): same slot as the live ring but paler (white track, softened
@@ -217,7 +218,6 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .fz .r0 { stroke: var(--track); }
 .fz .r1 { stroke: var(--brand-bright); stroke-opacity: .55; stroke-linecap: butt; }
 .fz .r1.late { stroke: var(--danger); stroke-opacity: .55; }
-.row .turn { left: calc(-1 * var(--s8)); top: calc(-1 * var(--s6)); right: auto; bottom: auto; }  /* bench: top-left, so the time tag has the bottom-right to itself */
 .turn { position: absolute; right: calc(-1 * var(--s7)); bottom: calc(-1 * var(--s5)); z-index: 2; width: var(--s22); height: var(--s22); border-radius: 50%; background: var(--ink); color: var(--card); border: var(--s2) solid var(--card); font-size: var(--fs-small); font-weight: var(--bold); line-height: var(--s18); text-align: center; }
 
 /* Rotation chip, stepper and sheet (GDA-32) */

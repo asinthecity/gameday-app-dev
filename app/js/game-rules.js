@@ -1268,6 +1268,39 @@ export function benchStints(game, events) {
 }
 
 /**
+ * The 1st half's bench figures for the 2nd-half plan (GDA-107), worked out at half time and frozen at the
+ * whistle (they do not tick). Nothing is stored: `stints` is the in-memory `benchStints` of the 1st half
+ * (from the saved events) and `bench` is the length of the spell each player on the bench at the whistle
+ * had reached (the same `benchSeconds` the live bench tag uses, which stops at End Half).
+ * Gives null unless the 1st half has ended and the 2nd has not started.
+ */
+export function halfTimeFigures(game) {
+  if (!isHalfTime(game)) {
+    return null;
+  }
+  const bench = {};
+  for (const id of game.benchOrderAtEndHalf ?? game.benchOrder ?? []) {
+    bench[id] = benchSeconds(game, id, 0);
+  }
+  return { stints: game.benchStints ?? {}, bench };
+}
+
+/**
+ * How a player on the plan is drawn from those figures (GDA-107), by where they are now on the plan:
+ * - on the pitch: one frozen ring per 1st-half bench spell of 1 second or more, including the spell that was
+ *   running at half time if they were on the bench then (as in a live swap);
+ * - on the bench: the spell running at half time (ring and time tag), or null for none (empty ring, no tag).
+ */
+export function planFiguresFor(figures, playerId, onPitch) {
+  const running = figures.bench[playerId];
+  if (onPitch) {
+    const spells = [...(figures.stints[playerId] ?? []), ...(running === undefined ? [] : [running])];
+    return { rings: spells.filter((seconds) => seconds >= 1), seconds: null };
+  }
+  return { rings: [], seconds: running === undefined ? null : running };
+}
+
+/**
  * Full turns in goal (GDA-114): the ids of players who have had at least one unbroken spell in the
  * keeper position (place 0) that lasted the rotation length minus 1 minute or more (same tolerance as
  * the frozen ring, GDA-84). Worked out from the saved event log every time, so nothing is stored and

@@ -413,3 +413,15 @@ input:focus, input:focus-visible { outline: var(--bw-signal) solid var(--focus);
 
 /* Home: the team name is the heading (GDA-99). */
 .team b { font-size: var(--fs-title); color: var(--ink); }
+
+/* GDA-108 / GDA-81 / GDA-110: Summary page, hold sheet. Same cards, rows, tiles and switches as elsewhere; tokens only. */
+.pkx.txt { width: auto; padding: 0 var(--s12); font-size: var(--fs-body); }
+.card.setrow { flex-direction: row; }
+.tl { display: flex; gap: var(--s12); min-height: var(--s28); align-items: baseline; }
+.tl .t { flex: none; width: var(--s64); font-weight: var(--bold); color: var(--muted); font-variant-numeric: tabular-nums; }
+.nt { gap: var(--s6); white-space: pre-line; }
+.nt b { font-size: var(--fs-body); }
+#noteSheet textarea { width: 100%; min-height: var(--s96); box-sizing: border-box; font-family: inherit; font-size: var(--fs-body); color: var(--ink); background: var(--card); border: var(--bw) solid var(--edge); border-radius: var(--r-control); padding: var(--s10) var(--s12); resize: none; }
+#noteSheet textarea:focus, #noteSheet textarea:focus-visible { outline: var(--bw-signal) solid var(--focus); outline-offset: 1px; }
+/* Press and hold on a circle must not select text or show the iPhone magnifier or menu. */
+.slot, .slot * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }

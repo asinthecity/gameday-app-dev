@@ -6,7 +6,7 @@
 // It is stored on the game itself, in the same save that closes the game.
 
 import { OLD_FORMATION, positionNameIn } from "./formation-rules.js";
-import { BENCH, FINISHED, SECOND_HALF, SWAP, POSITION_CHANGE, goalsOf, scoreOf, US, wholeGameBenchNumber } from "./game-rules.js";
+import { BENCH, FINISHED, SECOND_HALF, SWAP, POSITION_CHANGE, noteOf, potdOf, goalsOf, scoreOf, US, wholeGameBenchNumber } from "./game-rules.js";
 
 export const BENCH_NAME = "Bench";
 export const ABSENT_NAME = "Absent";
@@ -99,7 +99,7 @@ export function buildRecord(game, squad, events) {
     venue: game.venue ?? "",
     us: score.us,
     them: score.them,
-    goals: goals.map((g) => ({ side: g.side, scorer: g.side === US && g.scorerId !== null ? nameOf(g.scorerId) : null, half: g.half })),
+    goals: goals.map((g) => ({ side: g.side, scorer: g.side === US && g.scorerId !== null ? nameOf(g.scorerId) : null, half: g.half, ...(typeof g.minute === "number" ? { minute: g.minute } : {}) })),
     // Everyone in the squad, once. Absent players keep their row (0 goals as they never played).
     players: squad.map((p) => ({
       name: p.name,
@@ -108,6 +108,9 @@ export function buildRecord(game, squad, events) {
       goals: goals.filter((g) => g.side === US && g.scorerId === p.id).length,
       // GDA-56: the bench-order number, or blank if never off the bench (absent players too).
       benchOrder: isAbsent(p) && !played(first, p) && !played(second, p) ? "" : wholeGameBenchNumber(game, p.id) ?? "",
+      // GDA-81 / GDA-110: the coach's note ("" if none) and whether this player is the Player of the day.
+      note: noteOf(game, p.id),
+      playerOfTheDay: potdOf(game) === p.id,
     })),
   };
 }
@@ -119,26 +122,6 @@ export function buildRecord(game, squad, events) {
 export function gameAtFullTime(game, record) {
   const { atKickOff, ...rest } = game; // GDA-98: no Undo kick-off after Full Time.
   return { ...rest, state: FINISHED, record, toSend: true };
-}
-
-/**
- * "Alex 2 · Morgan 1" and the own-goal count (GDA-92), for the Full Time screen.
- * `goals` is [{ side, scorer }]. A goal for us with no scorer is an own goal.
- */
-export function scorerSummary(goals) {
-  const counts = new Map();
-  let ownGoals = 0;
-  for (const goal of goals) {
-    if (goal.side !== US) {
-      continue;
-    }
-    if (goal.scorer === null) {
-      ownGoals += 1;
-    } else {
-      counts.set(goal.scorer, (counts.get(goal.scorer) ?? 0) + 1);
-    }
-  }
-  return { named: [...counts].map(([name, n]) => `${name} ${n}`).join(" · "), ownGoals };
 }
 
 /** One CSV cell. Wrapped in quotes if it holds a comma, quote or line break; quotes are doubled. */

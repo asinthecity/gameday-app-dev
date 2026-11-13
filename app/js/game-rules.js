@@ -1462,7 +1462,23 @@ export function goalAdded(game, goal) {
   const side = goal.side === THEM ? THEM : US;
   const scorerId = side === US && gamePlayerIds(game).has(goal.scorerId) ? goal.scorerId : null;
   const half = game.state === SECOND_HALF ? "secondHalf" : "firstHalf";
-  return { ...game, goals: [...goalsOf(game), { id: goal.id, side, scorerId, half }] };
+  const minute = minuteOf(game, half, goal.at);
+  return { ...game, goals: [...goalsOf(game), { id: goal.id, side, scorerId, half, ...(minute === null ? {} : { minute }) }] };
+}
+
+/**
+ * GDA-82: the minute within the half a goal was scored in, as the half's own clock ran: 0:00 to 0:59 is
+ * minute 1, 3:20 is minute 4 (shown "1st 4'"). A goal at Half Time counts at the moment the half ended.
+ * Gives null when there is no time to work from. Goals saved before this version have no minute at all.
+ */
+export function minuteOf(game, half, at) {
+  const start = half === "secondHalf" ? game.secondHalfStartedAt : game.firstHalfStartedAt;
+  const end = half === "secondHalf" ? game.secondHalfEndedAt : game.firstHalfEndedAt;
+  if (typeof at !== "number" || typeof start !== "number") {
+    return null;
+  }
+  const stop = typeof end === "number" ? Math.min(at, end) : at;
+  return Math.floor(Math.max(0, stop - start) / 60000) + 1;
 }
 
 /** Takes away the goal with this id (Undo last goal). An id that is not there changes nothing. */
@@ -1489,4 +1505,75 @@ export function undoLineOf(game, nameOf) {
 export function lastGoal(game) {
   const goals = goalsOf(game);
   return goals.length > 0 ? goals[goals.length - 1] : null;
+}
+
+// ---- Coach's notes and Player of the day (GDA-81, GDA-110) ----
+// `game.notes` is { playerId: text }: at most ONE note per player per game. `game.potdId` is the one Player of
+// the day (a player id) or absent/null. Both can change from kick-off until End game and save, then never.
+
+/** Press and hold on a circle opens the note sheet after this long (GDA-81). One place to change it. */
+export const HOLD_MS = 500;
+
+/** True while notes and Player of the day may be changed: kicked off and not yet saved at Full Time. */
+export function canEditNotes(game) {
+  return Boolean(game) && canAddGoal(game);
+}
+
+/** One player's note ("" if none). */
+export function noteOf(game, playerId) {
+  return game.notes?.[playerId] ?? "";
+}
+
+/**
+ * Saves a player's note. The text is kept exactly as typed (any length, commas, line breaks, quotes), only
+ * trimmed at both ends; nothing left means no note. Unchanged if notes are locked or the player is not in this game.
+ */
+export function withNote(game, playerId, text) {
+  if (!canEditNotes(game) || !gamePlayerIds(game).has(playerId)) {
+    return game;
+  }
+  const notes = { ...(game.notes ?? {}) };
+  const clean = String(text ?? "").trim();
+  if (clean === "") {
+    delete notes[playerId];
+  } else {
+    notes[playerId] = clean;
+  }
+  return { ...game, notes };
+}
+
+/** The Player of the day's id, or null. */
+export function potdOf(game) {
+  return game.potdId ?? null;
+}
+
+/**
+ * Makes `playerId` the Player of the day (`on` true, replacing anyone else) or, with `on` false, clears
+ * it if that player is the one chosen. Unchanged if locked or the player is not in this game.
+ */
+export function withPotd(game, playerId, on) {
+  if (!canEditNotes(game) || !gamePlayerIds(game).has(playerId)) {
+    return game;
+  }
+  if (on) {
+    return { ...game, potdId: playerId };
+  }
+  return potdOf(game) === playerId ? { ...game, potdId: null } : game;
+}
+
+/**
+ * What the Summary page shows (GDA-82), from the game and the squad. Names come from the squad, which keeps
+ * players who left. goals: oldest first, each { when: "1st 4'" or "1st", who, side }. notes: players with a note, A to Z.
+ */
+export function summaryOf(game, players) {
+  const nameOf = (id) => players.find((p) => p.id === id)?.name ?? null;
+  const goals = goalsOf(game).map((goal) => ({
+    when: `${goal.half === "secondHalf" ? "2nd" : "1st"}${typeof goal.minute === "number" ? ` ${goal.minute}'` : ""}`,
+    who: goal.side === THEM ? "Opposition" : goal.scorerId === null ? "Own goal" : nameOf(goal.scorerId) ?? "Goal for us",
+    side: goal.side === THEM ? THEM : US,
+  }));
+  const notes = Object.entries(game.notes ?? {})
+    .map(([id, text]) => ({ name: nameOf(Number(id)) ?? nameOf(id) ?? "Player", text }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  return { score: scoreOf(game), goals, notes, potd: potdOf(game) === null ? null : nameOf(potdOf(game)) };
 }

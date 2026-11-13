@@ -12,6 +12,12 @@ import {
   canReorderBench,
   canTapLive,
   canAddGoal,
+  canEditNotes,
+  HOLD_MS,
+  noteOf,
+  potdOf,
+  withNote,
+  withPotd,
   lastGoal,
   THEM,
   US,
@@ -90,6 +96,10 @@ const state = {
   rotationOpen: false, // The rotation stepper sheet on the ready and game screens.
   welcome: false, // The "Welcome back" banner after a restart. Never saved.
   goalOpen: false, // The "Who scored?" dialog (GDA-90).
+  summaryBack: null, // The game screen the mid-game Summary returns to (GDA-108). Never saved.
+  noteFor: null, // The player whose hold sheet is open (GDA-81), or null. Never saved.
+  noteDraft: null, // What is typed in the note box, until Done (null = not typed yet). Never saved.
+  potdOpen: false, // The Player of the day picker (GDA-110). Never saved.
   undo: null, // After Swap, for about 5 seconds: { before, eventId, until }. Never saved.
   problem: "",
   fileProblemFor: null, // The finished game whose Save file just failed.
@@ -170,6 +180,9 @@ function goTo(screen) {
   state.selectedId = null;
   state.undo = null;
   state.goalOpen = false;
+  state.noteFor = null;
+  state.noteDraft = null;
+  state.potdOpen = false;
   state.fileProblemFor = null;
   state.sheetResult = null;
   state.sheetDraft = null;
@@ -467,7 +480,7 @@ async function saveGoal(side, scorerId) {
     draw();
     return;
   }
-  const goal = { id: crypto.randomUUID(), side, scorerId };
+  const goal = { id: crypto.randomUUID(), side, scorerId, at: Date.now() }; // `at` gives the minute within the half (GDA-82)
   saving = true;
   try {
     await addGoal(db, state.gameId, goal);
@@ -505,6 +518,25 @@ async function saveGoalRemoval(goalId) {
   ignoreTapsUntil = Date.now() + TAP_PAUSE_MS; // A double tap on Undo removes one goal only.
   startScoreFlash();
   draw();
+}
+
+/** Saves a change to the open game (notes, Player of the day), then redraws. Gives false (and a message) if it did not save. */
+async function saveGameChange(change) {
+  saving = true;
+  try {
+    await changeGame(db, state.gameId, change);
+    state.games = await gamesNow();
+  } catch (error) {
+    console.warn("Change did not save", error);
+    saving = false;
+    state.problem = SAVE_PROBLEM;
+    draw();
+    return false;
+  }
+  saving = false;
+  state.problem = "";
+  draw();
+  return true;
 }
 
 function saveBenchMove(playerId, targetId) {
@@ -759,6 +791,45 @@ const actions = {
       saveGoalRemoval(goal.id);
     }
   }),
+  // GDA-108: the Summary opens from "Who scored?" (which closes); Back returns to the game. Nothing is paused or saved.
+  openSummary: tap(() => {
+    state.summaryBack = state.screen;
+    goTo("summary");
+  }),
+  closeSummary: tap(() => goTo(state.summaryBack ?? "half1")),
+  // GDA-81: the hold sheet. The note is saved when Done is tapped (typing alone changes nothing stored).
+  noteTyped: (text) => {
+    state.noteDraft = text;
+  },
+  closeNote: tap(async () => {
+    const playerId = state.noteFor;
+    const text = state.noteDraft;
+    if (text !== null && !(await saveGameChange((game) => withNote(game, playerId, text)))) {
+      return; // Not saved: the sheet stays open with a message and the typed text.
+    }
+    state.noteFor = null;
+    state.noteDraft = null;
+    state.problem = "";
+    draw();
+  }),
+  // GDA-110: the switch in the hold sheet and the tiles in the picker. Each change is saved at once.
+  setPotd: (playerId, on) => {
+    if (readyForTaps()) {
+      saveGameChange((game) => withPotd(game, playerId, on));
+    }
+  },
+  openPotdPicker: tap(() => {
+    state.potdOpen = true;
+    draw();
+  }),
+  closePotdPicker: tap(() => {
+    state.potdOpen = false;
+    draw();
+  }),
+  pickPotd: tap(async (playerId) => {
+    state.potdOpen = false;
+    await saveGameChange((game) => withPotd(game, playerId, potdOf(game) !== playerId)); // The chosen player's tile again clears it.
+  }),
   undo: tap(() => saveUndo()),
   unpair: tap((benchId) => {
     state.undo = null;
@@ -971,6 +1042,16 @@ function saveEditBench(playerId, targetId) {
   return onPlan() ? saveThenShowLineUp(() => reorderPlanBench(db, state.gameId, playerId, targetId)) : saveBenchMove(playerId, targetId);
 }
 const presses = watchLineUpPresses({
+  // GDA-81: press and hold on a circle (any game screen, from kick-off until End game and save; not a viewed game).
+  holdMs: HOLD_MS,
+  canHold: () => readyForTaps() && screenHalf(state.screen) !== 0 && !state.viewId && state.noteFor === null && canEditNotes(openGame()),
+  held(spot) {
+    state.selectedId = null;
+    state.noteFor = spot.playerId;
+    state.noteDraft = null;
+    state.problem = "";
+    draw();
+  },
   canPress: () => circleMode() !== null && readyForTaps(),
   canDrag: (spot) => canDrag(ruleGame(), spot),
   canDrop: (playerId, spot) =>

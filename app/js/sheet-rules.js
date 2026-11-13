@@ -53,14 +53,14 @@ export function parseSetupCode(text) {
  * The column headings the app sends, in the order of sheetRows. The script matches values to
  * headings BY NAME, so this text is a contract: renaming one makes the script add a new column.
  */
-export const SHEET_HEADINGS = ["Game ID", "Date", "Opposition", "Us", "Them", "Player", "1st half", "2nd half", "Goals", "Bench order", "Home/Away", "Field"];
+export const SHEET_HEADINGS = ["Game ID", "Date", "Opposition", "Us", "Them", "Player", "1st half", "2nd half", "Goals", "Bench order", "Home/Away", "Field", "Coach's note", "Player of the day"];
 
 /**
  * The Sheet rows for a game: the game ID first, then the columns in SHEET_HEADINGS order.
  * No heading row here (the headings are sent separately). Every player of the game is in it (absent ones too).
  */
 export function sheetRows(record, gameId) {
-  return record.players.map((p) => [gameId, record.date, record.opposition, record.us, record.them, p.name, p.firstHalf, p.secondHalf, p.goals, p.benchOrder ?? "", record.venueTag ?? "", record.venue ?? ""]);
+  return record.players.map((p) => [gameId, record.date, record.opposition, record.us, record.them, p.name, p.firstHalf, p.secondHalf, p.goals, p.benchOrder ?? "", record.venueTag ?? "", record.venue ?? "", p.note ?? "", p.playerOfTheDay ? "Yes" : ""]);
 }
 
 /** The tab this copy writes to: "Test" on the test copy, "Season" on the real one (set in config.js). */

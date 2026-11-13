@@ -4,9 +4,9 @@
 // Names only ever reach the page as plain text (never as HTML), so a name
 // containing < or & just shows as typed.
 
-import { hasRecord, scorerSummary } from "./record-rules.js";
+import { hasRecord } from "./record-rules.js";
 import { trimmedLine } from "./drag.js";
-import { FINISHED, FIRST_HALF, canPlan, IN_PROGRESS_PHASE, NOT_STARTED_PHASE, phaseOf, canStartHalf, canResumeHalf, halfLineUpView, nextScreen, lineupKey, canChangeWhoIsHere, startedAtOf, endedAtOf, canUndoKickOff, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, planFigures, planFiguresFor, frozenRingLook, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationSecondsOf, rotationText, ROTATION_EXTRA_SECONDS, snappedSeconds, clampRotation, halfOf, carriesRotationOrder, carriesBenchTime, canChangeCarryOver, MIN_ROTATION, MAX_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, goalsOf } from "./game-rules.js";
+import { FINISHED, FIRST_HALF, canPlan, IN_PROGRESS_PHASE, NOT_STARTED_PHASE, phaseOf, canStartHalf, canResumeHalf, halfLineUpView, nextScreen, lineupKey, canChangeWhoIsHere, startedAtOf, endedAtOf, canUndoKickOff, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, planFigures, planFiguresFor, frozenRingLook, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationSecondsOf, rotationText, ROTATION_EXTRA_SECONDS, snappedSeconds, clampRotation, halfOf, carriesRotationOrder, carriesBenchTime, canChangeCarryOver, MIN_ROTATION, MAX_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, canEditNotes, noteOf, potdOf, summaryOf } from "./game-rules.js";
 import { checkFormation, formatFormationDigits, pitchRows } from "./formation-rules.js";
 import { archiveWarning, canDeleteGame, setupCodeOf, sheetStatus } from "./sheet-rules.js";
 import { canSaveName, initialsFor } from "./squad-rules.js";
@@ -793,6 +793,7 @@ function playerSlot(player, state, canMove, isKeeper = false, benchTimer = false
     {
       class: ["slot", player.id === state.selectedId ? "sel" : "", planned ? "plan" : "", isKeeper ? "keeper" : "", planBench && shown.seconds !== null && isBenchLate(shown.seconds, rotation) ? "lt" : ""].join(" ").trim(),
       ...(canMove ? { "data-player": player.id } : {}),
+      ...(canEditNotes(openGame(state)) && !state.viewId ? { "data-note": player.id } : {}), // GDA-81: can be held for a note
       ...(planBench ? { "data-plan-bench": player.id } : {}), // GDA-107: the plan's bench circles move with the 1st half
       ...(benchTimer ? { "data-bench": player.id } : {}), // Marks a timer circle; it is not draggable.
     },
@@ -1046,12 +1047,12 @@ function hereRow(state, game, actions) {
  * only the grid scrolls. The optional gridHead, gridTail, middle and footer let Who scored add its sections. `selected` is a Set of player ids. multi = ticks (here / absent); single =
  * one tap picks and finishes. Taps call onToggle(id); the caller keeps the draft.
  */
-export function playerPicker({ title, subtitle, players, selected, multi, doneLabel, onToggle, onDone, onCancel, id = "pickerSheet", columns = 3, gridHead = null, gridTail = null, middle = null, footer = null }) {
+export function playerPicker({ title, subtitle, players, selected, multi, doneLabel, onToggle, onDone, onCancel, id = "pickerSheet", columns = 3, gridHead = null, gridTail = null, middle = null, footer = null, headAction = null, chosen = null }) {
   const tile = (player) => {
     const on = selected.has(player.id);
     return h(
       "button",
-      { class: "ptile" + (multi ? (on ? " here" : " away") : ""), "data-here": player.id, "aria-pressed": multi ? String(on) : undefined, "aria-label": multi ? `${player.name}, ${on ? "here" : "absent"}` : player.name, onclick: () => onToggle(player.id) },
+      { class: "ptile" + (multi ? (on ? " here" : " away") : "") + (chosen === player.id ? " here" : ""), "data-here": player.id, "aria-pressed": multi ? String(on) : undefined, "aria-label": multi ? `${player.name}, ${on ? "here" : "absent"}` : player.name, onclick: () => onToggle(player.id) },
       h("span", { class: "pav" }, avatar(player)),
       h("span", { class: "pnm" }, player.name),
       multi ? h("span", { class: "pchk" }, on ? "\u2713" : "") : null
@@ -1063,7 +1064,7 @@ export function playerPicker({ title, subtitle, players, selected, multi, doneLa
     h(
       "div",
       { class: "sheet picker" },
-      h("div", { class: "phead" }, h("h2", {}, title, subtitle ? h("small", { id: "pickerSub" }, subtitle) : null), h("button", { class: "pkx", id: "pickerX", "aria-label": "Close", onclick: onCancel }, "\u00d7")),
+      h("div", { class: "phead" }, h("h2", {}, title, subtitle ? h("small", { id: "pickerSub" }, subtitle) : null), headAction, h("button", { class: "pkx", id: "pickerX", "aria-label": "Close", onclick: onCancel }, "\u00d7")),
       h("div", { class: "pgrid" + (columns === 4 ? " cols4" : "") }, gridHead, ...players.map(tile), gridTail),
       middle,
       footer ?? (multi ? h("div", { class: "pfoot" }, h("button", { class: "btn pri", id: "pickerDone", onclick: onDone }, doneLabel)) : null)
@@ -1266,6 +1267,7 @@ function runningHalf(state, actions, half) {
       bottomBar(state, actions, main),
       gameDetailsSheet(state, game, actions),
       goalDialog(state, game, actions),
+      noteSheet(state, game, actions),
     ],
     after: () => {
       drawClock(state);
@@ -1306,6 +1308,8 @@ function goalDialog(state, game, actions) {
     multi: false,
     onToggle: actions.chooseScorer,
     onCancel: actions.closeGoalDialog,
+    // GDA-108: opens the Summary (the clock keeps running); Back there returns to the game with this pop-up closed.
+    headAction: h("button", { class: "pkx txt", id: "openSummary", onclick: actions.openSummary }, "Summary"),
     gridTail: ownGoal,
     middle: h("div", { class: "gagainst" }, h("button", { class: "btn", id: "goalThem", onclick: actions.goalAgainst }, "Opposition goal")),
     footer: h(
@@ -1482,31 +1486,111 @@ function fullTimeSheet(actions) {
 }
 
 /**
- * Full Time (GDA-50, GDA-95): reached with › once the 2nd half has ended. End game and save stores the
- * record and closes the game for good. ‹ only goes back to the 2nd Half (Ended), where Resume half is
- * still there for a last goal.
+ * The Summary page (GDA-108, GDA-82): score, goal timeline, coach's notes and Player of the day, in that order.
+ * Empty sections are hidden, except the Player of the day row while it can still be chosen (it is the way in).
+ * `canChoose` is true before End game and save; a finished game shows the page locked (no row if nobody was chosen).
+ * Used by the mid-game Summary, the Full Time screen and a finished game opened from Home.
+ */
+function summaryBody(state, game, actions, { canChoose, soFar }) {
+  const ourName = (state.teams.find((t) => t.id === (game.teamId ?? state.currentTeamId))?.name) ?? "Our team";
+  const summary = summaryOf(game, state.players);
+  const potdRow = canChoose
+    ? h("button", { class: "setrow rowbtn card", id: "potdRow", onclick: actions.openPotdPicker }, h("span", {}, "Player of the day"), h("span", { class: "ro", id: "potdValue" }, summary.potd ? h("b", {}, summary.potd) : "Choose", " \u203a"))
+    : summary.potd
+      ? h("div", { class: "setrow card", id: "potdRow" }, h("span", {}, "Player of the day"), h("span", { class: "ro", id: "potdValue" }, h("b", {}, summary.potd)))
+      : null;
+  return [
+    h("div", { class: "lbl", id: "fullTimeTitle" }, `${ourName} v ${game.opposition}${soFar ? " \u00b7 so far" : ""}`),
+    h("div", { class: "bigscore", id: "finalScore" }, `${summary.score.us} - ${summary.score.them}`),
+    summary.goals.length > 0
+      ? h("div", { class: "card", id: "timeline" }, ...summary.goals.map((g) => h("div", { class: "tl" }, h("span", { class: "t" }, g.when), h("span", { class: g.side === US ? "" : "ro" }, g.who))))
+      : null,
+    summary.notes.length > 0 ? h("div", { class: "card nt", id: "notesCard" }, ...summary.notes.map((n) => h("div", {}, h("b", {}, n.name), " ", n.text))) : null,
+    potdRow,
+  ];
+}
+
+/** The mid-game Summary (GDA-108): opened from "Who scored?". Back returns to the game; nothing here changes the game except Player of the day. */
+function summaryScreen(state, actions) {
+  const game = openGame(state);
+  return {
+    nodes: [
+      header("Summary", actions.closeSummary),
+      h("div", { class: "body" }, ...summaryBody(state, game, actions, { canChoose: canEditNotes(game), soFar: true }), problemLine(state.problem)),
+      potdPicker(state, game, actions),
+    ],
+  };
+}
+
+/**
+ * Full Time (GDA-50, GDA-95, GDA-108): reached with \u203a once the 2nd half has ended. It IS the Summary page, plus
+ * End game and save, which stores the record and closes the game for good. \u2039 only goes back to the 2nd Half (Ended),
+ * where Resume half is still there for a last goal. A finished game opened from Home shows it locked.
  */
 function fullTimeScreen(state, actions) {
   const game = openGame(state);
-  const score = scoreOf(game);
-  const ourName = (state.teams.find((t) => t.id === (game.teamId ?? state.currentTeamId))?.name) ?? "Our team";
-  const nameOf = (id) => state.players.find((p) => p.id === id)?.name ?? null;
-  const { named, ownGoals } = scorerSummary(goalsOf(game).map((g) => ({ side: g.side, scorer: g.side === US && g.scorerId !== null ? nameOf(g.scorerId) : null })));
+  const open = !state.viewId;
   return {
     nodes: [
       navBar("Full Time", null, state, actions),
       h(
         "div",
         { class: "body" },
-        h("div", { class: "lbl", id: "fullTimeTitle" }, `${ourName} v ${game.opposition}`),
-        h("div", { class: "bigscore", id: "finalScore" }, `${score.us} - ${score.them}`),
-        h("div", { class: "card", id: "scorers" }, named || ownGoals === 0 ? h("div", {}, named || "No goals for us") : null, ownGoals > 0 ? h("div", { id: "ownGoals" }, `Own goals ${ownGoals}`) : null),
+        ...summaryBody(state, game, actions, { canChoose: open && canEditNotes(game), soFar: false }),
         problemLine(state.problem),
-        state.viewId ? null : h("button", { class: "btn pri big", id: "fullTime", onclick: actions.askFullTime }, "End game and save")
+        open ? h("button", { class: "btn pri big", id: "fullTime", onclick: actions.askFullTime }, "End game and save") : null
       ),
       state.fullTimeAsk ? fullTimeSheet(actions) : null,
+      open ? potdPicker(state, game, actions) : null,
     ],
   };
+}
+
+/** Pick the Player of the day (GDA-110): the picker tiles, one tap picks and closes; tapping the chosen tile again clears it. */
+function potdPicker(state, game, actions) {
+  if (!state.potdOpen || !canEditNotes(game)) {
+    return null;
+  }
+  return playerPicker({
+    id: "potdPicker",
+    columns: 3,
+    title: "Player of the day",
+    players: scorerChoices(game, state.players, game.played),
+    selected: new Set(),
+    chosen: potdOf(game),
+    multi: false,
+    onToggle: actions.pickPotd,
+    onCancel: actions.closePotdPicker,
+  });
+}
+
+/**
+ * The press-and-hold sheet (GDA-81, GDA-110): one player's name, a note box (the phone's own text box) and the
+ * Player of the day switch (the phone's own). The note is saved when Done is tapped; the switch saves at once.
+ * The typed text is kept in state.noteDraft so a redraw behind the sheet never loses it.
+ */
+function noteSheet(state, game, actions) {
+  const player = state.players.find((p) => p.id === state.noteFor);
+  if (state.noteFor === null || !player || !canEditNotes(game)) {
+    return null;
+  }
+  const box = h("textarea", { id: "noteText", rows: "4", "aria-label": `Note about ${player.name}`, oninput: () => actions.noteTyped(box.value) });
+  box.value = state.noteDraft ?? noteOf(game, player.id);
+  return h(
+    "div",
+    { class: "scrim", id: "noteSheet" },
+    h(
+      "div",
+      { class: "sheet" },
+      h("h2", {}, player.name),
+      box,
+      setCard(
+        h("label", { class: "swrow", id: "potdSwitchRow" }, h("span", {}, "Player of the day"), h("input", { type: "checkbox", switch: "", id: "potdSwitch", checked: potdOf(game) === player.id, onchange: () => actions.setPotd(player.id, document.getElementById("potdSwitch").checked) }))
+      ),
+      problemLine(state.problem),
+      h("button", { class: "btn pri big", id: "noteDone", onclick: actions.closeNote }, "Done")
+    )
+  );
 }
 
 /** Saved (GDA-50): the record is stored. Save file offers the CSV; Done goes Home. */
@@ -1553,6 +1637,7 @@ const SCREENS = {
   half1: halfScreen,
   half2: halfScreen,
   fullTime: fullTimeScreen,
+  summary: summaryScreen,
   saved: savedScreen,
   sheetSettings: sheetSettingsScreen,
   teamForm: teamFormScreen,

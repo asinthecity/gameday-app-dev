@@ -53,6 +53,9 @@ function spotOf(slot) {
   if (slot.dataset.zone) {
     return { zone: slot.dataset.zone }; // A whole row: "absent" or "bench" (GDA-62).
   }
+  if (slot.dataset.player === undefined && slot.dataset.note !== undefined) {
+    return { playerId: Number(slot.dataset.note), holdOnly: true }; // A circle that cannot move (e.g. Half Time end) but can be held for a note.
+  }
   return slot.dataset.player !== undefined ? { playerId: Number(slot.dataset.player) } : { place: Number(slot.dataset.place) };
 }
 
@@ -69,6 +72,9 @@ function centreOf(slot) {
  * - dragStarted(): must not redraw the slots. On an iPhone, removing the circle under
  *   the finger ends the drag. The screen is redrawn only after the finger lifts.
  * - dropped(playerId, spot): spot is null if the drop landed on nothing.
+ * - holdMs, canHold(spot) and held(spot) (GDA-81): a finger that stays on a circle for holdMs without moving
+ *   DRAG_START_DISTANCE calls held(spot). That press then ends: no tap, no drag. A tap or drag that
+ *   starts first cancels the hold, so a drag is never also a hold.
  *
  * Gives { isActive }, which is true while a finger is on a player.
  */
@@ -77,6 +83,7 @@ export function watchLineUpPresses(rules) {
   const ghost = document.getElementById("ghost");
   const line = document.getElementById("ln");
   let press = null; // The press in progress, or null.
+  let holdTimer = null;
 
   function startDrag() {
     press.dragging = true;
@@ -84,7 +91,7 @@ export function watchLineUpPresses(rules) {
     document.querySelector(".slot.sel")?.classList.remove("sel");
     press.slot.classList.add("src");
     // Measured after dragStarted, which can change the height of the bottom bar.
-    press.targets = [...document.querySelectorAll("[data-player], [data-place], [data-zone]")]
+    press.targets = [...document.querySelectorAll("[data-player], [data-place], [data-zone], [data-note]")]
       .filter((slot) => slot !== press.slot)
       .map((slot) => ({ slot, spot: spotOf(slot), box: slot.dataset.zone ? slot.getBoundingClientRect() : null, ...centreOf(slot) }))
       .filter((target) => rules.canDrop(press.spot.playerId, target.spot));
@@ -119,6 +126,10 @@ export function watchLineUpPresses(rules) {
   function finish(apply) {
     const ended = press;
     press = null;
+    clearTimeout(holdTimer);
+    if (ended.spot.holdOnly) {
+      return; // This press could only have become a hold, and it did not.
+    }
     if (ended.dragging) {
       layer.hidden = true;
       rules.dropped(ended.spot.playerId, apply ? (ended.hit?.spot ?? null) : null);
@@ -135,17 +146,21 @@ export function watchLineUpPresses(rules) {
     if (press && event.isPrimary !== false) {
       finish(false);
     }
-    if (press || !rules.canPress() || (event.pointerType === "mouse" && event.button !== 0)) {
+    if (press || (event.pointerType === "mouse" && event.button !== 0)) {
       return;
     }
-    const slot = event.target.closest?.("[data-player], [data-place], [data-zone]");
+    const slot = event.target.closest?.("[data-player], [data-place], [data-zone], [data-note]");
     if (!slot) {
+      return;
+    }
+    const holdable = Boolean(rules.holdMs) && slot.dataset.zone === undefined && slot.dataset.place === undefined && rules.canHold?.(spotOf(slot)) === true;
+    if (!rules.canPress() && !holdable) {
       return;
     }
     press = {
       id: event.pointerId,
       slot,
-      spot: spotOf(slot),
+      spot: { ...spotOf(slot), ...(rules.canPress() ? {} : { holdOnly: true }) }, // holdOnly: this press can only become a hold
       x: event.clientX,
       y: event.clientY,
       lift: event.pointerType === "mouse" ? 0 : GHOST_LIFT,
@@ -154,6 +169,17 @@ export function watchLineUpPresses(rules) {
       targets: [],
       hit: null,
     };
+    // GDA-81: hold. Cancelled by lifting, by moving DRAG_START_DISTANCE (press.moved), or once a drag has started.
+    clearTimeout(holdTimer);
+    if (holdable) {
+      const mine = press;
+      holdTimer = setTimeout(() => {
+        if (press === mine && !mine.moved && !mine.dragging) {
+          press = null;
+          rules.held(mine.spot);
+        }
+      }, rules.holdMs);
+    }
   });
 
   document.addEventListener("pointermove", (event) => {
@@ -165,7 +191,7 @@ export function watchLineUpPresses(rules) {
         return;
       }
       press.moved = true;
-      if (!rules.canDrag(press.spot)) {
+      if (press.spot.holdOnly || !rules.canDrag(press.spot)) {
         return;
       }
       startDrag();
@@ -201,7 +227,7 @@ export function watchLineUpPresses(rules) {
     document.addEventListener(
       type,
       (event) => {
-        if (guarded()) {
+        if (guarded() || event.target.closest?.(".slot")) {
           event.preventDefault();
         }
       },

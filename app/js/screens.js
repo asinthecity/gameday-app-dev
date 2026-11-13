@@ -7,6 +7,7 @@
 import { hasRecord } from "./record-rules.js";
 import { trimmedLine } from "./drag.js";
 import { FINISHED, FIRST_HALF, SECOND_HALF, canPlan, IN_PROGRESS_PHASE, NOT_STARTED_PHASE, phaseOf, canStartHalf, canResumeHalf, halfLineUpView, nextScreen, lineupKey, canChangeWhoIsHere, startedAtOf, endedAtOf, canUndoKickOff, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, planFigures, planFiguresFor, firstHalfFigures, firstHalfCopyOf, frozenRingLook, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationSecondsOf, rotationText, ROTATION_EXTRA_SECONDS, snappedSeconds, clampRotation, halfOf, carriesRotationOrder, carriesBenchTime, canChangeCarryOver, MIN_ROTATION, MAX_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, canEditNotes, noteOf, potdOf, summaryOf } from "./game-rules.js";
+import { TALLY_COLUMNS, interchangeRows, sortTally, tallyRows } from "./interchange-rules.js";
 import { checkFormation, formatFormationDigits, pitchRows } from "./formation-rules.js";
 import { archiveWarning, canDeleteGame, setupCodeOf, sheetStatus } from "./sheet-rules.js";
 import { canSaveName, initialsFor } from "./squad-rules.js";
@@ -24,6 +25,9 @@ const ICONS = {
   // Football (GDA-108): a circle with a centre patch and seam lines.
   // A path starting with "F " is filled (the solid centre patch makes it read as a ball, not a wheel, at text size).
   ball: ["M12 3a9 9 0 1 0 0 18a9 9 0 1 0 0-18", "F M12 7.8L16 10.7L14.47 15.4H9.53L8 10.7Z", "M12 7.8V3", "M16 10.7L20.56 9.22", "M14.47 15.4L17.29 19.28", "M9.53 15.4L6.71 19.28", "M8 10.7L3.44 9.22"],
+  // GDA-121: the Interchange history arrows (down = off, up = on).
+  arrowDown: ["M12 4v16", "M6 14l6 6 6-6"],
+  arrowUp: ["M12 20V4", "M6 10l6-6 6 6"],
   glove: ["M9 13V6.5a1.5 1.5 0 0 1 3 0V11", "M12 11V5a1.5 1.5 0 0 1 3 0v6", "M15 11V6.5a1.5 1.5 0 0 1 3 0V15c0 3-2 5-5 5h-1.5c-2 0-3-1-4-2.5l-3-4.5a1.5 1.5 0 0 1 2.4-1.8L9 13", "M8.5 22h8"],
 };
 function icon(name) {
@@ -1061,6 +1065,11 @@ function hereRow(state, game, actions) {
   return h("button", { class: "setrow rowbtn", id: "hereRow", onclick: actions.openHere }, h("span", {}, "Who is here"), h("span", { class: "ro" }, `${here} of ${state.players.length} \u203a`));
 }
 
+/** GDA-121: the row that opens Interchange history (Game details sheet, and the bottom of the Summary page). */
+function interchangeRow(actions) {
+  return h("button", { class: "setrow rowbtn", id: "interchangeRow", onclick: actions.openInterchange }, h("span", {}, "Interchange history"), h("span", { class: "ro" }, "\u203a"));
+}
+
 /**
  * A reusable player picker pop-up (GDA-43; Who scored uses it too, GDA-90). Fixed title and footer,
  * only the grid scrolls. The optional gridHead, gridTail, middle and footer let Who scored add its sections. `selected` is a Set of player ids. multi = ticks (here / absent); single =
@@ -1190,7 +1199,8 @@ function gameDetailsSheet(state, game, actions) {
       sheetHead("Game details", actions.closeRotation, "rotX"),
       setCard(
         h("div", { class: "setrow" }, h("span", {}, "Rotation length"), rotationPicker(clampRotation(game.rotationMinutes ?? 6, halfOf(game)), snappedSeconds(game.rotationExtraSeconds, clampRotation(game.rotationMinutes ?? 6, halfOf(game)), halfOf(game)), halfOf(game), actions.setRotation)),
-        hereRow(state, game, actions)
+        hereRow(state, game, actions),
+        interchangeRow(actions)
       ),
       // GDA-86, GDA-105: on both half screens (editable until the 2nd half starts, read-only after).
       carryOverSwitches(carryValuesOf(game), !canChangeCarryOver(game), actions),
@@ -1425,6 +1435,10 @@ export function drawPairLines(state, actions = lastActions) {
 
 /** Moves the clock, the TIME strip and the End Half colour on, without redrawing the screen. Safe at any moment. */
 export function drawClock(state) {
+  if (state.screen === "interchange") {
+    drawTally(state);
+    return;
+  }
   const game = openGame(state);
   const clock = document.getElementById("clock");
   if (isLiveViewOf(state, game) && clock) {
@@ -1527,6 +1541,7 @@ function summaryBody(state, game, actions, { canChoose, soFar }) {
       : null,
     summary.notes.length > 0 ? h("div", { class: "card nt", id: "notesCard" }, ...summary.notes.map((n) => h("div", {}, h("b", {}, n.name), " ", n.text))) : null,
     potdRow,
+    setCard(interchangeRow(actions)),
   ];
 }
 
@@ -1564,6 +1579,71 @@ function fullTimeScreen(state, actions) {
       open ? potdPicker(state, game, actions) : null,
     ],
   };
+}
+
+/** One player name with its arrow, for an Interchange history row. */
+function moveBit(kind, name) {
+  return h("span", { class: "mv" }, h("span", { class: "ar " + (kind === "off" ? "off" : "on"), role: "img", "aria-label": kind }, icon(kind === "off" ? "arrowDown" : "arrowUp")), name);
+}
+
+const TALLY_HEADINGS = { name: "Name", rotations: "Rotations", seconds: "Bench time" };
+
+/**
+ * Interchange history (GDA-121): the bench time tally (a table that sorts by heading), then every swap, oldest first.
+ * Read only: it reads the saved swaps and the game and changes nothing. Opened from the Game details sheet or the Summary page.
+ */
+function interchangeScreen(state, actions) {
+  const game = openGame(state);
+  const events = state.interchange?.events ?? [];
+  const nameOf = (id) => state.players.find((p) => p.id === id)?.name ?? "Player";
+  const sort = state.tallySort;
+  const rows = sortTally(tallyRows(game, events, state.players, Date.now()), sort.column, sort.descending);
+  const heading = (column) => {
+    const sorted = sort.column === column;
+    return h(
+      "th",
+      { class: column === "name" ? "" : "n", scope: "col", ...(sorted ? { "aria-sort": sort.descending ? "descending" : "ascending" } : {}) },
+      h("button", { type: "button", class: "sorter", "data-col": column, onclick: () => actions.sortTally(column) }, TALLY_HEADINGS[column], h("span", { class: "so", "aria-hidden": "true" }, sorted ? (sort.descending ? "\u25bc" : "\u25b2") : ""))
+    );
+  };
+  const table = h(
+    "table",
+    { class: "tally", id: "tally" },
+    h("thead", {}, h("tr", {}, ...TALLY_COLUMNS.map(heading))),
+    h("tbody", {}, ...rows.map((r) => h("tr", { "data-id": String(r.id) }, h("td", {}, r.name), h("td", { class: "n" }, String(r.rotations)), h("td", { class: "n", "data-sec": "1" }, benchTimerText(r.seconds)))))
+  );
+  const swaps = interchangeRows(game, events);
+  const list = swaps.length === 0
+    ? h("div", { class: "empty", id: "noSwaps" }, "No swaps yet")
+    : h(
+        "div",
+        { id: "swapList" },
+        h("div", { class: "colh tl" }, h("span", { class: "t" }), h("span", {}, "Off \u203a On")),
+        ...swaps.map((row) =>
+          h("div", { class: "tl swapRow" }, h("span", { class: "t" }, row.when), h("span", { class: "pairs" }, ...row.pairs.map((pair) => h("span", { class: "pair" }, pair.off !== null ? moveBit("off", nameOf(pair.off)) : null, pair.off !== null && pair.on !== null ? " \u203a " : null, pair.on !== null ? moveBit("on", nameOf(pair.on)) : null))))
+        )
+      );
+  return {
+    nodes: [
+      header("Interchange history", actions.closeInterchange),
+      h("div", { class: "body" }, h("div", { class: "card" }, h("div", { class: "hd" }, "Bench time"), table), h("div", { class: "card" }, h("div", { class: "hd" }, "Swaps"), list)),
+    ],
+  };
+}
+
+/** GDA-121: while the game runs the tally keeps counting: the bench time cells change their text only, nothing is redrawn or re-sorted. */
+function drawTally(state) {
+  const game = openGame(state);
+  if (!game) {
+    return;
+  }
+  const now = Date.now();
+  for (const row of tallyRows(game, state.interchange?.events ?? [], state.players, now)) {
+    const cell = document.querySelector(`#tally tr[data-id="${row.id}"] td[data-sec]`);
+    if (cell && cell.textContent !== benchTimerText(row.seconds)) {
+      cell.textContent = benchTimerText(row.seconds);
+    }
+  }
 }
 
 /** Pick the Player of the day (GDA-110): the picker tiles, one tap picks and closes; tapping the chosen tile again clears it. */
@@ -1658,6 +1738,7 @@ const SCREENS = {
   half2: halfScreen,
   fullTime: fullTimeScreen,
   summary: summaryScreen,
+  interchange: interchangeScreen,
   saved: savedScreen,
   sheetSettings: sheetSettingsScreen,
   teamForm: teamFormScreen,

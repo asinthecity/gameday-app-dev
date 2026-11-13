@@ -443,3 +443,23 @@ input:focus, input:focus-visible { outline: var(--bw-signal) solid var(--focus);
 #screen.slideFromRight { animation: slideFromRight var(--slide-time) ease-out; }
 #screen.slideFromLeft { animation: slideFromLeft var(--slide-time) ease-out; }
 @media (prefers-reduced-motion: reduce) { #screen.slideFromRight, #screen.slideFromLeft { animation: none; } }
+
+/* GDA-121: Interchange history. Same card, row and goal-timeline patterns as the Summary page; bold only on the headings (11-visual-style.md section 7). */
+.hd { font-weight: var(--bold); }
+.colh { font-size: var(--fs-small); color: var(--muted); margin-top: var(--s2); }
+.tally { width: auto; align-self: flex-start; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.tally th { padding: 0; text-align: left; font-weight: var(--regular); }
+.tally th.n, .tally td.n { text-align: right; }
+.tally .sorter { display: inline-flex; align-items: center; gap: var(--s2); min-height: var(--tap); padding: 0 var(--s24) 0 0; border: 0; background: none; color: var(--muted); font: inherit; font-size: var(--fs-small); }
+.tally th.n .sorter { padding-right: 0; padding-left: var(--s24); }
+.tally .so { display: inline-block; width: 1em; text-align: left; }
+.tally td { padding: var(--s4) var(--s24) var(--s4) 0; min-height: var(--s28); }
+.tally td.n { padding-right: 0; padding-left: var(--s24); }
+.swapRow .t { font-weight: var(--regular); }
+.swapRow .pairs { display: flex; flex-wrap: wrap; column-gap: var(--s12); }
+.swapRow .mv { display: inline-flex; align-items: center; gap: var(--s4); }
+.swapRow .ar { display: inline-flex; width: var(--fs-body); height: var(--fs-body); }
+.swapRow .ar svg { width: 100%; height: 100%; }
+.ar.off { color: var(--danger); }
+.ar.on { color: var(--brand); }
+.empty { text-align: center; color: var(--muted); padding: var(--s24) var(--s8); }

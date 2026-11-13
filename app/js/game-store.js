@@ -401,3 +401,10 @@ export function deleteGame(db, gameId) {
 export function archiveGame(db, gameId) {
   return changeGame(db, gameId, gameArchived);
 }
+
+/** GDA-121: the saved events of one game (swaps and moves), for Interchange history. Read only. */
+export function loadGameEvents(db, gameId) {
+  return read(db, ["events"], (tx, answer) => {
+    tx.objectStore("events").index("gameId").getAll(gameId).onsuccess = (found) => answer(found.target.result);
+  });
+}

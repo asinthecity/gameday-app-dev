@@ -31,6 +31,7 @@ const APP_FILES = [
   "./js/drag.js",
   "./js/game-rules.js",
   "./js/game-store.js",
+  "./js/interchange-rules.js",
   "./js/main.js",
   "./js/persistence.js",
   "./js/photo-image.js",

@@ -241,6 +241,9 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 /* The slim stepper (rule 5): [-] value [+], 44px buttons in one row. */
 .step { display: flex; align-items: center; }
 .step .btn { flex: none; width: var(--s44); min-height: var(--s44); height: var(--s44); padding: 0; font-size: var(--fs-title); touch-action: manipulation; }
+/* The rotation length (GDA-106): the phone's own pickers for minutes and seconds, side by side. */
+.picks { display: flex; gap: var(--s8); }
+.pick { min-height: var(--s44); font-family: inherit; font-size: var(--fs-body); color: var(--ink); background: var(--card); border: var(--bw) solid var(--edge); border-radius: var(--r-control); padding: 0 var(--s8); }
 .val { min-width: var(--s64); text-align: center; font-size: var(--fs-body); font-weight: var(--bold); white-space: nowrap; }
 .scrim { position: fixed; left: 0; right: 0; top: 0; bottom: 0; z-index: 22; background: var(--scrim); display: flex; align-items: flex-end; justify-content: center; }
 .sheet { width: 100%; max-width: var(--s393); background: var(--page); border-top: 0; border-radius: var(--r-sheet) var(--r-sheet) 0 0; padding: var(--s16) var(--s12) calc(var(--s14) + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: var(--s10); }

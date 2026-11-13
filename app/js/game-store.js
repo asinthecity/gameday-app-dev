@@ -239,17 +239,20 @@ export function prePlaceGame(db, id) {
  * transaction. The game screen appears only once this has finished.
  */
 export function startFirstHalf(db, gameId, at) {
-  return change(db, ["games", "events"], (tx) => {
+  return change(db, ["games", "events", "players"], (tx) => {
     const games = tx.objectStore("games");
     games.get(gameId).onsuccess = (event) => {
       const saved = event.target.result;
-      const started = saved ? startedFirstHalf(saved, at) : null;
-      if (!started) {
-        tx.abort();
-      } else if (started !== saved) {
-        games.put(started);
-        tx.objectStore("events").add(halfStartEvent(gameId, at));
-      }
+      // The squad is read too, so the bench can be numbered at kick-off (GDA-103).
+      tx.objectStore("players").getAll().onsuccess = (players) => {
+        const started = saved ? startedFirstHalf(saved, at, squadOf(players.target.result, saved)) : null;
+        if (!started) {
+          tx.abort();
+        } else if (started !== saved) {
+          games.put(started);
+          tx.objectStore("events").add(halfStartEvent(gameId, at));
+        }
+      };
     };
   });
 }

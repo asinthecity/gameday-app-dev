@@ -6,7 +6,7 @@
 
 import { hasRecord, scorerSummary } from "./record-rules.js";
 import { trimmedLine } from "./drag.js";
-import { FINISHED, FIRST_HALF, canPlan, IN_PROGRESS_PHASE, NOT_STARTED_PHASE, phaseOf, canStartHalf, canResumeHalf, halfLineUpView, nextScreen, lineupKey, canChangeWhoIsHere, startedAtOf, endedAtOf, canUndoKickOff, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, frozenRingLook, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationOf, halfOf, carriesRotationOrder, carriesBenchTime, canChangeCarryOver, MIN_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, goalsOf } from "./game-rules.js";
+import { FINISHED, FIRST_HALF, canPlan, IN_PROGRESS_PHASE, NOT_STARTED_PHASE, phaseOf, canStartHalf, canResumeHalf, halfLineUpView, nextScreen, lineupKey, canChangeWhoIsHere, startedAtOf, endedAtOf, canUndoKickOff, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, frozenRingLook, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationSecondsOf, rotationText, ROTATION_EXTRA_SECONDS, snappedSeconds, clampRotation, halfOf, carriesRotationOrder, carriesBenchTime, canChangeCarryOver, MIN_ROTATION, MAX_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, goalsOf } from "./game-rules.js";
 import { checkFormation, formatFormationDigits, pitchRows } from "./formation-rules.js";
 import { archiveWarning, canDeleteGame, setupCodeOf, sheetStatus } from "./sheet-rules.js";
 import { canSaveName, initialsFor } from "./squad-rules.js";
@@ -615,9 +615,34 @@ function stepControl({ ids, labels, get, min, max, text, onStep }) {
   return h("div", { class: "step" }, less, number, more);
 }
 
-/** The rotation stepper (1 minute to the half length, at most 25). */
-function rotationStepper(value, onStep, max) {
-  return stepControl({ ids: { less: "rotLess", more: "rotMore", value: "rotValue" }, labels: ["Shorter", "Longer"], get: value, min: MIN_ROTATION, max, text: (n) => `${n} min`, onStep });
+/**
+ * The rotation length (GDA-106): two of the phone's own pickers, minutes (1 to the half length, at most 25) and
+ * seconds (0, 15, 30, 45; only 0 at the longest length). `onChange(minutes, seconds)` is told the new length.
+ * `minutes` and `seconds` are the current length; `halfMinutes` sets the longest.
+ */
+function rotationPicker(minutes, seconds, halfMinutes, onChange) {
+  const top = Math.min(MAX_ROTATION, halfMinutes);
+  const optionFor = (value, label, chosen) => h("option", { value: String(value), selected: value === chosen }, label);
+  const minuteBox = h("select", { class: "pick", id: "rotMinutes", "aria-label": "Rotation minutes" },
+    ...Array.from({ length: top - MIN_ROTATION + 1 }, (_, i) => optionFor(MIN_ROTATION + i, `${MIN_ROTATION + i} min`, minutes)));
+  const secondBox = h("select", { class: "pick", id: "rotSeconds", "aria-label": "Rotation seconds" },
+    ...ROTATION_EXTRA_SECONDS.map((value) => optionFor(value, `${value} s`, seconds)));
+  // At the longest length only 0 seconds is allowed.
+  const limitSeconds = () => {
+    const atTop = Number(minuteBox.value) >= top;
+    [...secondBox.options].forEach((option) => (option.disabled = atTop && option.value !== "0"));
+    if (atTop) {
+      secondBox.value = "0";
+    }
+  };
+  limitSeconds();
+  const changed = () => {
+    limitSeconds();
+    onChange(Number(minuteBox.value), Number(secondBox.value));
+  };
+  minuteBox.addEventListener("change", changed);
+  secondBox.addEventListener("change", changed);
+  return h("div", { class: "picks" }, minuteBox, secondBox);
 }
 
 /**
@@ -683,13 +708,10 @@ function createGameScreen(state, actions) {
             "div",
             { class: "f" },
             h("span", {}, "Rotation"),
-            rotationStepper(
-              () => form.rotationMinutes,
-              (change) => {
-                form.rotationMinutes = Math.min(Math.min(25, form.halfMinutes), Math.max(MIN_ROTATION, form.rotationMinutes + change));
-              },
-              Math.min(25, form.halfMinutes)
-            )
+            rotationPicker(form.rotationMinutes, form.rotationExtraSeconds ?? 0, form.halfMinutes, (minutes, seconds) => {
+              form.rotationMinutes = clampRotation(minutes, form.halfMinutes);
+              form.rotationExtraSeconds = snappedSeconds(seconds, form.rotationMinutes, form.halfMinutes);
+            })
           ),
           // GDA-22: the half length is the team's, fixed for this game. Shown so it is not a surprise.
           factRow("Half length", `${form.halfMinutes} min`, "halfInfo")
@@ -720,9 +742,11 @@ function newGameScreen(state, actions) {
           factRow("Date", formatGameDate(game.date), "ngDate"),
           factRow("Kick-off", formatKickOff(game.kickOff), "ngKickOff"),
           factRow("Opposition", game.opposition, "ngOpposition"),
-          factRow("Home or away", game.venueTag || "Not set", "ngVenueTag"),
-          factRow("Field", game.venue || "Not set", "ngVenue"),
-          factRow("Rotation", `${rotationOf(game)} min`, "ngRotation"),
+          // GDA-105: Home / Away and Field are changed here (they used to be in the cog sheet); locked after Full Time.
+          ...(game.state === FINISHED
+            ? [factRow("Home or away", game.venueTag || "Not set", "ngVenueTag"), factRow("Field", game.venue || "Not set", "ngVenue")]
+            : venueEditor(game, actions)),
+          factRow("Rotation", rotationText(rotationSecondsOf(game)), "ngRotation"),
           factRow("Half length", `${halfOf(game)} min`, "halfInfo")
         ),
         carryOverSwitches(carryValuesOf(game), !canChangeCarryOver(game), actions)
@@ -749,7 +773,7 @@ function playerSlot(player, state, canMove, isKeeper = false, benchTimer = false
   // each at how full the bench ring was when they came on. Nobody benched, no rings. (Replaces the "4m" label of GDA-29.)
   // Frozen rings belong to the half being played, so only that half's screen shows them.
   const stints = onPitch && started && (screenHalf(state.screen) === 2) === (lineupKey(openGame(state)) === "secondHalf") ? openGame(state).benchStints?.[player.id] : undefined;
-  const frozen = stints ? frozenRings(stints, rotationOf(openGame(state)), dims) : null;
+  const frozen = stints ? frozenRings(stints, rotationSecondsOf(openGame(state)), dims) : null;
   // Room for the rings above and below the circle so they never cover the name (one ring step is weight + 1px gap).
   const frozenSpace = stints ? Math.min(stints.length, MAX_FROZEN_RINGS) * (dims.weight + 1) : 0;
   // A planned swap: OFF and ON tags on the circles (GDA-75), and a dotted line between them (GDA-80, drawPairLines).
@@ -1113,8 +1137,8 @@ function carryValuesOf(game) {
 }
 
 /**
- * The Game details sheet (GDA-64), drawn only while open: the rotation length stepper,
- * opposition and date as read-only text, and Done. Each tap on - or + is saved at once;
+ * The Game details sheet (GDA-64, GDA-105), drawn only while open: the rotation length, Who is here,
+ * the two Carry over switches, Undo kick-off and Done. Opposition, date, Home / Away and Field live on the New game screen. Each tap on - or + is saved at once;
  * Done only closes the sheet.
  */
 function gameDetailsSheet(state, game, actions) {
@@ -1133,14 +1157,11 @@ function gameDetailsSheet(state, game, actions) {
       { class: "sheet" },
       sheetHead("Game details", actions.closeRotation, "rotX"),
       setCard(
-        h("div", { class: "setrow" }, h("span", {}, "Rotation length"), rotationStepper(() => rotationOf(openGame(state)), actions.stepRotation, Math.min(25, halfOf(game)))),
-        factRow("Opposition", game.opposition, "detOpp", true),
-        factRow("Date", formatGameDate(game.date), "detDate", true),
-        ...venueEditor(game, actions),
+        h("div", { class: "setrow" }, h("span", {}, "Rotation length"), rotationPicker(clampRotation(game.rotationMinutes ?? 6, halfOf(game)), snappedSeconds(game.rotationExtraSeconds, clampRotation(game.rotationMinutes ?? 6, halfOf(game)), halfOf(game)), halfOf(game), actions.setRotation)),
         hereRow(state, game, actions)
       ),
-      // GDA-86: on the 2nd Half screen only (editable while Not started, read-only once started). The 1st Half sheet stays as it was.
-      screenHalf(state.screen) === 2 ? carryOverSwitches(carryValuesOf(game), !canChangeCarryOver(game), actions) : null,
+      // GDA-86, GDA-105: on both half screens (editable until the 2nd half starts, read-only after).
+      carryOverSwitches(carryValuesOf(game), !canChangeCarryOver(game), actions),
       undoRow && !state.undoKickOffAsk ? setCard(undoRow) : undoRow,
       h("button", { class: "btn pri", id: "rotDone", onclick: actions.closeRotation }, "Done")
     )
@@ -1306,10 +1327,9 @@ function swapStrip(game, state, actions) {
     { class: "strip", id: "strip" },
     h("div", { class: "sl", id: "swapMsg", hidden: true }),
     h("div", { class: "sl", id: "timeStrip", hidden: true }, h("div", { class: "a" }, "TIME")),
-    // Nothing due: a quiet note, so the strip is never an empty hole (GDA-75).
     undo
       ? h("div", { class: "sl", id: "swappedMsg" }, h("div", { class: "a" }, "Swapped"), undo.names ? namesLine(undo.names.off.join(", "), undo.names.on.join(", ")) : null)
-      : h("div", { class: "sl", id: "idleMsg" }, h("div", { class: "a" }, "Not due yet")),
+      : null,
     undo
       ? h("button", { class: "btn swp undoBtn", id: "undo", onclick: actions.undo }, "Undo")
       : planned ? h("button", { class: "btn swp", id: "swap", onclick: actions.swap }, "Swap") : null
@@ -1389,53 +1409,36 @@ export function drawClock(state) {
 }
 
 /**
- * Fills the swap message into the strip: yellow "SWAP IN 0:30" as a warning, black
- * "SWAP TIME" when due, red with "+1:10" once it is late (30 seconds or more; before
- * that the plus shows but the colour stays black). The words carry the message, not
- * colour alone. Gives true when the strip changed height, so the pair lines can follow.
+ * Fills the swap time into the strip (GDA-104): "SWAP IN 3:20" counting down, yellow for the last
+ * 30 seconds, then "SWAP TIME" when due, red with "+1:10" once it is late (30 seconds or more; before
+ * that the plus shows but the colour stays black). Time only, no names. The words carry the message,
+ * not colour alone. The strip has a fixed height, so the pitch never moves.
  */
 function drawSwapMessage(game, squad, now, timeUp) {
   const strip = document.getElementById("strip");
   const box = document.getElementById("swapMsg");
   const swapped = !!document.getElementById("swappedMsg"); // "Swapped / Undo" has the strip for a few seconds.
   const message = timeUp || swapped ? null : swapMessage(game, squad, now);
-  const wasShown = !box.hidden;
-  const idle = document.getElementById("idleMsg");
-  if (idle) {
-    idle.hidden = !!message || timeUp; // Idle words give way to the swap message or TIME.
-  }
   if (!message) {
     box.hidden = true;
     box.textContent = "";
+    box.dataset.key = "";
     strip.className = timeUp && !swapped ? "strip timeup" : "strip";
-    return wasShown;
+    return;
   }
-  const name = (id) => squad.find((player) => player.id === id)?.name ?? "";
   const mmss = (total) => `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
-  const title = message.phase === "warn" ? `SWAP IN ${mmss(message.countdown)}` : message.late > 0 ? `SWAP TIME +${mmss(message.late)}` : "SWAP TIME";
-  // Lines: "Off A, B -> On C, D" for planned partners, then "On ..." for due players with no plan.
-  const lines = [];
-  const planned = message.paired;
-  if (planned.length > 0) {
-    lines.push({ off: planned.map((pair) => name(pair.offId)).join(", "), on: planned.map((pair) => name(pair.onId)).join(", ") });
-  }
-  const unplanned = message.onIds.filter((id) => !planned.some((pair) => pair.onId === id));
-  if (unplanned.length > 0) {
-    lines.push({ off: null, on: unplanned.map(name).join(", ") });
-  }
-  const key = title + "|" + lines.map((line) => `${line.off}>${line.on}`).join("|");
-  if (box.dataset.key !== key) {
-    box.dataset.key = key;
-    box.replaceChildren(h("div", { class: "a" }, title), ...lines.map((line) => namesLine(line.off, line.on)));
+  const title = message.phase === "due" ? (message.late > 0 ? `SWAP TIME +${mmss(message.late)}` : "SWAP TIME") : `SWAP IN ${mmss(message.countdown)}`;
+  if (box.dataset.key !== title) {
+    box.dataset.key = title;
+    box.replaceChildren(h("div", { class: "a" }, title));
   }
   box.hidden = false;
-  strip.className = "strip " + (message.phase === "warn" ? "warn" : message.late >= 30 ? "late" : "swap");
-  return !wasShown;
+  strip.className = "strip " + (message.phase === "next" ? "" : message.phase === "warn" ? "warn" : message.late >= 30 ? "late" : "swap");
 }
 
 /** Sets each bench circle's time and ring from the saved times. Same path as the clock, so a lock or reload cannot skew it. */
 function drawBenchTimers(game, now) {
-  const rotation = rotationOf(game); // Read every tick, so a changed length shows at once.
+  const rotation = rotationSecondsOf(game); // Read every tick, so a changed length shows at once.
   for (const slot of document.querySelectorAll(".row.live .slot[data-bench]")) {
     const seconds = benchSeconds(game, slot.dataset.bench, now);
     slot.querySelector(".tm").textContent = benchTimerText(seconds);

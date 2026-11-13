@@ -47,7 +47,7 @@ export function isBlank(text) {
 
 /** What the New game screen holds before anything is typed. `marked` lists fields showing Needed. */
 export function blankGameForm() {
-  return { date: "", kickOff: "", opposition: "", venueTag: "", venue: "", rotationMinutes: ROTATION_MINUTES, carryRotationOrder: true, carryBenchTime: false, marked: {} };
+  return { date: "", kickOff: "", opposition: "", venueTag: "", venue: "", rotationMinutes: ROTATION_MINUTES, rotationExtraSeconds: 0, carryRotationOrder: true, carryBenchTime: true, marked: {} };
 }
 
 /**
@@ -97,7 +97,8 @@ function emptyLineUp(places = POSITION_COUNT) {
  * - `absent` holds player ids, on the game and not on a half (GDA-18).
  * - `benchOrder` holds the bench player ids in Ben's order (GDA-61). Nothing
  *   re-sorts it. Games saved before GDA-61 have none: benchIds starts them A to Z.
- * - `rotationMinutes` is the rotation length, 1 to 25. Games saved before GDA-32 have none and use 6.
+ * - `rotationMinutes` is the rotation length's whole minutes, 1 to 25, and `rotationExtraSeconds` the 0, 15, 30 or 45
+ *   seconds on top (GDA-106). Games saved before GDA-32 have none and use 6; games saved before GDA-106 have no seconds (0).
  *
  * `squad` is the squad in alphabetical order. It fills the first half only.
  */
@@ -118,8 +119,9 @@ export function newGame(form, id, createdOrder, squad, team = null) {
     formation,
     halfMinutes,
     rotationMinutes: clampRotation(form.rotationMinutes, halfMinutes),
+    rotationExtraSeconds: snappedSeconds(form.rotationExtraSeconds, clampRotation(form.rotationMinutes, halfMinutes), halfMinutes),
     carryRotationOrder: form.carryRotationOrder !== false, // GDA-86: default ON (today's behaviour)
-    carryBenchTime: form.carryBenchTime === true, // GDA-86: default OFF (today's behaviour)
+    carryBenchTime: form.carryBenchTime !== false, // GDA-105: a new game starts ON (games already saved keep their own value)
     absent: [],
     lineups: { firstHalf: emptyLineUp(placeCount(formation)), secondHalf: emptyLineUp(placeCount(formation)) },
   };
@@ -474,12 +476,36 @@ export function positionChangeEvent(gameId, changes, at, half = "firstHalf") {
  * clock is always worked out from it. Starting a game that has already started
  * gives the game back unchanged, so a second tap can never restart the clock.
  */
-export function startedFirstHalf(game, at) {
+export function startedFirstHalf(game, at, squad = null) {
   if (game.state !== NOT_STARTED) {
     return game;
   }
+  // GDA-103: with the squad known, the bench is numbered at kick-off, left to right as shown on the bench row.
+  const ready = squad ? withBenchOrder(game, squad) : game;
+  const numbered = squad ? { ...ready, ...numbersGiven(ready, ready.benchOrder) } : ready;
   // GDA-98: keep a copy of the game just before kick-off, so Undo kick-off can put it back.
-  return { ...game, state: FIRST_HALF, firstHalfStartedAt: at, atKickOff: { ...game.atKickOff, firstHalf: copyForUndo(game) } };
+  return { ...numbered, state: FIRST_HALF, firstHalfStartedAt: at, atKickOff: { ...game.atKickOff, firstHalf: copyForUndo(game) } };
+}
+
+/**
+ * GDA-103: bench numbers given to the players in `ids` (in that order) who have none yet. Gives back
+ * `{ benchNumbers, recordNumbers? }` to spread onto the game. A player keeps the one number they have.
+ * `recordNumbers` (Carry over rotation order OFF, GDA-86) is the whole-game counter and is kept in step.
+ */
+function numbersGiven(game, ids) {
+  const benchNumbers = { ...game.benchNumbers };
+  const recordNumbers = game.recordNumbers ? { ...game.recordNumbers } : null;
+  let next = Math.max(0, ...Object.values(benchNumbers)) + 1;
+  let nextRecord = recordNumbers ? Math.max(0, ...Object.values(recordNumbers)) + 1 : 0;
+  for (const id of ids) {
+    if (!benchNumbers[id]) {
+      benchNumbers[id] = next++;
+    }
+    if (recordNumbers && !recordNumbers[id]) {
+      recordNumbers[id] = nextRecord++;
+    }
+  }
+  return { benchNumbers, ...(recordNumbers ? { recordNumbers } : {}) };
 }
 
 /** The game as it is now, without the saved kick-off copies (a copy never holds another copy). */
@@ -545,9 +571,29 @@ export function clampRotation(minutes, halfMinutes = MAX_ROTATION) {
   return Math.min(top, Math.max(MIN_ROTATION, Math.round(minutes)));
 }
 
-/** The game's rotation length in minutes; 6 for games saved without one. */
-export function rotationOf(game) {
-  return clampRotation(game?.rotationMinutes ?? ROTATION_MINUTES, halfOf(game));
+/** The seconds that can be added to the minutes of a rotation (GDA-106). */
+export const ROTATION_EXTRA_SECONDS = [0, 15, 30, 45];
+
+/**
+ * The seconds part of a rotation length: 0, 15, 30 or 45, else 0. The longest rotation allowed is
+ * min(25, half) minutes exactly, so at that many minutes there are no extra seconds.
+ */
+export function snappedSeconds(seconds, minutes, halfMinutes = MAX_ROTATION) {
+  const top = Math.max(MIN_ROTATION, Math.min(MAX_ROTATION, halfMinutes));
+  return minutes >= top || !ROTATION_EXTRA_SECONDS.includes(seconds) ? 0 : seconds;
+}
+
+/** The game's rotation length in SECONDS (6:00 = 360 for games saved without one). Whole-minute games read as minutes and 0 seconds. */
+export function rotationSecondsOf(game) {
+  const minutes = clampRotation(game?.rotationMinutes ?? ROTATION_MINUTES, halfOf(game));
+  return minutes * 60 + snappedSeconds(game?.rotationExtraSeconds, minutes, halfOf(game));
+}
+
+/** "6 min", or "4 min 30 s" when there are seconds. */
+export function rotationText(totalSeconds) {
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return seconds === 0 ? `${minutes} min` : `${minutes} min ${seconds} s`;
 }
 
 /** The game's own half length in minutes (25 for games saved without one). */
@@ -584,9 +630,10 @@ export function withCarryOver(game, which, value) {
   return { ...game, [which]: Boolean(value) };
 }
 
-/** Copies a game with a new rotation length. Timers are not touched: they are measured against it from now on. */
-export function withRotation(game, minutes) {
-  return { ...game, rotationMinutes: clampRotation(minutes, halfOf(game)) };
+/** Copies a game with a new rotation length (minutes plus extra seconds). Timers are not touched: they are measured against it from now on. */
+export function withRotation(game, minutes, extraSeconds = 0) {
+  const clamped = clampRotation(minutes, halfOf(game));
+  return { ...game, rotationMinutes: clamped, rotationExtraSeconds: snappedSeconds(extraSeconds, clamped, halfOf(game)) };
 }
 
 /**
@@ -608,13 +655,13 @@ export function benchTimerText(seconds) {
 }
 
 /** How full the ring is, 0 to 1: half full at half the rotation, full at the rotation length. */
-export function ringFraction(seconds, rotationMinutes = ROTATION_MINUTES) {
-  return Math.min(1, Math.max(0, seconds / (rotationMinutes * 60)));
+export function ringFraction(seconds, rotationSeconds = ROTATION_MINUTES * 60) {
+  return Math.min(1, Math.max(0, seconds / rotationSeconds));
 }
 
 /** Is the player past the rotation length? */
-export function isBenchLate(seconds, rotationMinutes = ROTATION_MINUTES) {
-  return seconds > rotationMinutes * 60;
+export function isBenchLate(seconds, rotationSeconds = ROTATION_MINUTES * 60) {
+  return seconds > rotationSeconds;
 }
 
 /** A finished stint within this many seconds of the rotation length counts as a full rotation (GDA-84). */
@@ -626,49 +673,36 @@ export const FROZEN_RING_TOLERANCE_SECONDS = 60;
  * over rotation + 1 minute = full and late; under rotation - 1 minute = part ring.
  * The live bench ring and swap message do not use this.
  */
-export function frozenRingLook(seconds, rotationMinutes = ROTATION_MINUTES) {
-  const full = rotationMinutes * 60;
+export function frozenRingLook(seconds, rotationSeconds = ROTATION_MINUTES * 60) {
+  const full = rotationSeconds;
   if (seconds > full + FROZEN_RING_TOLERANCE_SECONDS) return { fraction: 1, late: true };
   if (seconds >= full - FROZEN_RING_TOLERANCE_SECONDS) return { fraction: 1, late: false };
-  return { fraction: ringFraction(seconds, rotationMinutes), late: false };
+  return { fraction: ringFraction(seconds, rotationSeconds), late: false };
 }
 
 /** The swap warning starts this many seconds before a bench player is due (fixed in the MVP). */
 export const WARN_SECONDS = 30;
 
 /**
- * The swap message (GDA-35), worked out from the saved bench times and the rotation
- * length every time, with nothing stored, so it is right after a lock, a reload, an
- * Undo or a changed length. Gives null when nothing is due or near, else
- * { phase: "warn" | "due", countdown (warn), late (due), onIds, offIds, paired }:
- * `onIds` are the bench players to name, in bench order; `paired` is the list of
- * { offId, onId } for those who have a planned partner. Due players always win over
- * players only near their time. No message once the half is over.
+ * The swap bar's time (GDA-35, GDA-104), worked out from the saved bench times and the rotation
+ * length every time, with nothing stored, so it is right after a lock, a reload, an Undo or a changed
+ * length. Time only, never names. The bench player who has waited longest sets it. Gives
+ * { phase: "next" | "warn" | "due", countdown (next, warn), late (due) }: "next" is the countdown
+ * more than 30 seconds out (with nobody waiting yet it is the full rotation length), "warn" the last
+ * 30 seconds, "due" the time since the rotation ran out. Null once the half is over.
  */
 export function swapMessage(game, squad, now) {
   if (isHalfEnded(game)) {
     return null;
   }
-  const limit = rotationOf(game) * 60;
-  const timed = benchIds(game, squad).map((id) => ({ id, seconds: benchSeconds(game, id, now) }));
-  const due = timed.filter((entry) => entry.seconds >= limit);
-  const near = timed.filter((entry) => entry.seconds >= limit - WARN_SECONDS && entry.seconds < limit);
-  const named = due.length > 0 ? due : near;
-  if (named.length === 0) {
-    return null;
+  const limit = rotationSecondsOf(game);
+  // The bench player who has waited longest sets the time of the next swap.
+  const longest = Math.max(0, ...benchIds(game, squad).map((id) => benchSeconds(game, id, now)));
+  if (longest >= limit) {
+    return { phase: "due", late: longest - limit };
   }
-  const paired = [];
-  for (const entry of named) {
-    const pair = pairsOf(game).find((one) => one.benchId === entry.id && one.fieldId !== null);
-    if (pair) {
-      paired.push({ offId: pair.fieldId, onId: entry.id });
-    }
-  }
-  const message = { onIds: named.map((entry) => entry.id), paired };
-  if (due.length > 0) {
-    return { ...message, phase: "due", late: Math.max(...due.map((entry) => entry.seconds)) - limit };
-  }
-  return { ...message, phase: "warn", countdown: limit - Math.max(...near.map((entry) => entry.seconds)) };
+  const countdown = limit - longest;
+  return { phase: countdown <= WARN_SECONDS ? "warn" : "next", countdown };
 }
 
 /**
@@ -757,6 +791,9 @@ export function startedSecondHalf(game, at) {
   // GDA-86: Carry over rotation order OFF: the on-screen numbers clear and restart at 1. The 1st half's numbers
   // are kept as recordNumbers (the whole-game counter, carried on by swapped()) so the Season record keeps whole-game numbering (and Undo kick-off restores all).
   const clearNumbers = !carriesRotationOrder(game);
+  // GDA-103: anyone starting the half on the bench without a number takes the next one, left to right as shown.
+  const base = clearNumbers ? { ...game, benchNumbers: {}, recordNumbers: { ...game.benchNumbers } } : game;
+  const numbers = numbersGiven(base, benchOrder);
   return {
     ...rest,
     atKickOff,
@@ -764,7 +801,7 @@ export function startedSecondHalf(game, at) {
     secondHalfStartedAt: at,
     benchSince,
     benchTotals,
-    ...(clearNumbers ? { benchNumbers: {}, recordNumbers: { ...game.benchNumbers } } : {}),
+    ...numbers,
     plannedPairs: [],
     firstHalfBenchOrder,
     benchOrder,
@@ -1083,16 +1120,10 @@ export function swapped(game, at) {
   const positions = [...activePositions(game)];
   let order = [...(game.benchOrder ?? [])];
   const benchSince = { ...game.benchSince };
-  // Bench numbers (GDA-56): { playerId: 1, 2, 3... } in the order players first came off the bench.
-  // Kept for the whole game; a player keeps their first number. Pairs are handled in strip order.
-  const benchNumbers = { ...game.benchNumbers };
+  // Bench numbers (GDA-56, GDA-103): { playerId: 1, 2, 3... } in the order players first went TO the bench.
+  // Kept for the whole game; a player keeps their first number.
   // Bench time (GDA-29): seconds of finished bench stints, per player. A stint is added when the player goes on.
   const benchTotals = { ...game.benchTotals };
-  let nextNumber = Math.max(0, ...Object.values(benchNumbers)) + 1;
-  // GDA-86: with Carry over rotation order OFF a separate whole-game counter exists (recordNumbers); it is
-  // given out exactly as the on-screen numbers were before this story, so the Season record never differs.
-  const recordNumbers = game.recordNumbers ? { ...game.recordNumbers } : null;
-  let nextRecord = recordNumbers ? Math.max(0, ...Object.values(recordNumbers)) + 1 : 0;
   const changes = [];
   for (const pair of pairsOf(game)) {
     const place = pair.fieldId !== null ? positions.indexOf(pair.fieldId) : pair.place;
@@ -1104,12 +1135,6 @@ export function swapped(game, at) {
     order = benchAfterMove(order, pair.benchId, pair.fieldId, BENCH, place);
     benchTotals[pair.benchId] = (benchTotals[pair.benchId] ?? 0) + benchSeconds(game, pair.benchId, at);
     delete benchSince[pair.benchId];
-    if (!benchNumbers[pair.benchId]) {
-      benchNumbers[pair.benchId] = nextNumber++; // First time off the bench: takes the next number.
-    }
-    if (recordNumbers && !recordNumbers[pair.benchId]) {
-      recordNumbers[pair.benchId] = nextRecord++;
-    }
     changes.push({ playerId: pair.benchId, from: BENCH, to: place });
     if (pair.fieldId !== null) {
       benchSince[pair.fieldId] = at;
@@ -1119,7 +1144,10 @@ export function swapped(game, at) {
   if (changes.length === 0) {
     return null;
   }
-  return { game: { ...withFirstHalf(game, { positions }), benchOrder: order, benchSince, benchNumbers, benchTotals, ...(recordNumbers ? { recordNumbers } : {}), plannedPairs: [] }, changes };
+  // GDA-103: players who went to the bench take the next number if they have none, in field order as shown.
+  const leaving = changes.filter((change) => change.to === BENCH).sort((a, b) => a.from - b.from).map((change) => change.playerId);
+  const numbers = numbersGiven(game, leaving);
+  return { game: { ...withFirstHalf(game, { positions }), benchOrder: order, benchSince, ...numbers, benchTotals, plannedPairs: [] }, changes };
 }
 
 /**

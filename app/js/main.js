@@ -24,7 +24,6 @@ import {
   planMoved,
   planView,
   needsPrePlacing,
-  rotationOf,
   halfOf,
   withFormation,
   NOT_STARTED,
@@ -612,18 +611,18 @@ const actions = {
     state.rotationOpen = true;
     draw();
   }),
-  // Each tap on - or + is saved at once (NFR-2). The clock and timers keep running underneath.
-  stepRotation: (change) => {
-    const minutes = clampRotation(rotationOf(openGame()) + change, halfOf(openGame()));
-    changeGame(db, state.gameId, (game) => withRotation(game, minutes))
+  // GDA-106: a new minutes or seconds choice is saved at once (NFR-2). The clock and timers keep running underneath.
+  setRotation: (minutes, extraSeconds) => {
+    const id = state.gameId;
+    changeGame(db, id, (game) => withRotation(game, minutes, extraSeconds))
       .then(() => gamesNow())
       .then((games) => {
         state.games = games;
         drawClock(state);
       })
       .catch((error) => console.warn("Could not save the rotation length", error));
-    // Show the new number straight away; the save follows within milliseconds.
-    state.games = state.games.map((game) => (game.id === state.gameId ? withRotation(game, minutes) : game));
+    // Show the new length straight away; the save follows within milliseconds.
+    state.games = state.games.map((game) => (game.id === id ? withRotation(game, minutes, extraSeconds) : game));
     drawClock(state);
   },
   // GDA-86: a carry-over switch. On New game it only changes the form; on a saved game it is saved at once,

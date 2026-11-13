@@ -129,10 +129,10 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .fm input:disabled { background: var(--line); color: var(--muted); border-color: var(--line); }
 .ci { position: relative; flex: none; width: var(--s48); height: var(--s48); }
 .nm { width: 100%; margin-top: var(--s2); padding: 0 var(--s2); text-align: center; font-size: var(--fs-body); font-weight: var(--bold); line-height: var(--s16); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* Keeper (GDA-85): a small white disc with a green glove at the circle's top-left (no "GK" text, GDA-99). */
-.gkb { position: absolute; left: calc(-1 * var(--s6)); top: calc(-1 * var(--s6)); z-index: 3; width: 21px; height: 21px; border-radius: 50%; background: var(--card); color: var(--brand); box-shadow: 0 1px 3px var(--shadow); display: flex; align-items: center; justify-content: center; }
+/* Keeper (GDA-85, GDA-114): a small white disc with a green glove at the circle's bottom-left (also kept by a player who has had a full turn in goal) (no "GK" text, GDA-99). */
+.gkb { position: absolute; left: calc(-1 * var(--s6)); bottom: calc(-1 * var(--s6)); z-index: 3; width: 21px; height: 21px; border-radius: 50%; background: var(--card); color: var(--brand); box-shadow: 0 1px 3px var(--shadow); display: flex; align-items: center; justify-content: center; }
 .gkb svg { width: 15px; height: 15px; }
-.tight .gkb { width: 18px; height: 18px; left: calc(-1 * var(--s5)); top: calc(-1 * var(--s5)); }
+.tight .gkb { width: 18px; height: 18px; left: calc(-1 * var(--s5)); bottom: calc(-1 * var(--s5)); }
 .tight .gkb svg { width: 13px; height: 13px; }
 .em { background: transparent; border: var(--bw-signal) dashed var(--muted); }
 .tight .ci { width: var(--s40); height: var(--s40); }

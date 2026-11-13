@@ -1267,6 +1267,53 @@ export function benchStints(game, events) {
   return stints;
 }
 
+/**
+ * Full turns in goal (GDA-114): the ids of players who have had at least one unbroken spell in the
+ * keeper position (place 0) that lasted the rotation length minus 1 minute or more (same tolerance as
+ * the frozen ring, GDA-84). Worked out from the saved event log every time, so nothing is stored and
+ * Undo swap, Undo kick-off and a reload all give the right answer (an undone event is simply gone).
+ * Each half is measured on its own clock (from that half's start to its End Half), so the break adds
+ * nothing and two short spells never add up. A spell still running (half not ended) is not counted:
+ * the player in goal shows gloves anyway. Games saved by earlier versions work the same way, because
+ * the log already holds every move. `events` are this game's events, any order.
+ */
+export function keeperTurns(game, events) {
+  const needed = rotationSecondsOf(game) - FROZEN_RING_TOLERANCE_SECONDS;
+  const earned = new Set();
+  const halves = [
+    { key: "firstHalf", start: game.firstHalfStartedAt, end: game.firstHalfEndedAt },
+    { key: "secondHalf", start: game.secondHalfStartedAt, end: game.secondHalfEndedAt },
+  ];
+  for (const half of halves) {
+    if (typeof half.start !== "number") continue;
+    const moves = events
+      .filter((e) => (e.type === SWAP || e.type === POSITION_CHANGE) && e.half === half.key && e.at >= half.start)
+      .sort((a, b) => a.at - b.at || (a.id ?? 0) - (b.id ?? 0));
+    // Who was in goal at the start of the half: the first player to leave goal, or (if nobody
+    // ever left) whoever is there now.
+    const firstLeaver = moves.flatMap((e) => e.changes).find((c) => c.from === 0 && c.to !== 0);
+    let keeper = firstLeaver ? firstLeaver.playerId : (game.lineups?.[half.key]?.positions?.[0] ?? null);
+    let since = half.start;
+    const spellEnded = (at) => {
+      if (keeper && Math.floor((at - since) / 1000) >= needed) earned.add(keeper);
+    };
+    for (const event of moves) {
+      const left = event.changes.find((c) => c.from === 0 && c.to !== 0);
+      const arrived = event.changes.find((c) => c.to === 0 && c.from !== 0);
+      if (left) {
+        spellEnded(event.at);
+        keeper = null;
+      }
+      if (arrived) {
+        keeper = arrived.playerId;
+        since = event.at;
+      }
+    }
+    if (typeof half.end === "number") spellEnded(half.end);
+  }
+  return earned;
+}
+
 /** "4m": whole minutes, rounded down. Under a minute gives "" (nothing shown). */
 export function benchTotalText(seconds) {
   const minutes = Math.floor(seconds / 60);

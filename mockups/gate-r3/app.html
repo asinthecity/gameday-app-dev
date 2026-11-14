@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>MOCKUP - Game Day, third Gate R batch</title>
+<style>
+[hidden]{display:none !important}
+:root{--h:100vh}
+@supports (height:100svh){:root{--h:100svh}}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;height:100%}
+body{font-family:-apple-system,"Helvetica Neue",Arial,sans-serif;background:#fff;color:#111;font-size:16px;-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:transparent;position:fixed;left:0;right:0;top:0;bottom:0;overflow:hidden;overscroll-behavior:none}
+body.nomove,body.nomove *{touch-action:none;-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+button{-webkit-appearance:none;appearance:none;font:inherit;color:inherit;margin:0;cursor:pointer}
+#frame{background:#fff;width:100%;height:var(--h);display:flex;flex-direction:column;overflow:hidden}
+#screen{flex:1;min-height:0;display:flex;flex-direction:column}
+@media (min-width:500px){html,body{background:#d9d9d9}#frame{width:393px;margin:0 auto;height:min(var(--h),852px)}}
+
+#bar{flex:none;padding:env(safe-area-inset-top) 8px 3px;background:#111;color:#fff;font-size:12px}
+#bar .br{display:flex;align-items:center;gap:8px;min-height:26px;white-space:nowrap;overflow:hidden}
+#bar .mk{background:#ffd400;color:#111;font-weight:700;padding:2px 6px;border-radius:4px}
+#bar .sp{flex:1}
+#bar a{color:#9cc4ff;padding:4px 0;font-size:12px;text-decoration:underline}
+#bar button{flex:none;height:28px;padding:0 9px;border:0;border-radius:6px;background:#444;color:#fff;font-size:13px;font-weight:700}
+#bar .note{white-space:normal;font-size:11px;line-height:14px;color:#ddd;padding-bottom:2px}
+
+.hdr{display:flex;align-items:center;gap:8px;flex:none;min-height:53px;padding:4px 12px;border-bottom:2px solid #111;background:#fff}
+.hdr h1{margin:0;font-size:20px;flex:1;min-width:0}
+.hdr.ht{background:#111;color:#fff}
+.hdr.ht h1{letter-spacing:2px;text-align:center;padding-right:48px}
+.back{flex:none;width:48px;height:44px;border:2px solid #fff;border-radius:10px;background:#111;color:#fff;font-size:26px;font-weight:700;line-height:1;padding:0 0 4px}
+.btn{display:flex;align-items:center;justify-content:center;width:100%;min-height:54px;border:2px solid #111;border-radius:12px;background:#fff;color:#111;font-size:18px;font-weight:800;padding:6px 12px;text-align:center}
+.btn.pri{background:#111;color:#fff}
+.acts{flex:none;padding:8px 12px calc(8px + env(safe-area-inset-bottom));border-top:2px solid #111;background:#fff}
+.acts .btn{min-height:56px;font-size:20px}
+.acts.two{display:flex;gap:8px}
+.acts.two .btn{flex:1;width:auto}
+.acts.two .btn.pri{flex:2}
+.acts.end{display:flex;justify-content:flex-end}
+.acts .btn.eh{flex:none;width:132px;min-height:52px;background:#eee;border-color:#555;font-size:16px}
+.acts .btn.eh.pri{background:#111;border-color:#111;color:#fff}
+.av{width:100%;height:100%;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:17px;color:#111;border:2px solid #333}
+.c0{background:#cfe3ff}.c1{background:#ffd9c2}.c2{background:#d7f0cf}.c3{background:#f5d0ee}.c4{background:#fff0a8}.c5{background:#cdeff0}.c6{background:#e1d4ff}.c7{background:#e6e6e6}
+
+.bnr{flex:none;padding:6px 12px;font-size:15px;font-weight:800;background:#111;color:#fff}
+.clk{position:relative;flex:none;display:flex;align-items:center;justify-content:center;min-height:52px;padding:2px 12px;border-bottom:2px solid #111;background:#fff}
+.clk b{padding:0 8px;border-radius:8px;font-size:42px;font-weight:900;line-height:1.1;font-variant-numeric:tabular-nums}
+.clk b.ot{background:#111;color:#fff}
+.clk .hf{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:13px;font-weight:800}
+.strip{flex:none;display:flex;align-items:center;gap:8px;min-height:64px;margin:6px 10px 0;padding:6px 10px;border:2px solid #111;border-radius:10px;background:#f4f4f4}
+.strip .sl{flex:1;min-width:0;font-size:15px}
+.strip.time{background:#fff;border:6px solid #111;padding:2px 6px}
+.strip.time .sl{font-size:34px;font-weight:900;letter-spacing:2px;text-align:center;line-height:40px}
+.chip{flex:none;min-height:44px;min-width:64px;padding:0 8px;border:2px solid currentColor;border-radius:10px;background:transparent;color:inherit;font-size:16px;font-weight:800}
+
+.lu{position:relative;flex:1;min-height:0;display:flex;flex-direction:column;gap:6px;padding:6px 10px}
+.pitch{flex:1 1 0;min-height:0;position:relative;display:grid;grid-template-rows:repeat(4,minmax(0,1fr));border:2px solid #111;border-radius:10px;background:#e6f0e0}
+.pitch:before{content:"";position:absolute;left:0;right:0;top:50%;border-top:2px solid #b5c4ac;pointer-events:none}
+.line{position:relative;display:flex;justify-content:center;align-items:stretch;min-height:0}
+.slot{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0}
+.line .slot{flex:0 0 33.33%;max-width:33.33%}
+.ci{position:relative;flex:none;width:44px;height:44px}
+.nm{width:100%;margin-top:2px;padding:0 2px;text-align:center;font-size:13px;font-weight:800;line-height:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gk{position:absolute;right:-9px;top:-7px;width:22px;height:22px;border-radius:50%;background:#fff;border:2px solid #111;font-size:11px;line-height:1;display:flex;align-items:center;justify-content:center}
+.tk{position:absolute;right:-9px;bottom:-5px;z-index:2;width:22px;height:22px;border-radius:50%;background:#111;border:2px solid #fff;color:#fff;font-size:13px;font-weight:900;line-height:1;display:flex;align-items:center;justify-content:center}
+.em{background:transparent;border:2px dashed #555}
+.row{position:relative;flex:none;display:flex;flex-wrap:wrap;justify-content:space-around;min-height:22px;padding:15px 4px 2px;border:2px solid #111;border-radius:10px;background:#fafafa}
+.row .t{position:absolute;left:8px;top:1px;font-size:11px;font-weight:800;line-height:14px}
+.row .slot{flex:0 0 16.6%;max-width:16.6%;padding:2px 0}
+.row .ci{width:44px;height:44px}
+.row.ab{border-style:dashed}
+.row.ab .av{border-style:dashed;border-color:#111}
+.row.ab .nm{color:#333}
+.row.empty{min-height:52px}
+.row .none{width:100%;text-align:center;font-size:13px;color:#555;padding:8px 0}
+.tm{position:absolute;left:-9px;top:-7px;z-index:2;padding:1px 5px;border-radius:9px;background:#111;color:#fff;font-size:13px;font-weight:800;line-height:16px;font-variant-numeric:tabular-nums}
+.sel .av,.drop .av{border:4px solid #111;box-shadow:0 0 0 4px #ffd400}
+.src .av{opacity:.4}
+.slot[data-k]{cursor:pointer}
+.slot.emptyslot[data-k] .ci{outline:0}
+
+#layer{position:fixed;left:0;top:0;right:0;bottom:0;z-index:50;pointer-events:none}
+#ghost{position:absolute;left:0;top:0;width:56px;height:56px;margin:-28px 0 0 -28px;will-change:transform}
+#ghost .av{border:3px solid #111;box-shadow:0 3px 8px rgba(0,0,0,.45)}
+@media (max-height:760px){.ci{width:40px;height:40px}.av{font-size:15px}}
+</style>
+</head>
+<body>
+<div id="frame"><div id="bar"></div><div id="screen"></div></div>
+<div id="layer" hidden><div id="ghost"></div></div>
+<script>
+(function(){
+'use strict';
+/* ---------- Sample data (all names made up) ---------- */
+var COL=['c0','c1','c2','c3','c4','c5','c6','c7'];
+var SQ=[['Alex',0],['Avery',4],['Casey',3],['Drew',1],['Jamie',0],['Jordan',2],['Kit',3],['Morgan',5],['Quinn',7],['Riley',4],['Robin',2],['Sam',1],['Thaddeus-Alexander',6]];
+var ID={};SQ.forEach(function(x,i){ID[x[0]]=i;});
+var DROP_RADIUS=46,GHOST_LIFT=36;
+var S;
+function el(i){return document.getElementById(i);}
+function esc(t){return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+function nmOf(id){return SQ[id][0];}
+function mmss(s){var m=Math.floor(s/60),r=s%60;return m+':'+(r<10?'0':'')+r;}
+function clone(o){return JSON.parse(JSON.stringify(o));}
+function n(a){return a.map(function(x){return ID[x];});}
+function mk(a){var m={};a.forEach(function(x){m[ID[x]]=true;});return m;}
+
+/* End of first half (made up). Kit and Morgan swapped, Riley came on for Drew, Robin for Jordan.
+   Positions: 0 goal, 1-3 defence, 4-6 midfield, 7-8 forwards, left to right. Sam is Absent (not shown anywhere). */
+function endOfFirstHalf(){
+  return {pos:n(['Alex','Avery','Casey','Riley','Jamie','Robin','Morgan','Kit','Quinn']),
+          bench:n(['Drew','Jordan','Thaddeus-Alexander']),
+          marks:mk(['Alex','Riley','Robin'])};
+}
+var NOTES={
+ half:'Half Time. Marks carried from the first half (Alex keeper from kick-off, Riley and Robin came on). Tap or drag to change. Changes save at once (not shown). Back arrow throws away changes.',
+ first:'1st half still running, clock past 25:00. Reached by the back arrow from Half Time. Line-up is as it ended. Tap End Half again and Half Time is filled afresh.',
+ second:'Second half running from 0:00 (Start 2nd Half starts the clock at once). Bench timers all restart at 0:00. Marks unchanged. Swap, Undo etc. work as the first half (not drawn here).',
+ before:'Before kick-off (GDA-41). Sam and Kit marked Absent: dashed ABSENT row below the bench, alphabetical, display only. Alex has a mark from kick-off (GDA-28). Buttons are inert here.',
+ beforenone:'Before kick-off with nobody Absent: no ABSENT row at all. Buttons are inert here.'
+};
+
+/* ---------- Seeds ---------- */
+var SEEDS={
+ 'halftime':function(){S.f=endOfFirstHalf();S.w=clone(S.f);S.screen='half';},
+ 'keeper-change':function(){S.f=endOfFirstHalf();S.w=clone(S.f);swapTo(S.w,'p0','b0');S.screen='half';},
+ 'first-half':function(){S.f=endOfFirstHalf();S.w=clone(S.f);S.screen='first';},
+ 'second-half':function(){S.f=endOfFirstHalf();S.w=clone(S.f);startSecond();},
+ 'before-absent':function(){S.screen='before';S.abs=true;},
+ 'before-none':function(){S.screen='before';S.abs=false;}
+};
+function swapTo(d,a,b){move(d,a,b);}
+
+/* ---------- Rules ---------- */
+function isEmpty(d,k){return k.charAt(0)==='p'&&d.pos[+k.slice(1)]===null;}
+function move(d,a,b){
+  var ka=a.charAt(0),kb=b.charAt(0),va=+a.slice(1),vb=+b.slice(1),t,id,out;
+  if(ka==='p'&&kb==='p'){t=d.pos[va];d.pos[va]=d.pos[vb];d.pos[vb]=t;}
+  else if(ka==='b'&&kb==='p'){id=d.bench[va];out=d.pos[vb];d.pos[vb]=id;if(out===null){d.bench.splice(va,1);}else{d.bench[va]=out;}}   /* displaced player takes the exact bench spot */
+  else if(ka==='p'&&kb==='b'){id=d.bench[vb];out=d.pos[va];d.pos[va]=id;d.bench[vb]=out;}
+  else if(ka==='b'&&kb==='b'){id=d.bench.splice(va,1)[0];d.bench.splice(vb,0,id);}   /* drag along the bench */
+  if(d.pos[0]!==null){d.marks[d.pos[0]]=true;}   /* any time in goal counts as a turn (GDA-28) */
+}
+
+/* ---------- Drawing ---------- */
+function circle(d,id,keeper,tm){
+  return '<div class="ci"><div class="av '+COL[SQ[id][1]]+'">'+esc(nmOf(id).slice(0,2).toUpperCase())+'</div>'+
+    (tm!==undefined?'<span class="tm" data-tm>'+mmss(tm)+'</span>':'')+
+    (keeper?'<span class="gk" title="Keeper">&#129508;</span>':'')+
+    (d.marks[id]?'<span class="tk" title="Had a turn">&#10003;&#xFE0E;</span>':'')+'</div>';
+}
+function posSlot(d,i,ro){
+  var id=d.pos[i],k='p'+i,c='slot'+(S.sel===k?' sel':'')+(id===null?' emptyslot':'');
+  var at=ro?'':' data-k="'+k+'"';
+  if(id===null){return '<div class="'+c+'"'+at+'><div class="ci"><div class="av em"></div></div><div class="nm">&nbsp;</div></div>';}
+  return '<div class="'+c+'"'+at+'>'+circle(d,id,i===0)+'<div class="nm">'+esc(nmOf(id))+'</div></div>';
+}
+function pitch(d,ro){
+  function line(l){return '<div class="line">'+l.map(function(i){return posSlot(d,i,ro);}).join('')+'</div>';}
+  return '<div class="pitch">'+line([7,8])+line([4,5,6])+line([1,2,3])+line([0])+'</div>';
+}
+function bench(d,ro,timers){
+  var h='<div class="row'+(d.bench.length?'':' empty')+'"><span class="t">BENCH</span>';
+  if(!d.bench.length){h+='<div class="none">Nobody on the bench</div>';}
+  d.bench.forEach(function(id,i){
+    var k='b'+i;
+    h+='<div class="slot'+(S.sel===k?' sel':'')+'"'+(ro?'':' data-k="'+k+'"')+'>'+circle(d,id,false,timers?0:undefined)+'<div class="nm">'+esc(nmOf(id))+'</div></div>';
+  });
+  return h+'</div>';
+}
+function hdr(t,back,cls){return '<div class="hdr '+(cls||'')+'">'+(back?'<button class="back" data-a="'+back+'" aria-label="Back">&lsaquo;</button>':'')+'<h1>'+t+'</h1></div>';}
+function top(label,ck,ot,strip,tstrip){
+  return '<div class="clk"><span class="hf">'+label+'</span><b id="ck" class="'+(ot?'ot':'')+'">'+ck+'</b></div>'+
+    '<div class="strip '+(tstrip?'time':'')+'"><button class="chip" data-a="none">6 min</button><div class="sl">'+strip+'</div></div>';
+}
+
+var VIEWS={
+ half:function(){
+  return {tags:'GDA-20 GDA-31 GDA-28',note:NOTES.half,lock:true,
+   html:hdr('HALF TIME','backFirst','ht')+'<div class="lu">'+pitch(S.w,false)+bench(S.w,false,false)+'</div>'+
+   '<div class="acts"><button class="btn pri" id="bStart" data-a="start2">Start 2nd Half</button></div>'};
+ },
+ first:function(){
+  return {tags:'GDA-31 (back arrow)',note:NOTES.first,
+   html:top('1ST HALF','+0:40',true,'TIME',true)+'<div class="lu">'+pitch(S.f,true)+bench(S.f,true,true)+'</div>'+
+   '<div class="acts end"><button class="btn eh pri" data-a="endHalf">End Half</button></div>'};
+ },
+ second:function(){
+  return {tags:'GDA-31 GDA-28',note:NOTES.second,
+   html:top('2ND HALF','0:00',false,'',false)+'<div class="lu">'+pitch(S.w,true)+bench(S.w,true,true)+'</div>'+
+   '<div class="acts end"><button class="btn eh" data-a="none">End Half</button></div>'};
+ },
+ before:function(){
+  var d={pos:n(['Alex','Avery','Casey','Drew','Jamie','Jordan','Riley','Morgan','Quinn']),bench:n(['Robin','Thaddeus-Alexander']),marks:mk(['Alex'])};
+  var h=top('','0:00',false,'',false)+'<div class="lu">'+pitch(d,true)+bench(d,true,false);
+  if(S.abs){h+='<div class="row ab"><span class="t">ABSENT</span>'+n(['Kit','Sam']).map(function(id){return '<div class="slot"><div class="ci"><div class="av '+COL[SQ[id][1]]+'">'+esc(nmOf(id).slice(0,2).toUpperCase())+'</div></div><div class="nm">'+nmOf(id)+'</div></div>';}).join('')+'</div>';}
+  return {tags:'GDA-41 GDA-28',note:S.abs?NOTES.before:NOTES.beforenone,
+   html:h+'</div><div class="acts two"><button class="btn" data-a="none">Line-up</button><button class="btn pri" data-a="none">START 1ST HALF</button></div>'};
+ }
+};
+
+function render(){
+  var v=VIEWS[S.screen]();
+  var hash=location.hash||'#halftime';
+  el('bar').innerHTML='<div class="br"><span class="mk">MOCKUP &mdash; not functional</span><span class="sp"></span><button data-a="reset">Reset</button><a href="index.html">Index</a></div>'+
+    '<div class="br"><span>'+v.tags+'</span></div><div class="note">'+v.note+'</div>';
+  el('screen').innerHTML=v.html;
+  document.body.className=(S.screen==='half'?'nomove':'');
+}
+function nav(s){S.screen=s;S.sel=null;S.lock=Date.now()+300;render();}
+function startSecond(){S.t0=Date.now();S.screen='second';S.sel=null;S.lock=Date.now()+300;render();}
+
+var ACT={
+ none:function(){},
+ reset:function(){boot();},
+ backFirst:function(){nav('first');},                    /* half-time changes are thrown away: S.f is untouched, next End Half copies it again */
+ endHalf:function(){S.w=clone(S.f);nav('half');},
+ start2:function(){if(S.screen==='half'){startSecond();}}  /* double tap starts once: screen changes on first tap */
+};
+document.addEventListener('click',function(e){
+  var t=e.target.closest?e.target.closest('[data-a]'):null;
+  if(!t||Date.now()<S.lock){return;}
+  e.preventDefault();
+  ACT[t.getAttribute('data-a')](t);
+});
+
+/* ---------- Tap and drag (pointer events) ---------- */
+function tap(k){
+  var d=S.w,sel=S.sel;
+  if(!sel){if(!isEmpty(d,k)){S.sel=k;}render();return;}
+  if(sel===k){S.sel=null;render();return;}
+  if(sel.charAt(0)==='b'&&k.charAt(0)==='b'){S.sel=k;render();return;}
+  move(d,sel,k);S.sel=null;render();
+}
+var drag=null;
+function centre(nd){var r=nd.querySelector('.ci').getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2};}
+function startDrag(){
+  var d=drag;d.on=true;S.sel=null;
+  var old=document.querySelector('.slot.sel');if(old){old.classList.remove('sel');}
+  d.el.classList.add('src');
+  d.targets=[];
+  Array.prototype.forEach.call(document.querySelectorAll('[data-k]'),function(nd){
+    if(nd!==d.el){var c=centre(nd);d.targets.push({n:nd,k:nd.getAttribute('data-k'),x:c.x,y:c.y});}
+  });
+  var id=d.pid;
+  el('ghost').innerHTML='<div class="av '+COL[SQ[id][1]]+'">'+esc(nmOf(id).slice(0,2).toUpperCase())+'</div>';
+  el('layer').hidden=false;
+}
+function moveDrag(x,y){
+  var d=drag,gy=y-d.lift;
+  el('ghost').style.transform='translate('+x+'px,'+gy+'px)';
+  var best=null,bd=DROP_RADIUS*DROP_RADIUS;
+  d.targets.forEach(function(t){var dx=t.x-x,dy=t.y-gy,q=dx*dx+dy*dy;if(q<bd){bd=q;best=t;}});
+  if(best!==d.hit){if(d.hit){d.hit.n.classList.remove('drop');}if(best){best.n.classList.add('drop');}d.hit=best;}
+}
+function finish(ok){
+  var d=drag;drag=null;
+  if(d.on){el('layer').hidden=true;if(ok&&d.hit){move(S.w,d.k,d.hit.k);}render();}
+  else if(ok&&!d.far){tap(d.k);}
+}
+document.addEventListener('pointerdown',function(e){
+  if(drag||S.screen!=='half'||Date.now()<S.lock){return;}
+  if(e.pointerType==='mouse'&&e.button!==0){return;}
+  var nd=e.target.closest?e.target.closest('[data-k]'):null;
+  if(!nd){return;}
+  var k=nd.getAttribute('data-k'),id=k.charAt(0)==='p'?S.w.pos[+k.slice(1)]:S.w.bench[+k.slice(1)];
+  drag={id:e.pointerId,k:k,pid:id,el:nd,x:e.clientX,y:e.clientY,on:false,far:false,lift:e.pointerType==='mouse'?0:GHOST_LIFT,targets:[],hit:null};
+});
+document.addEventListener('pointermove',function(e){
+  if(!drag||e.pointerId!==drag.id){return;}
+  if(!drag.on){
+    var dx=e.clientX-drag.x,dy=e.clientY-drag.y;
+    if(dx*dx+dy*dy<64){return;}
+    drag.far=true;
+    if(drag.pid===null||drag.pid===undefined){return;}   /* an empty position cannot be dragged */
+    startDrag();
+  }
+  e.preventDefault();moveDrag(e.clientX,e.clientY);
+});
+document.addEventListener('pointerup',function(e){if(drag&&e.pointerId===drag.id){finish(true);}});
+document.addEventListener('pointercancel',function(e){if(drag&&e.pointerId===drag.id){finish(false);}});
+['touchmove','gesturestart','selectstart','contextmenu','dragstart'].forEach(function(t){
+  document.addEventListener(t,function(e){if(document.body.classList.contains('nomove')){e.preventDefault();}},{passive:false});
+});
+
+/* ---------- Second-half clock: counts up from 0:00 ---------- */
+setInterval(function(){
+  if(S.screen!=='second'){return;}
+  var s=Math.floor((Date.now()-S.t0)/1000);
+  var c=el('ck');if(c){c.textContent=mmss(s);}
+  Array.prototype.forEach.call(document.querySelectorAll('[data-tm]'),function(x){x.textContent=mmss(s);});
+},250);
+
+function boot(){
+  var h=location.hash.slice(1);
+  if(!Object.prototype.hasOwnProperty.call(SEEDS,h)){h='halftime';}
+  S={screen:'half',sel:null,lock:0,f:null,w:null,t0:0,abs:true};
+  SEEDS[h]();
+  render();
+}
+window.addEventListener('hashchange',boot);
+boot();
+})();
+</script>
+</body>
+</html>

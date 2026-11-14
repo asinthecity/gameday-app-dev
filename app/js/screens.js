@@ -6,9 +6,9 @@
 
 import { hasRecord } from "./record-rules.js";
 import { trimmedLine } from "./drag.js";
-import { FINISHED, FIRST_HALF, SECOND_HALF, canPlan, IN_PROGRESS_PHASE, NOT_STARTED_PHASE, phaseOf, canStartHalf, canResumeHalf, halfLineUpView, nextScreen, lineupKey, canChangeWhoIsHere, startedAtOf, endedAtOf, canUndoKickOff, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, planFigures, planFiguresFor, firstHalfFigures, firstHalfCopyOf, frozenRingLook, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationSecondsOf, rotationText, ROTATION_EXTRA_SECONDS, snappedSeconds, clampRotation, halfOf, carriesRotationOrder, carriesBenchTime, canChangeCarryOver, MIN_ROTATION, MAX_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, canEditNotes, noteOf, potdOf, summaryOf } from "./game-rules.js";
+import { FINISHED, FIRST_HALF, SECOND_HALF, canPlan, IN_PROGRESS_PHASE, NOT_STARTED_PHASE, phaseOf, canStartHalf, canResumeHalf, halfLineUpView, nextScreen, lineupKey, canChangeWhoIsHere, startedAtOf, endedAtOf, canUndoKickOff, formationRowHalf, shownFormation, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, planFigures, planFiguresFor, firstHalfFigures, firstHalfCopyOf, frozenRingLook, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationSecondsOf, rotationText, ROTATION_EXTRA_SECONDS, snappedSeconds, clampRotation, halfOf, carriesRotationOrder, carriesBenchTime, canChangeCarryOver, MIN_ROTATION, MAX_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, canEditNotes, noteOf, potdOf, summaryOf } from "./game-rules.js";
 import { TALLY_COLUMNS, interchangeRows, sortTally, tallyRows } from "./interchange-rules.js";
-import { checkFormation, formatFormationDigits, pitchRows } from "./formation-rules.js";
+import { checkFormation, formatFormationDigits, formationOf, pitchRows } from "./formation-rules.js";
 import { archiveWarning, canDeleteGame, setupCodeOf, sheetStatus } from "./sheet-rules.js";
 import { canSaveName, initialsFor } from "./squad-rules.js";
 import { MIN_SIDE, MAX_SIDE, canSwitchTeams, deleteRefusal, deleteSummary, IN_PROGRESS_REFUSAL, LAST_TEAM_MESSAGE, LOCKED_MESSAGE, plural, UPGRADE_FAILED_MESSAGE } from "./team-rules.js";
@@ -754,7 +754,8 @@ function newGameScreen(state, actions) {
             ? [factRow("Home or away", game.venueTag || "Not set", "ngVenueTag"), factRow("Field", game.venue || "Not set", "ngVenue")]
             : venueEditor(game, actions)),
           factRow("Rotation", rotationText(rotationSecondsOf(game)), "ngRotation"),
-          factRow("Half length", `${halfOf(game)} min`, "halfInfo")
+          factRow("Half length", `${halfOf(game)} min`, "halfInfo"),
+          formationRow(game, actions)
         ),
         carryOverSwitches(carryValuesOf(game), !canChangeCarryOver(game), actions)
       ),
@@ -898,12 +899,14 @@ function lineUpButton(view, state, actions) {
 }
 
 /** The pitch and bench, shared by the line-up and the before-kick-off screen. */
-function openRowsTight(game) {
-  return pitchRows(game.formation).length >= 5;
+function openRowsTight(shape) {
+  return pitchRows(shape).length >= 5;
 }
 function pitchAndBench(view, state, canMove, crowded, live = false, benchZone = false) {
   const game = openGame(state);
-  const tight = crowded || openRowsTight(game);
+  // GDA-127: the pitch draws the Formation of the half the screen shows.
+  const shape = formationOf(game, screenHalf(state.screen) || 1);
+  const tight = crowded || openRowsTight(shape);
   const dims = { size: tight ? CIRCLE_SIZES.pitchTight : CIRCLE_SIZES.pitch, weight: RING_WEIGHT };
   const line = (places) =>
     h(
@@ -915,7 +918,7 @@ function pitchAndBench(view, state, canMove, crowded, live = false, benchZone = 
       })
     );
   // GDA-22: one row per line of the game's shape, attack at the top and goal at the bottom.
-  const rows = pitchRows(game.formation);
+  const rows = pitchRows(shape);
   const pitch = h(
     "div",
     // Five or more rows need the smaller circles to fit.
@@ -952,7 +955,6 @@ function planBody(game, view, state, actions, { editable, firstHalf, note }) {
   return h(
     "div",
     { class: "lu" },
-    formationBox(game, actions, { locked: !firstHalf }),
     ...pitchAndBench(view, state, editable, crowded, false, editable && firstHalf),
     // GDA-62: always there, below the bench, even when empty (then slim). Only the 1st half's line-up can change who is absent.
     // 2nd half: no Absent row; leavers are marked through Who is here in Game details (GDA-99).
@@ -998,17 +1000,18 @@ function notStartedHalf(state, actions, half) {
 }
 
 /**
- * The formation box (GDA-22). Typing is checked at once against the game's team size
- * (its number of places): a valid shape is saved and the pitch redrawn in place; an
- * invalid one shows what is wrong and the pitch keeps the last valid shape. From
- * kick-off the box is disabled and says so. Only the box locks.
+ * The Formation row (GDA-22, GDA-127), in the New game screen's card and the cog's Game details. It edits the next
+ * half to be played (see formationRowHalf) and is read-only (disabled: no keypad) when there is none. Typing is checked
+ * at once against the team size (its number of places): a valid shape is saved; an invalid one gets a red outline and
+ * the last good shape stays saved.
  */
-function formationBox(game, actions, { locked = game.state !== NOT_STARTED } = {}) {
+function formationRow(game, actions) {
   const size = game.lineups.firstHalf.positions.length;
+  const shown = shownFormation(game);
   const input = h("input", {
     id: "formation",
     type: "text", // text (not number) so the value can hold dashes
-    value: game.formation,
+    value: shown,
     // GDA-83: the number keypad (it has no "-", which GDA-71 hit); the box adds the dashes itself.
     inputmode: "numeric",
     autocomplete: "off",
@@ -1016,32 +1019,24 @@ function formationBox(game, actions, { locked = game.state !== NOT_STARTED } = {
     autocorrect: "off",
     spellcheck: "false",
     "aria-label": "Formation",
-    disabled: locked,
+    disabled: formationRowHalf(game) === null,
   });
-  // The formation the pitch is showing now (the closed-over `game` goes stale as Ben types).
-  let shownOnPitch = game.formation;
+  // The shape last saved from this box (the closed-over `game` goes stale as Ben types).
+  let saved = shown;
   input.addEventListener("input", () => {
     // Show only the digits joined by dashes; setting the value puts the caret at the end.
-    const shown = formatFormationDigits(input.value);
-    if (input.value !== shown) {
-      input.value = shown;
+    const typed = formatFormationDigits(input.value);
+    if (input.value !== typed) {
+      input.value = typed;
     }
     const result = checkFormation(input.value, size);
     input.classList.toggle("bad", !result.ok);
-    if (result.ok && result.formation !== shownOnPitch) {
-      shownOnPitch = result.formation;
+    if (result.ok && result.formation !== saved) {
+      saved = result.formation;
       actions.setFormation(result.formation);
     }
   });
-  return h("div", { class: "fm" }, h("label", { for: "formation" }, "Formation"), input);
-}
-
-/** Redraws only the pitch (line-up screen), so the formation box keeps its focus while typing. */
-export function drawPitch(state) {
-  const game = openGame(state);
-  const view = lineUpView(game, state.players);
-  const [pitch] = pitchAndBench(view, state, true, view.bench.length > 6 || view.absent.length > 6, false, true);
-  document.querySelector(".pitch")?.replaceWith(pitch);
+  return h("div", { class: "f" }, h("label", { for: "formation" }, "Formation"), input);
 }
 
 /** The settings cog (GDA-64): opens the Game details sheet. Sits at the far edge, away from the game buttons. */
@@ -1199,6 +1194,7 @@ function gameDetailsSheet(state, game, actions) {
       sheetHead("Game details", actions.closeRotation, "rotX"),
       setCard(
         h("div", { class: "setrow" }, h("span", {}, "Rotation length"), rotationPicker(clampRotation(game.rotationMinutes ?? 6, halfOf(game)), snappedSeconds(game.rotationExtraSeconds, clampRotation(game.rotationMinutes ?? 6, halfOf(game)), halfOf(game)), halfOf(game), actions.setRotation)),
+        formationRow(game, actions),
         hereRow(state, game, actions),
         interchangeRow(actions)
       ),

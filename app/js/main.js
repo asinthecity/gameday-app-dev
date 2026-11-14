@@ -33,6 +33,7 @@ import {
   planView,
   needsPrePlacing,
   halfOf,
+  formationRowHalf,
   withFormation,
   NOT_STARTED,
   FINISHED,
@@ -56,7 +57,7 @@ import { canSend, checkMessage, parseSetupCode, SETTINGS_KEY, sheetTabOf } from 
 import { checkSheetConnection, sendGameToSheet } from "./sheet-send.js";
 import { shareCsv } from "./share-file.js";
 import { askToKeepDataOnce } from "./persistence.js";
-import { drawClock, drawLineUpActions, drawPairLines, drawPitch, drawScreen, screenHalf, setPhotos, startScoreFlash } from "./screens.js";
+import { drawClock, drawLineUpActions, drawPairLines, drawScreen, screenHalf, setPhotos, startScoreFlash } from "./screens.js";
 import { shrinkPhoto } from "./photo-image.js";
 import { PHOTO_PROBLEM } from "./photo-rules.js";
 import { loadPhotos, removePhoto, savePhoto } from "./photo-store.js";
@@ -688,18 +689,24 @@ const actions = {
     changeGame(db, game.id, (g) => (g.state === FINISHED ? g : withVenue(g, change)))
       .catch((error) => console.warn("Could not save the venue", error));
   },
-  // GDA-22: a valid typed shape. Only before kick-off. Same places, so nobody moves. It is also the team's last-used shape.
+  // GDA-22, GDA-127: a valid typed shape for the next half to be played (see formationRowHalf). Same places, so
+  // nobody moves. It is also the team's last-used shape. A stale screen (row now read-only) changes nothing.
   setFormation: (formation) => {
     const game = openGame();
-    if (!game || game.state !== NOT_STARTED || state.screen !== "half1") {
+    if (!game || formationRowHalf(game) === null) {
       return;
     }
     state.games = state.games.map((g) => (g.id === game.id ? withFormation(g, formation) : g));
-    drawPitch(state);
-    changeGame(db, game.id, (g) => (g.state === NOT_STARTED ? withFormation(g, formation) : g))
-      .then(() => updateTeam(db, state.currentTeamId, { formation }))
+    let applied = false;
+    changeGame(db, game.id, (g) => {
+      applied = formationRowHalf(g) !== null;
+      return withFormation(g, formation);
+    })
+      .then(() => (applied ? updateTeam(db, state.currentTeamId, { formation }) : null))
       .then(() => {
-        state.teams = state.teams.map((team) => (team.id === state.currentTeamId ? { ...team, formation } : team));
+        if (applied) {
+          state.teams = state.teams.map((team) => (team.id === state.currentTeamId ? { ...team, formation } : team));
+        }
       })
       .catch((error) => console.warn("Could not save the formation", error));
   },

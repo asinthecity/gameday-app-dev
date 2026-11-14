@@ -5,7 +5,7 @@
 // goals and final line-ups) and the event log (every position change with its time).
 // It is stored on the game itself, in the same save that closes the game.
 
-import { OLD_FORMATION, positionNameIn } from "./formation-rules.js";
+import { OLD_FORMATION, formationOf, positionNameIn } from "./formation-rules.js";
 import { BENCH, FINISHED, SECOND_HALF, SWAP, POSITION_CHANGE, noteOf, potdOf, goalsOf, scoreOf, US, wholeGameBenchNumber } from "./game-rules.js";
 
 export const BENCH_NAME = "Bench";
@@ -85,8 +85,8 @@ export function buildRecord(game, squad, events) {
   const isAbsent = (p) => game.absent.includes(p.id);
   // GDA-43: someone who left mid-game is in the absent list but did play, so their time is worked out too.
   const ids = squad.map((p) => p.id);
-  const first = timeInPositions(game.lineups.firstHalf.positions, ids, events, "firstHalf", game.firstHalfStartedAt, game.firstHalfEndedAt, game.formation);
-  const second = timeInPositions(game.lineups.secondHalf.positions, ids, events, "secondHalf", game.secondHalfStartedAt, game.secondHalfEndedAt, game.formation);
+  const first = timeInPositions(game.lineups.firstHalf.positions, ids, events, "firstHalf", game.firstHalfStartedAt, game.firstHalfEndedAt, formationOf(game, 1));
+  const second = timeInPositions(game.lineups.secondHalf.positions, ids, events, "secondHalf", game.secondHalfStartedAt, game.secondHalfEndedAt, formationOf(game, 2));
   // Played = was in a position at some point in that half (so a leaver who played is not "Absent").
   const played = (half, p) => Object.keys(half.get(p.id).groups).length > 0;
   const goals = goalsOf(game);
@@ -103,8 +103,8 @@ export function buildRecord(game, squad, events) {
     // Everyone in the squad, once. Absent players keep their row (0 goals as they never played).
     players: squad.map((p) => ({
       name: p.name,
-      firstHalf: isAbsent(p) && !played(first, p) ? ABSENT_NAME : halfPosition(first.get(p.id), game.formation),
-      secondHalf: isAbsent(p) && !played(second, p) ? ABSENT_NAME : halfPosition(second.get(p.id), game.formation),
+      firstHalf: isAbsent(p) && !played(first, p) ? ABSENT_NAME : halfPosition(first.get(p.id), formationOf(game, 1)),
+      secondHalf: isAbsent(p) && !played(second, p) ? ABSENT_NAME : halfPosition(second.get(p.id), formationOf(game, 2)),
       goals: goals.filter((g) => g.side === US && g.scorerId === p.id).length,
       // GDA-56: the bench-order number, or blank if never off the bench (absent players too).
       benchOrder: isAbsent(p) && !played(first, p) && !played(second, p) ? "" : wholeGameBenchNumber(game, p.id) ?? "",

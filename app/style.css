@@ -121,12 +121,8 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .line.across4 .slot { flex: 0 0 25%; max-width: 25%; }
 .line.across5 .slot { flex: 0 0 20%; max-width: 20%; }
 .line.across5 .nm { font-size: var(--fs-small); }
-/* The formation box above the pitch (before kick-off). */
-.fm { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: var(--s4) var(--s8); }
-.fm label { font-weight: var(--bold); }
-.fm input { width: var(--s130); min-height: var(--s44); box-sizing: border-box; padding: var(--s6) var(--s10); font-size: var(--fs-title); font-weight: var(--bold); border: var(--bw) solid var(--edge); border-radius: var(--r-control); }
-.fm input.bad { border: var(--bw-signal) solid var(--danger); background: var(--card); }
-.fm input:disabled { background: var(--line); color: var(--muted); border-color: var(--line); }
+/* The Formation row (GDA-127): read-only look when no half can be changed. */
+.f input:disabled { background: var(--line); color: var(--muted); border-color: var(--line); }
 .ci { position: relative; flex: none; width: var(--circle-pitch); height: var(--circle-pitch); }
 .nm { width: 100%; margin-top: var(--s2); padding: 0 var(--s2); text-align: center; font-size: var(--fs-body); font-weight: var(--bold); line-height: var(--s16); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Keeper (GDA-85, GDA-114): a small white disc with a green glove at the circle's bottom-left (also kept by a player who has had a full turn in goal) (no "GK" text, GDA-99). */
@@ -342,7 +338,7 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .mlock { padding: var(--s4) var(--s14) var(--s8); color: var(--danger); font-weight: var(--bold); font-size: var(--fs-body); }
 .mi:disabled { color: var(--muted); }
 .mi.teamItem { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.f input.bad { border-color: var(--danger); }
+.f input.bad { border: var(--bw-signal) solid var(--danger); }
 .hint { font-size: var(--fs-body); color: var(--muted); }
 
 /* Player photos (GDA-52) */

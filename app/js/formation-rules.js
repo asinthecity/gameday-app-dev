@@ -9,6 +9,14 @@ export const MIN_LINES = 2;
 export const MAX_ACROSS = 5;
 export const OLD_FORMATION = "3-3-2"; // Every game made before GDA-22.
 
+/**
+ * GDA-127: the Formation a half uses. Each half has its own: `formation` is the 1st half's, `formation2` the 2nd half's.
+ * A game with no `formation2` (made before this version, or never changed after kick-off) uses `formation` for both.
+ */
+export function formationOf(game, half) {
+  return half === 2 ? game.formation2 ?? game.formation : game.formation;
+}
+
 /** The sizes of the lines, e.g. "3-3-2" gives [3, 3, 2]. Assumes the text is valid. */
 export function lineSizes(formation) {
   return String(formation ?? OLD_FORMATION).split("-").map(Number);

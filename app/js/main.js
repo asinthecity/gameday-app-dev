@@ -76,8 +76,6 @@ const FULL_TIME_PROBLEM = "Not saved. The game is still open. Tap End game and s
 // double tap cannot land on whatever is now under the finger.
 const TAP_PAUSE_MS = 300;
 
-const WELCOME_MS = 5000;
-
 let db = null;
 let ignoreTapsUntil = 0;
 let ignoreReadyUntil = 0;
@@ -100,7 +98,6 @@ const state = {
   hereDraft: null, // GDA-43: the Who is here picker's unsaved draft (a Set of player ids), or null when closed.
   undoKickOffAsk: false, // Undo kick-off confirm showing in the Game details sheet.
   rotationOpen: false, // The rotation stepper sheet on the ready and game screens.
-  welcome: false, // The "Welcome back" banner after a restart. Never saved.
   goalOpen: false, // The "Who scored?" dialog (GDA-90).
   interchange: null, // GDA-121: { events } read when Interchange history opens. Never saved.
   interchangeBack: null, // The screen Interchange history returns to. Never saved.
@@ -1312,15 +1309,6 @@ function resumeGameIfAny() {
   }
   state.gameId = resume.game.id;
   state.screen = resume.screen;
-  state.welcome = true; // On every game screen a restart can open (GDA-33, GDA-95).
-  // "Welcome back" goes after 5 seconds or at the first tap.
-  setTimeout(hideWelcome, WELCOME_MS);
-  document.addEventListener("pointerdown", hideWelcome, { once: true, capture: true });
-}
-
-function hideWelcome() {
-  state.welcome = false;
-  document.getElementById("welcome")?.remove();
 }
 
 async function start() {

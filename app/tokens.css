@@ -14,20 +14,24 @@
   --grad-go: linear-gradient(90deg, #04F5FF, #8B6BFF);   /* primary action fill, --ink text on it */
   --go: var(--grad-go);        /* old name for the primary action fill; still works */
   --grad-hero: linear-gradient(135deg, #7BEFF5 0%, #7C9BFF 55%, #9B7BFF 100%); /* header band (GDA-131) */
+  --status-text: #00727A;      /* teal text of a status tag ("Planning") on its white pill: 5.7:1 (the bright #009FA8 is only 3.2:1 as text) */
+  --back-fill: rgba(255, 255, 255, .5);     /* round back, forward and menu buttons on the header band (GDA-131) */
+  --back-fill-off: rgba(255, 255, 255, .25); /* a forward arrow that cannot be used */
   --grad-alert: linear-gradient(90deg, #7BEFF5 0%, #B6A6FF 100%); /* swap due strip, --ink text on it 8:1 or better */
   --tag-off: #FF2882;          /* OFF tag, --ink text 4.8:1 */
   --tag-on: #04F5FF;           /* ON tag, --ink text 12.6:1 */
-  --late: #FF8A80;             /* late swap strip (spec open item 2: to design; today's value until its own story) */
-  --here-bg: #E8F4EA;          /* behind a player who is here (spec open item 3: to design; today's value) */
+  --late: #FFC2DA;             /* late swap strip, light pink (Ben chose A, GDA-137): --ink text on it 11.4:1 */
+  --here-bg: #D4F7FA;          /* pale cyan behind a player who is here (Ben chose option A, GDA-137): ink on it 15.1:1 */
   --track: rgba(55, 0, 60, .12); /* frozen bench ring track */
   --focus: #7C5CFF;            /* focus ring on text boxes */
   --brand: #37003C;            /* solid primary button ("Send now", "Opposition goal"), white text 17.1:1 */
   --brand-bright: #7C5CFF;     /* progress bar, bench rings, selection halo: graphics only, never text */
   --ok: #009FA8;               /* the tick on "Sent to the Sheet": graphic only, the words stay --muted */
-  --flash: #FFF6B8;            /* score flash after a goal or undo (spec open item 3: to design; today's value) */
+  --flash: #7C5CFF;            /* score flash after a goal or undo: a 3px violet outline round the score block (Ben chose B, GDA-137), graphic only, 4.4:1 on white */
   --danger: #E90052;           /* "Not sent yet", Archive, delete rows, errors: 4.6:1 on white */
   --pitch-a: #25A85F;          /* the only green left in the app */
   --pitch-b: #209D57;
+  --pitch-track: rgba(255, 255, 255, .45); /* track of the frozen rings on the pitch at Half Time (GDA-136) */
   --pitch-line: rgba(255, 255, 255, .7);
   --scrim: rgba(17, 20, 24, .5);
   --shadow: rgba(17, 20, 24, .32);
@@ -55,7 +59,7 @@
   --circle-pitch: 58px;        /* on the pitch, 4 rows or fewer */
   --circle-pitch-tight: 52px;  /* on the pitch, 5 rows or more */
   --circle-bench: 46px;        /* live bench, up to 6 subs */
-  --circle-bench-many: 40px;   /* live bench, 7 or more subs (they share one row) */
+  --circle-bench-many: 36px;   /* live bench, 7 or more subs (they share one row): picture 36px, ring box 44px (GDA-133) */
 
   /* Type: four sizes, plus the clock and the Full Time score. Two weights. */
   --fs-small: 12px;
@@ -64,6 +68,7 @@
   --fs-big: 32px;
   --fs-clock: 40px;
   --fs-final: 72px;
+  --tracking-caps: .12em;      /* letter-spacing of menu captions (TEAMS, THIS TEAM) */
   --regular: 400;
   --bold: 700;
   --clock-w: 102px;            /* the clock box: just wide enough for 25:00 */
@@ -109,6 +114,7 @@
   --s64: 64px;
   --s68: 68px;
   --s72: 72px;
+  --s82: 82px;
   --s84: 84px;
   --s90: 90px;
   --s92: 92px;
@@ -123,14 +129,11 @@
   --s360: 360px;
   --s393: 393px;
   --s852: 852px;
+  --s232: 232px;
   --slide-time: 0.25s;
 }
 
 /* Shorter screens (360x640): the pitch is already only about 300px tall, so the circles stay near their old size. */
 @media (max-height: 700px) {
   :root { --circle-pitch: 50px; --circle-pitch-tight: 40px; --circle-bench: 44px; }
-}
-/* Narrower screens: seven subs share one row 47px apiece. */
-@media (max-width: 380px) {
-  :root { --circle-bench-many: 38px; }
 }

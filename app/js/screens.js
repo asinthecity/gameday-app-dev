@@ -61,6 +61,12 @@ function header(title, onBack, right = null, extra = null, crest = null) {
   return h("div", { class: "hdr" }, back, crest, h("h1", {}, title), right, extra);
 }
 
+/** The title sits in the middle of the band (Interchange history, GDA-135). */
+function centredHeader(bar) {
+  bar.classList.add("mid");
+  return bar;
+}
+
 function problemLine(text) {
   return text ? h("p", { class: "problem", role: "alert" }, text) : null;
 }
@@ -384,7 +390,7 @@ function sheetSettingsScreen(state, actions) {
   const field = (id, label, value, type) => {
     const input = h("input", { id, type, autocomplete: "off", autocapitalize: "off", autocorrect: "off", spellcheck: "false" });
     input.value = value ?? "";
-    return h("div", { class: "f" }, h("label", { for: id }, h("span", {}, label)), input);
+    return h("div", { class: "f wide" }, h("label", { for: id }, h("span", {}, label)), input);
   };
   return {
     nodes: [
@@ -405,15 +411,16 @@ function sheetSettingsScreen(state, actions) {
 /** The current team's name and size under the Game Day heading (cut short if very long). */
 function teamLine(state) {
   const team = state.teams.find((t) => t.id === state.currentTeamId);
-  return team ? h("p", { class: "team", id: "teamLine" }, h("b", {}, team.name), ` \u00b7 ${team.playersPerSide} a side`) : null;
+  return team ? h("p", { class: "team", id: "teamLine" }, h("b", {}, team.name), h("span", { class: "tsize" }, ` \u00b7 ${team.playersPerSide} a side`)) : null;
 }
 
 /** The team list at the top of the menu: tick on the current team, locked while a game is in progress. */
 function teamMenuItems(state, actions) {
   const locked = !canSwitchTeams(state.games);
   const items = state.teams.map((team) => {
-    const label = (team.id === state.currentTeamId ? "\u2713 " : "\u00a0\u00a0\u00a0 ") + team.name;
-    return h("button", { class: "mi teamItem", "data-team": team.id, disabled: locked, onclick: () => actions.switchTeam(team.id) }, label);
+    // The tick (violet) goes before the current team; the others get blank space of the same width so names line up.
+    const mark = team.id === state.currentTeamId ? h("span", { class: "tickMark" }, "\u2713") : "\u00a0\u00a0\u00a0";
+    return h("button", { class: "mi teamItem", "data-team": team.id, disabled: locked, onclick: () => actions.switchTeam(team.id) }, mark, " " + team.name);
   });
   return [
     h("div", { class: "mhd" }, "Teams"),
@@ -467,11 +474,16 @@ function homeScreen(state, actions) {
   );
   return {
     nodes: [
-      header("Game Day", null, topMenu, null, teamLogo(currentTeamOf(state)?.name ?? "", currentLogos[state.currentTeamId], "homeLogo")),
+      // Home's band (GDA-131): logo (or initials disc), Game Day and the menu button, with the team line under them.
+      h(
+        "div",
+        { class: "hdr homeHdr" },
+        h("div", { class: "hrow" }, teamLogo(currentTeamOf(state)?.name ?? "", currentLogos[state.currentTeamId], "homeLogo"), h("h1", {}, "Game Day"), topMenu),
+        teamLine(state)
+      ),
       h(
         "div",
         { class: "body" },
-        teamLine(state),
         updateCard(state.updateNotice, actions),
         problemLine(state.problem),
         createButton,
@@ -701,8 +713,7 @@ function createGameScreen(state, actions) {
     { class: "btn pri big", id: "make", disabled: !canCreateGame(form), onclick: actions.makeGame },
     "Create game"
   );
-  // GDA-96: says why Create game is greyed out until Home or Away is picked.
-  const venueHint = h("div", { class: "hint", id: "venueHint", hidden: form.venueTag !== "" }, "Pick Home or Away to create the game");
+  // GDA-134: no hint under the form (Ben, 2026-11-14); Create game is simply greyed out until Home or Away is picked.
   // The › arrow does what Create game does, so it is greyed out in the same cases.
   const nextArrow = arrowButton("next", actions.makeGame);
   const syncNext = () => {
@@ -712,7 +723,6 @@ function createGameScreen(state, actions) {
   };
   const onChange = () => {
     make.disabled = !canCreateGame(form);
-    venueHint.hidden = form.venueTag !== "";
     syncNext();
   };
   syncNext();
@@ -743,7 +753,6 @@ function createGameScreen(state, actions) {
           // GDA-22: the half length is the team's, fixed for this game. Shown so it is not a surprise.
           factRow("Half length", `${form.halfMinutes} min`, "halfInfo")
         ),
-        venueHint,
         carryOverSwitches(form, false, actions),
         form.rotationNote ? h("div", { class: "ro", id: "rotNote" }, form.rotationNote) : null,
         make,
@@ -851,7 +860,7 @@ const CIRCLE_SIZES = {
   get pitch() { return circleSize("--circle-pitch", 50); },
   get pitchTight() { return circleSize("--circle-pitch-tight", 40); },
   get bench() { return circleSize("--circle-bench", 44); },
-  get benchMany() { return circleSize("--circle-bench-many", 38); },
+  get benchMany() { return circleSize("--circle-bench-many", 36); },
 };
 function ringCircles(dims, arcs, className) {
   const { size, weight } = dims;
@@ -952,7 +961,7 @@ function pitchAndBench(view, state, canMove, crowded, live = false, benchZone = 
   }
   // GDA-107: the 2nd Half plan at half time carries the bench ring and tag, so its bench row is drawn the way the live one is.
   const atHalfTime = screenHalf(state.screen) === 2 && planFigures(game, 0) !== null;
-  const benchClass = atHalfTime ? (view.bench.length > 6 ? "row live many" : "row live") : "row";
+  const benchClass = atHalfTime ? (view.bench.length > 6 ? "row live many" : "row live") : view.bench.length > 6 ? "row many" : "row"; // GDA-134: 7 or more subs share one row
   return [pitch, lineUpRow("BENCH", benchClass, view.bench, state, canMove, false, benchZone ? "bench" : null)];
 }
 
@@ -965,8 +974,9 @@ function openGame(state) {
 function bottomRow(state, actions, main) {
   return [problemLine(state.problem), h("div", { class: "gr" }, main, cogButton(actions, "bot", state))].filter(Boolean);
 }
-function bottomBar(state, actions, main) {
-  return h("div", { class: "acts game" }, ...bottomRow(state, actions, main));
+function bottomBar(state, actions, main, setup = false) {
+  // setup (GDA-134): the line-up screens' bottom row (56px pill, round settings button); the live game keeps its own.
+  return h("div", { class: setup ? "acts game setup" : "acts game" }, ...bottomRow(state, actions, main));
 }
 
 /** The pitch, bench and ABSENT row of a half that is Not started. `editable` false shows them for looking only. */
@@ -974,7 +984,7 @@ function planBody(game, view, state, actions, { editable, firstHalf, note }) {
   const crowded = view.bench.length > 6 || view.absent.length > 6;
   return h(
     "div",
-    { class: "lu" },
+    { class: "lu setup" },
     ...pitchAndBench(view, state, editable, crowded, false, editable && firstHalf),
     // GDA-62: always there, below the bench, even when empty (then slim). Only the 1st half's line-up can change who is absent.
     // 2nd half: no Absent row; leavers are marked through Who is here in Game details (GDA-99).
@@ -995,9 +1005,9 @@ function notStartedHalf(state, actions, half) {
       fixed: true,
       noMove: true,
       nodes: [
-        navBar("1st Half", "Not started", state, actions),
+        navBar("1st Half", null, state, actions),
         planBody(game, view, state, actions, { editable: true, firstHalf: true }),
-        bottomBar(state, actions, lineUpButton(view, state, actions)),
+        bottomBar(state, actions, lineUpButton(view, state, actions), true),
         gameDetailsSheet(state, game, actions),
       ],
     };
@@ -1013,7 +1023,7 @@ function notStartedHalf(state, actions, half) {
     nodes: [
       navBar("2nd Half", startable ? "Not started" : "Planning", state, actions),
       planBody(game, view, state, actions, { editable: canPlan(game), firstHalf: false }),
-      bottomBar(state, actions, main),
+      bottomBar(state, actions, main, true),
       gameDetailsSheet(state, game, actions),
     ].filter(Boolean),
   };
@@ -1106,7 +1116,7 @@ export function playerPicker({ title, subtitle, players, selected, multi, doneLa
       { class: "ptile" + (multi ? (on ? " here" : " away") : "") + (chosen === player.id ? " here" : ""), "data-here": player.id, "aria-pressed": multi ? String(on) : undefined, "aria-label": multi ? `${player.name}, ${on ? "here" : "absent"}` : player.name, onclick: () => onToggle(player.id) },
       h("span", { class: "pav" }, avatar(player)),
       h("span", { class: "pnm" }, player.name),
-      multi ? h("span", { class: "pchk" }, on ? "\u2713" : "") : null
+      multi || chosen === player.id ? h("span", { class: "pchk" }, on || chosen === player.id ? "\u2713" : "") : null
     );
   };
   return h(
@@ -1243,9 +1253,9 @@ let scoreFlashAt = 0;
 /** Class (and delay) for a score panel. While the flash runs, a redraw resumes the fade part-way instead of restarting it. */
 function scoreFlashProps(cls) {
   const elapsed = Date.now() - scoreFlashAt;
-  return elapsed >= 0 && elapsed < 1500 ? { class: cls + " flash", style: `animation-delay: -${elapsed}ms` } : { class: cls };
+  return elapsed >= 0 && elapsed < 1000 ? { class: cls + " flash", style: `animation-delay: -${elapsed}ms` } : { class: cls };
 }
-/** Starts the pale-yellow flash on the score panel (GDA-90). Screens are redrawn often, so scoreBox keeps it going. */
+/** Starts the violet outline flash (1 second) on the score panel (GDA-90). Screens are redrawn often, so scoreBox keeps it going. */
 export function startScoreFlash() {
   scoreFlashAt = Date.now();
 }
@@ -1359,7 +1369,7 @@ function goalDialog(state, game, actions) {
   const ownGoal = h(
     "button",
     { class: "ptile og", id: "ownGoal", onclick: () => actions.chooseScorer(null) },
-    h("span", { class: "pav" }, h("span", { class: "av" }, "OG")),
+    h("span", { class: "pav" }, h("span", { class: "av c3" }, "OG")),
     h("span", { class: "pnm" }, "Own goal")
   );
   return playerPicker({
@@ -1458,7 +1468,7 @@ export function drawPairLines(state, actions = lastActions) {
     const along = !b || b.y === a.y ? 0.5 : (edge - a.y) / (b.y - a.y);
     const x = Math.max(22, Math.min(box.width - 22, b ? a.x + (b.x - a.x) * along : a.x));
     crosses.append(
-      h("button", { class: "xx", "aria-label": "Remove pair", style: `left:${x}px;top:${edge}px`, onclick: () => actions.unpair(pair.benchId) }, h("span", {}, "\u00d7"))
+      h("button", { class: "xx", "aria-label": "Remove pair", style: `left:${x}px;top:${edge - 14}px`, onclick: () => actions.unpair(pair.benchId) }, h("span", {}, "\u00d7"))
     );
   }
   // Parsed as HTML so the browser puts the SVG parts in the right namespace.
@@ -1620,6 +1630,11 @@ function moveBit(kind, name) {
   return h("span", { class: "mv" }, h("span", { class: "ar " + (kind === "off" ? "off" : "on"), role: "img", "aria-label": kind }, icon(kind === "off" ? "arrowDown" : "arrowUp")), name);
 }
 
+/** A bench time in its pill: lilac once above 0:00, plain muted at 0:00 (GDA-135). The text is the same either way. */
+function benchPill(seconds) {
+  return h("span", { class: "bt" + (seconds > 0 ? " on" : "") }, benchTimerText(seconds));
+}
+
 const TALLY_HEADINGS = { name: "Name", rotations: "Rotations", seconds: "Bench time" };
 
 /**
@@ -1644,7 +1659,7 @@ function interchangeScreen(state, actions) {
     "table",
     { class: "tally", id: "tally" },
     h("thead", {}, h("tr", {}, ...TALLY_COLUMNS.map(heading))),
-    h("tbody", {}, ...rows.map((r) => h("tr", { "data-id": String(r.id) }, h("td", {}, r.name), h("td", { class: "n" }, String(r.rotations)), h("td", { class: "n", "data-sec": "1" }, benchTimerText(r.seconds)))))
+    h("tbody", {}, ...rows.map((r) => h("tr", { "data-id": String(r.id) }, h("td", {}, r.name), h("td", { class: "n" }, String(r.rotations)), h("td", { class: "n", "data-sec": "1" }, benchPill(r.seconds)))))
   );
   const swaps = interchangeRows(game, events);
   const list = swaps.length === 0
@@ -1659,7 +1674,7 @@ function interchangeScreen(state, actions) {
       );
   return {
     nodes: [
-      header("Interchange history", actions.closeInterchange),
+      centredHeader(header("Interchange history", actions.closeInterchange)),
       h("div", { class: "body" }, h("div", { class: "card" }, h("div", { class: "hd" }, "Bench time"), table), h("div", { class: "card" }, h("div", { class: "hd" }, "Swaps"), list)),
     ],
   };
@@ -1675,7 +1690,7 @@ function drawTally(state) {
   for (const row of tallyRows(game, state.interchange?.events ?? [], state.players, now)) {
     const cell = document.querySelector(`#tally tr[data-id="${row.id}"] td[data-sec]`);
     if (cell && cell.textContent !== benchTimerText(row.seconds)) {
-      cell.textContent = benchTimerText(row.seconds);
+      cell.replaceChildren(benchPill(row.seconds));
     }
   }
 }
@@ -1783,10 +1798,6 @@ const SCREENS = {
 export function drawScreen(state, actions) {
   lastActions = actions;
   const view = SCREENS[state.screen](state, actions);
-  // GDA-33: "Welcome back" after a restart, over whichever game screen opened.
-  if (state.welcome) {
-    view.nodes.unshift(h("div", { class: "welcome", id: "welcome" }, "Welcome back"));
-  }
   document.getElementById("screen").replaceChildren(...view.nodes.filter((n) => n != null)); // GDA-79: a closed sheet is null; never print it as text
   document.getElementById("frame").className = view.fixed ? "fix" : "flow";
   document.body.classList.toggle("lock", Boolean(view.fixed));

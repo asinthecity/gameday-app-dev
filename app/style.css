@@ -34,16 +34,17 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 }
 
 /* Common parts */
+/* Screen header band (GDA-131): the hero gradient, rounded bottom corners, ink text (5.4:1 at the violet end). The safe-area inset
+   keeps the buttons below the phone's status area. Home's band is taller (.homeHdr). */
 .hdr {
-  display: flex; align-items: center; gap: var(--s8); flex: none; min-height: var(--s53);
-  /* The mock-up's black bar kept clear of the phone's status area. It is gone, so this does. */
-  padding: calc(var(--s4) + env(safe-area-inset-top)) var(--s12) var(--s4);
-  background: var(--page);
+  display: flex; align-items: center; gap: var(--s8); flex: none; min-height: calc(var(--s68) + env(safe-area-inset-top));
+  padding: calc(var(--s12) + env(safe-area-inset-top)) var(--s12) var(--s12);
+  background: var(--grad-hero); border-radius: var(--r-hero);
 }
-.hdr h1 { margin: 0; font-size: var(--fs-title); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.back { flex: none; width: var(--s48); height: var(--s44); border: 0; border-radius: var(--r-control); background: var(--btn); color: var(--ink); padding: 0; display: flex; align-items: center; justify-content: center; }
+.hdr h1 { margin: 0; font-size: var(--fs-title); font-weight: var(--bold); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.back { flex: none; width: var(--s44); height: var(--s44); border: 0; border-radius: var(--r-round); background: var(--back-fill); color: var(--ink); padding: 0; display: flex; align-items: center; justify-content: center; }
 .back svg { width: var(--s24); height: var(--s24); }
-.tag { flex: none; background: var(--card); color: var(--brand); border-radius: var(--r-tag); padding: var(--s2) var(--s7); font-size: var(--fs-small); font-weight: var(--bold); }
+.tag { flex: none; background: var(--card); color: var(--status-text); border-radius: var(--r-tag); padding: var(--s2) var(--s7); font-size: var(--fs-small); font-weight: var(--bold); }
 .body { padding: var(--s12); display: flex; flex-direction: column; gap: var(--s12); }
 .btn {
   display: flex; align-items: center; justify-content: center; width: 100%; min-height: var(--s54);
@@ -92,7 +93,12 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 /* Required box: only the border colour changes (the base border is already the 2px signal width), so nothing moves under a finger. */
 .f.need input { border-color: var(--danger); }
 .f .nw { color: var(--danger); font-weight: var(--bold); font-size: var(--fs-small); }
-.f .problem { flex: 1 0 100%; padding-bottom: var(--s8); font-size: var(--fs-small); }
+.f { position: relative; }
+/* GDA-136: the error sits in the row's own height, under the label, so the box and every row below stay put with or without it. The words carry the error; the red outline backs them up. */
+.f .problem { position: absolute; left: var(--s16); bottom: var(--s6); right: calc(var(--s170) + var(--s28)); margin: 0; font-size: var(--fs-small); line-height: var(--s14); }
+.f:has(> .problem) > label { align-self: flex-start; padding-top: var(--s10); }
+/* A wide box (the setup code) takes the rest of the row. */
+.f.wide input { flex: 1; width: auto; }
 .rowbtn { width: 100%; border: 0; background: var(--card); color: var(--ink); font: inherit; text-align: left; }
 .gapbig { margin-top: var(--s44); }
 /* Destructive action (rule 4): red text on a plain white row, set apart from the main action. The red fill (.btn.del) is only inside a confirmation. */
@@ -174,8 +180,11 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .arrow.off { color: var(--muted); }  /* a forward arrow that cannot be used: plain grey, nothing dashed */
 .arrow:active { filter: brightness(.92); }
 /* The same row without the card: New game, 1st Half and 2nd Half not started, Full Time. */
-.clk.bar { background: transparent; overflow: visible; }
-.clk h1 { margin: 0; font-size: var(--fs-title); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* GDA-131: on these screens the row is the header band; its side padding (24) puts the arrows where the live game card holds them, so they do not jump between screens. Its height (with the old top margin) is what the row took before, so a pitch below it loses nothing. */
+.clk.bar { margin: 0; height: calc(var(--s68) + var(--s6) + env(safe-area-inset-top)); padding: calc(var(--s10) + env(safe-area-inset-top)) var(--s24) var(--s6); background: var(--grad-hero); border-radius: var(--r-hero); overflow: visible; }
+.clk.bar .arrow { border-radius: var(--r-round); background: var(--back-fill); }
+.clk.bar .arrow.off { color: var(--muted); background: var(--back-fill-off); }
+.clk h1 { margin: 0; font-size: var(--fs-title); font-weight: var(--bold); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hp { position: absolute; left: 0; right: 0; bottom: 0; height: var(--s5); background: var(--line); }
 .hp i { display: block; height: 100%; width: 0; background: var(--brand-bright); }
 .acts .pair { display: flex; gap: var(--s10); }
@@ -190,7 +199,7 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 
 /* Bench timers on the game screen (GDA-23): ring fills to the rotation length, red once late.
    GDA-75: rings stay smaller than the mock-up (52px, not 66px) to protect the pitch; time under the name. */
-.row.live { padding-top: var(--s4); }
+.row.live { padding-top: var(--s4); height: var(--s82); align-content: flex-start; } /* GDA-133: 82px whatever the number of subs, so the pitch never changes */
 .row.live .t { display: none; }  /* no BENCH label on a live game: the row sits under the pitch (GDA-99) */
 .row.live .slot { flex: 1 1 0; max-width: 25%; }
 .row.live .ci { width: calc(var(--circle-bench) + var(--s8)); height: calc(var(--circle-bench) + var(--s8)); }
@@ -214,12 +223,13 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 /* GDA-115: top-right of the circle, a touch lower than its top edge so it stays inside the bench row (4px padding above) */
 .tm { position: absolute; right: calc(-1 * clamp(var(--bw), var(--spare, var(--s17)), var(--s17))); top: var(--s2); z-index: 3; padding: 0 var(--s5); border: var(--bw) solid var(--edge); border-radius: var(--r-tag); background: var(--card); color: var(--ink); font-size: var(--fs-small); font-weight: var(--bold); line-height: var(--s16); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .lt .tm { color: var(--danger); border-color: var(--danger); }
-/* Frozen bench rings on a pitch circle (GDA-80/85): same slot as the live ring but paler (white track, softened
-   arcs) so they read as stopped. Late stints stay red. */
+/* Frozen bench rings on a pitch circle at Half Time (GDA-80/85, GDA-136): drawn on the green pitch as a white track and a white progress ring;
+   a long stint is a red ring a little softer, so it reads as stopped. */
 .fz { z-index: -1; }
-.fz .r0 { stroke: var(--track); }
-.fz .r1 { stroke: var(--brand-bright); stroke-opacity: .55; stroke-linecap: butt; }
+.fz .r0 { stroke: var(--pitch-track); }
+.fz .r1 { stroke: var(--card); stroke-linecap: butt; }
 .fz .r1.late { stroke: var(--danger); stroke-opacity: .55; }
+.turn { right: calc(-1 * clamp(0px, var(--spare), var(--s7))); }
 .turn { position: absolute; right: calc(-1 * var(--s7)); bottom: 0; z-index: 2; width: var(--s22); height: var(--s22); border-radius: 50%; background: var(--ink); color: var(--card); border: var(--s2) solid var(--card); font-size: var(--fs-small); font-weight: var(--bold); line-height: var(--s18); text-align: center; }
 
 /* Rotation chip, stepper and sheet (GDA-32) */
@@ -271,8 +281,6 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .strip .swp { flex: none; width: var(--s96); min-height: var(--s56); padding: 0; background: var(--ink); border-color: var(--ink); color: var(--card); }
 .strip .swp.undoBtn { background: var(--btn); border-color: transparent; color: var(--ink); }
 
-/* GDA-33: "Welcome back" after a restart. Floats over the top so nothing moves. */
-.welcome { position: absolute; top: 0; left: 0; right: 0; z-index: 5; background: var(--ink); color: var(--card); text-align: center; font-weight: var(--bold); padding: var(--s6) 0; pointer-events: none; }
 #frame.fix #screen { position: relative; }
 
 /* Goals and score (GDA-37, 38, 39, 40). The score is as large as the clock; 10 or more still fits. */
@@ -322,7 +330,7 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .menuCover { position: fixed; left: 0; right: 0; top: 0; bottom: 0; z-index: 10; background: transparent; }
 .pop { position: absolute; right: var(--s10); top: var(--s60); z-index: 11; background: var(--card); border: 0; border-radius: var(--r-card); min-width: var(--s170); box-shadow: var(--shadow-menu); overflow: hidden; display: none; flex-direction: column; }
 .pop.show, .cardMenu { display: flex; }
-.pop.topMenu { top: var(--s52); right: 0; }
+.pop.topMenu { top: var(--s48); right: 0; min-width: var(--s232); }
 .mi { display: block; width: 100%; min-height: var(--s48); padding: var(--s12) var(--s14); border: 0; border-bottom: var(--bw) solid var(--line); background: var(--card); font-size: var(--fs-body); text-align: left; color: var(--ink); }
 .mi:last-child { border-bottom: 0; }
 .mi.d { color: var(--danger); font-weight: var(--bold); }
@@ -331,12 +339,16 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .sheetStatus.ok b { font-size: var(--fs-title); }
 .sheetStatus.ok .sentOk { font-size: var(--fs-body); font-weight: var(--regular); color: var(--muted); }
 .sheetStatus.ok .tick { color: var(--ok); }
-.archiveNote { margin: 0; text-align: center; }
-.archiveWarn { margin: 0; color: var(--danger); font-weight: var(--bold); border: var(--bw-signal) solid var(--danger); border-radius: var(--r-control); padding: var(--s8); }
+.archiveNote { margin: 0; }
+.archiveWarn { margin: 0; color: var(--danger); font-weight: var(--bold); }
 
 /* Teams (GDA-68) */
-.team { margin: 0 0 var(--s8); font-size: var(--fs-body); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mhd { padding: var(--s8) var(--s14) var(--s2); }
+.team { margin: 0; display: flex; align-items: baseline; font-size: var(--fs-body); color: var(--ink); white-space: nowrap; min-width: 0; }
+/* GDA-132: a long team name is cut with "..." so "· 9 a side" always stays. */
+.team b { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.team .tsize { flex: none; white-space: pre; }
+.mhd { padding: var(--s12) var(--s14) var(--s4); letter-spacing: var(--tracking-caps); }
+.tickMark { color: var(--brand-bright); font-weight: var(--bold); }
 .mlock { padding: var(--s4) var(--s14) var(--s8); color: var(--danger); font-weight: var(--bold); font-size: var(--fs-body); }
 .mi:disabled { color: var(--muted); }
 .mi.teamItem { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -350,6 +362,7 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .photoBig { width: var(--s96); height: var(--s96); }
 .photoBig .av { font-size: var(--fs-big); }
 .photoNote { margin: 0; font-size: var(--fs-small); color: var(--muted); }
+.photoBlock .btn.redtext { background: var(--btn); }
 
 /* Who is here list in the Game details sheet (GDA-43): scrolls if the squad is long. */
 /* Who is here row and the reusable player picker (GDA-43). */
@@ -357,48 +370,55 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .phead { flex: none; display: flex; align-items: center; gap: var(--s8); padding: var(--s16) var(--s12) var(--s10); }
 .phead h2 { flex: 1; margin: 0; text-align: left; }
 .phead small { display: block; font-size: var(--fs-body); font-weight: var(--bold); color: var(--muted); }
-.pkx { flex: none; width: var(--s48); height: var(--s48); border: 0; border-radius: var(--r-control); background: var(--btn); font: inherit; font-size: var(--fs-title); font-weight: var(--bold); color: var(--ink); }
+.pkx { flex: none; width: var(--s44); height: var(--s44); border: 0; border-radius: var(--r-round); background: var(--btn); font: inherit; font-size: var(--fs-title); font-weight: var(--bold); color: var(--ink); }
 .pgrid.cols4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .pgrid { flex: 1; min-height: 0; overflow-y: auto; touch-action: pan-y; padding: var(--s12) var(--s10); display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--s8); align-content: start; }
 .pfoot { flex: none; display: flex; gap: var(--s8); padding: var(--s10) var(--s12) calc(var(--s14) + env(safe-area-inset-bottom)); background: var(--page); }
 .pfoot .btn { min-height: var(--s60); font-size: var(--fs-title); }
 .pfoot .btn.pri { flex: 1; }
-.ptile { position: relative; height: var(--s94); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s5); padding: var(--s4); border: var(--bw) solid transparent; border-radius: var(--r-card); background: var(--card); font: inherit; color: var(--ink); }
+.ptile { position: relative; height: var(--s94); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s5); padding: var(--s4); border: var(--bw-signal) solid transparent; border-radius: var(--r-card); background: var(--card); font: inherit; color: var(--ink); }
 .pav { width: var(--s52); height: var(--s52); flex: none; }
 .pnm { font-size: var(--fs-body); font-weight: var(--bold); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pchk { position: absolute; top: var(--s5); right: var(--s5); width: var(--s26); height: var(--s26); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: var(--fs-body); font-weight: var(--bold); border: var(--bw) solid var(--muted); background: var(--card); color: var(--card); }
-.ptile.here { border: var(--bw) solid var(--brand); background: var(--here-bg); }  /* the tick and green fill carry the meaning (Ben: thinner outline) */
+.pchk { position: absolute; top: var(--s5); right: var(--s5); width: var(--s26); height: var(--s26); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: var(--fs-body); font-weight: var(--bold); border: var(--bw-signal) solid var(--muted); background: var(--card); color: var(--card); }
+/* Who is here? (GDA-135): every tile has the same 2px edge, so ticking moves nothing. Here = pale cyan, violet edge, tick badge. Not here = lilac, dashed edge, white disc, empty circle. The tick and the dashes carry the meaning, not colour. */
+.ptile.here, .ptile.away { border: var(--bw-signal) solid var(--brand-bright); background: var(--here-bg); }
 .ptile.here .pchk { background: var(--brand); border-color: var(--brand); }
-.ptile.away, .ptile.og { border-color: var(--edge); }
-.ptile.away { border-style: dashed; background: var(--line); color: var(--muted); }
-.ptile.away .pav { filter: grayscale(1); opacity: .45; }
+.ptile.away { border-style: dashed; border-color: var(--edge); background: var(--btn); color: var(--muted); }
+.ptile.away .av.c0, .ptile.away .av.c1, .ptile.away .av.c2, .ptile.away .av.c3, .ptile.away .av.c4, .ptile.away .av.c5, .ptile.away .av.c6, .ptile.away .av.c7 { background: var(--card); color: var(--muted); }
+/* Discs in the tiles and the squad rows are flat tinted circles; only a tile that is here keeps the white ring (its cyan fill would swallow the pale tints). */
+.pav .av, .prow .av { border: 0; box-shadow: none; }
+.ptile.here .pav .av { border: var(--bw) solid var(--card); box-shadow: var(--ring); }
 
 /* GDA-88: the Home / Away / Other choice (three buttons side by side) and the cog-sheet block that holds it. */
 .vtChoice { display: flex; flex: none; background: var(--btn); border-radius: var(--r-pill); padding: var(--s2); }
 .vtBtn { position: relative; display: block; }
 .vtBtn input { position: absolute; left: 0; top: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
-.vtBtn span { display: flex; align-items: center; justify-content: center; width: var(--s72); height: var(--s44); border-radius: var(--r-pill); font-size: var(--fs-body); font-weight: var(--bold); color: var(--ink); }
-.vtBtn input:checked + span { background: var(--card); box-shadow: 0 var(--bw) var(--s3) var(--shadow); }
+.vtBtn span { display: flex; align-items: center; justify-content: center; width: var(--s72); height: var(--s44); border-radius: var(--r-pill); font-size: var(--fs-body); font-weight: var(--regular); color: var(--ink); }
+/* GDA-134: the chosen side is raised on white and bold, so the choice is not colour alone. */
+.vtBtn input:checked + span { background: var(--card); box-shadow: 0 var(--bw) var(--s3) var(--shadow); font-weight: var(--bold); }
 .vtBtn input:focus-visible + span { outline: var(--bw-signal) solid var(--ink); }
 
 /* Who scored? (GDA-90/91): the picker, above the score header (its z-index is 21), with two sections and a footer. */
 .scrim#goalDialog { z-index: 30; align-items: stretch; }
 #goalDialog .sheet.picker { height: 100%; border-radius: 0; }
-#goalDialog .phead { border-bottom: 0; padding-top: calc(var(--s8) + env(safe-area-inset-top)); padding-bottom: var(--s6); }
+/* GDA-135: Who scored? has the hero band like every other screen, with the Summary pill and a round close button on it. */
+#goalDialog .phead { padding: calc(var(--s12) + env(safe-area-inset-top)) var(--s12) var(--s12) var(--s16); min-height: calc(var(--s68) + env(safe-area-inset-top)); background: var(--grad-hero); border-radius: var(--r-hero); }
+#goalDialog .pkx { background: var(--back-fill); }
 .glbl { grid-column: 1 / -1; }
 .gagainst { flex: none; display: flex; flex-direction: column; gap: var(--s6); padding: var(--s10) var(--s12); border-top: var(--bw) solid var(--line); }
 .gagainst .btn { min-height: var(--s60); }
-.ptile.og { border-style: dashed; }
-.ptile.og .av { background: var(--line); font-size: var(--fs-body); }
+.ptile.og { border: var(--bw-signal) dashed var(--edge); }
+.ptile.og .av { font-size: var(--fs-body); }
 .ptile.og .pnm { font-size: var(--fs-body); }
 .pfoot .btn.undo2 { flex: 1; width: auto; flex-direction: column; line-height: 1.15; font-size: var(--fs-body); }
 .pfoot .btn.undo2 small { font-size: var(--fs-small); font-weight: var(--bold); color: var(--muted); }
 .pfoot .btn.undo2:disabled { opacity: 1; }
 
-/* Score flash (GDA-90): only the background colour changes, so nothing moves. Reduced motion: no pop, a plain fade. */
-@keyframes scoreFlash { from { background-color: var(--flash); } } /* ends at the panel's own colour */
-.score.flash, .teams.flash { animation: scoreFlash 1.5s ease-out; }
-@media (prefers-reduced-motion: reduce) { .score.flash, .teams.flash { animation-timing-function: linear; } }
+/* Score flash (GDA-90, GDA-133): a 3px violet outline for 1 second round the score block. An outline is drawn outside the box and
+   takes no room, so nothing moves or resizes; the digits stay dark on white. Reduced motion: it simply stays then goes, no fade. */
+@keyframes scoreFlash { 0%, 80% { outline: var(--s3) solid var(--flash); } 100% { outline: var(--s3) solid transparent; } }
+.score.flash, .teams.flash { animation: scoreFlash 1s linear; }
+@media (prefers-reduced-motion: reduce) { .score.flash, .teams.flash { animation-timing-function: steps(1, end); } }
 
 /* GDA-96: wording and look fixes */
 .hint { margin-top: var(--s6); font-size: var(--fs-body); font-weight: var(--bold); color: var(--muted); }
@@ -415,13 +435,23 @@ input:focus, input:focus-visible { outline: var(--bw-signal) solid var(--focus);
 
 /* GDA-86: a taller sheet (2nd Half, with the switches) scrolls instead of running off the top of the screen. */
 .sheet { max-height: 100%; overflow-y: auto; }
+/* GDA-136: a confirmation (any sheet with a red confirm button) is a white sheet: 20 / 700 title, muted note, red solid confirm and a lilac Cancel, both 56px.
+   The red button is only allowed here. Picker and settings sheets keep the page colour so their white tiles and cards show. */
+.sheet:has(> .btn.del) { background: var(--card); }
+.sheet:has(> .btn.del) .btn { min-height: var(--s56); }
+.sheet:has(> .btn.del) > p { margin: 0; color: var(--muted); }
+.sheet:has(> .btn.del) > p.archiveWarn, .sheet:has(> .btn.del) > p.problem { color: var(--danger); }
 /* GDA-99: every scrim is above the clock card (z-index 21), so a sheet's dimmed background covers it. */
 
 /* Home: the team name is the heading (GDA-99). */
-.team b { font-size: var(--fs-title); color: var(--ink); }
+.team b { font-size: var(--fs-big); font-weight: var(--bold); color: var(--ink); }
+/* Home's band (GDA-131): a top row (logo, Game Day, menu button) with the team line under it. */
+.hdr.homeHdr { flex-direction: column; align-items: stretch; gap: var(--s8); }
+.hdr .hrow { display: flex; align-items: center; gap: var(--s8); }
+.hdr .ic { width: var(--s44); height: var(--s44); border-radius: var(--r-round); background: var(--back-fill); font-size: var(--fs-title); }
 
 /* GDA-108 / GDA-81 / GDA-110: Summary page, hold sheet. Same cards, rows, tiles and switches as elsewhere; tokens only. */
-.pkx.txt { width: auto; padding: 0 var(--s12); font-size: var(--fs-body); }
+.pkx.txt { width: auto; padding: 0 var(--s16); border-radius: var(--r-pill); font-size: var(--fs-body); }
 .card.setrow { flex-direction: row; }
 .tl { display: flex; gap: var(--s12); min-height: var(--s28); align-items: baseline; }
 .tl.them { justify-content: flex-end; text-align: right; }
@@ -447,21 +477,53 @@ input:focus, input:focus-visible { outline: var(--bw-signal) solid var(--focus);
 @media (prefers-reduced-motion: reduce) { #screen.slideFromRight, #screen.slideFromLeft { animation: none; } }
 
 /* GDA-121: Interchange history. Same card, row and goal-timeline patterns as the Summary page; bold only on the headings (11-visual-style.md section 7). */
-.hd { font-weight: var(--bold); }
+.hd { font-size: var(--fs-title); font-weight: var(--bold); }
+/* Interchange history: the title is centred on the band (GDA-135). */
+.hdr.mid h1 { text-align: center; padding-right: calc(var(--s44) + var(--s8)); }
 .colh { font-size: var(--fs-small); color: var(--muted); margin-top: var(--s2); }
-.tally { width: auto; align-self: flex-start; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.tally { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 .tally th { padding: 0; text-align: left; font-weight: var(--regular); }
 .tally th.n, .tally td.n { text-align: right; }
 .tally .sorter { display: inline-flex; align-items: center; gap: var(--s2); min-height: var(--tap); padding: 0 var(--s24) 0 0; border: 0; background: none; color: var(--muted); font: inherit; font-size: var(--fs-small); }
 .tally th.n .sorter { padding-right: 0; padding-left: var(--s24); }
 .tally .so { display: inline-block; width: 1em; text-align: left; }
-.tally td { padding: var(--s4) var(--s24) var(--s4) 0; min-height: var(--s28); }
+.tally td { padding: var(--s4) var(--s24) var(--s4) 0; min-height: var(--s28); border-top: var(--bw) solid var(--line); }
+/* Bench time: a lilac pill once above 0:00 (the words stay the same; the pill is only a lift). */
+.bt { display: inline-block; padding: 0 var(--s8); border-radius: var(--r-tag); color: var(--muted); }
+.bt.on { background: var(--btn); color: var(--ink); }
 .tally td.n { padding-right: 0; padding-left: var(--s24); }
+.swapRow { padding: var(--s6) 0; border-top: var(--bw) solid var(--line); }
 .swapRow .t { font-weight: var(--regular); }
 .swapRow .pairs { display: flex; flex-wrap: wrap; column-gap: var(--s12); }
 .swapRow .mv { display: inline-flex; align-items: center; gap: var(--s4); }
 .swapRow .ar { display: inline-flex; width: var(--fs-body); height: var(--fs-body); }
 .swapRow .ar svg { width: 100%; height: 100%; }
 .ar.off { color: var(--danger); }
-.ar.on { color: var(--brand); }
+.ar.on { color: var(--ok); }
 .empty { text-align: center; color: var(--muted); padding: var(--s24) var(--s8); }
+
+/* GDA-134: line-up screens before kick-off (.lu.setup). Name plates on the pitch, tinted bench discs, spaced captions, bottom row.
+   Plate height equals the old name line (16px), so the pitch does not change height. */
+.lu.setup .pitch .nm { width: auto; max-width: 100%; margin-top: var(--s2); padding: 0 var(--s6); background: var(--card); border-radius: var(--r-tag); font-size: var(--fs-small); }
+.lu.setup .row:not(.ab):not(.live) .c0 { background: var(--av0); } .lu.setup .row:not(.ab):not(.live) .c1 { background: var(--av1); }
+.lu.setup .row:not(.ab):not(.live) .c2 { background: var(--av2); } .lu.setup .row:not(.ab):not(.live) .c3 { background: var(--av3); }
+.lu.setup .row:not(.ab):not(.live) .c4 { background: var(--av4); } .lu.setup .row:not(.ab):not(.live) .c5 { background: var(--av5); }
+.lu.setup .row:not(.ab):not(.live) .c6 { background: var(--av6); } .lu.setup .row:not(.ab):not(.live) .c7 { background: var(--av7); }
+.lu.setup .row .t, .swhead { letter-spacing: var(--tracking-caps); }
+.acts.setup .gr .btn, .acts.setup .gr .btn.main { height: var(--s56); min-height: var(--s56); }
+.acts.setup .cog.bot { width: var(--s56); height: var(--s56); border-radius: var(--r-round); }
+/* 7 or more subs: one row, the discs stay 44px and the names are cut with "..." (GDA-134). */
+.lu.setup .row.many { flex-wrap: nowrap; justify-content: space-between; }
+.lu.setup .row.many .slot { flex: 1 1 0; max-width: none; min-width: 0; }
+
+/* GDA-133: the live game. White name plates on the pitch (as the line-up has them, GDA-134), 12px bold; the plate is as tall as the old name line. */
+.lu .pitch .nm { width: auto; max-width: 100%; margin-top: var(--s2); padding: 0 var(--s6); background: var(--card); border-radius: var(--r-tag); font-size: var(--fs-small); }
+/* Bench ON tag: centred above its own ring (it no longer hangs out to the right). */
+.row.live .pt { right: auto; left: 50%; top: calc(-1 * var(--s8)); transform: translateX(-50%); }
+/* 7 or more subs: compact one row. Ring box 44px, initials inside, order number top-left, time pill centred on the ring's bottom edge, name 12px below it. */
+.row.live.many .turn { left: 0; right: auto; top: 0; bottom: auto; width: var(--s16); height: var(--s16); line-height: var(--s12); }
+.row.live.many .tm { left: 50%; right: auto; top: auto; bottom: calc(-1 * var(--s9)); transform: translateX(-50%); }
+.row.live.many .nm { margin-top: var(--s10); }
+/* End Half / Resume half and Settings on the live game: the same 56px pill and round button as the line-up (GDA-133). */
+.acts.game:not(.setup) .gr .btn, .acts.game:not(.setup) .gr .btn.main { height: var(--s56); min-height: var(--s56); }
+.acts.game:not(.setup) .cog.bot { width: var(--s56); height: var(--s56); border-radius: var(--r-round); }

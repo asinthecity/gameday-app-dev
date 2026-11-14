@@ -1,37 +1,48 @@
 /* The one place for colours, type sizes, radii and spacing (GDA-74, docs/discovery/11-visual-style.md
    section 4). style.css uses these and writes no colour or px size of its own (0, 1px and % excepted).
-   Changing the team colours later means changing --brand, --brand-bright, --alert. */
+   Changing the look later means changing the colour and shape tokens below. */
 :root {
-  /* Colour */
-  --page: #F3F4F6;
+  /* Colour: the FPL light style (docs/discovery/12-fpl-style.md section 4, GDA-130). */
+  --page: #F7F5FA;
   --card: #FFFFFF;
-  --ink: #111418;
-  --muted: #5B636D;
-  --line: #E4E6EA;
-  --edge: #858B94;             /* the one line colour for field edges and outlines: 3.4:1 on white (GDA-99) */
-  --go: #6FCF7F;               /* primary button fill, dark text on it (9.6:1) */
-  --go-edge: #2E7D32;          /* 1px edge that keeps the primary button visible on the grey page */
-  --late: #FF8A80;             /* late swap strip, dark text on it; the dark red below is for text on white */
-  --here-bg: #E8F4EA;          /* pale green behind a player who is here */
-  --track: rgba(31, 41, 55, .16); /* frozen bench ring track */
-  --focus: #0A5C1E;            /* focus ring on text boxes (same green as --brand) */
-  --brand: #0A5C1E;
-  --brand-bright: #1E9E3A;     /* graphics only, never text */
-  --alert: #FFE500;
-  --flash: #FFF6B8;            /* pale yellow flash on the score panel after a goal or undo; softer than --alert */
-  --danger: #B00020;
-  --pitch-a: #DDEBD5;
-  --pitch-b: #E8F2E2;
-  --pitch-line: #FFFFFF;
+  --ink: #37003C;              /* all main text and icons, the solid primary button fill: 15.8:1 on the page, 17.1:1 on a card */
+  --muted: #6D5A78;            /* labels and hints: 6.2:1 on a card */
+  --line: #EFEAF5;             /* dividers and row separators */
+  --edge: #D9D0E6;             /* outline of text boxes and pickers; light on purpose, darken here only if hard to see in sun (spec open item 1) */
+  --btn: #ECE7F2;              /* standard (lilac) button and icon-button fill: ink on it is 14.1:1 */
+  --btn-off-ink: #B8AEC2;      /* label of a disabled button: decorative, the label says what the button does (spec section 5) */
+  --grad-go: linear-gradient(90deg, #04F5FF, #8B6BFF);   /* primary action fill, --ink text on it */
+  --go: var(--grad-go);        /* old name for the primary action fill; still works */
+  --grad-hero: linear-gradient(135deg, #7BEFF5 0%, #7C9BFF 55%, #9B7BFF 100%); /* header band (GDA-131) */
+  --grad-alert: linear-gradient(90deg, #7BEFF5 0%, #B6A6FF 100%); /* swap due strip, --ink text on it 8:1 or better */
+  --tag-off: #FF2882;          /* OFF tag, --ink text 4.8:1 */
+  --tag-on: #04F5FF;           /* ON tag, --ink text 12.6:1 */
+  --late: #FF8A80;             /* late swap strip (spec open item 2: to design; today's value until its own story) */
+  --here-bg: #E8F4EA;          /* behind a player who is here (spec open item 3: to design; today's value) */
+  --track: rgba(55, 0, 60, .12); /* frozen bench ring track */
+  --focus: #7C5CFF;            /* focus ring on text boxes */
+  --brand: #37003C;            /* solid primary button ("Send now", "Opposition goal"), white text 17.1:1 */
+  --brand-bright: #7C5CFF;     /* progress bar, bench rings, selection halo: graphics only, never text */
+  --ok: #009FA8;               /* the tick on "Sent to the Sheet": graphic only, the words stay --muted */
+  --flash: #FFF6B8;            /* score flash after a goal or undo (spec open item 3: to design; today's value) */
+  --danger: #E90052;           /* "Not sent yet", Archive, delete rows, errors: 4.6:1 on white */
+  --pitch-a: #25A85F;          /* the only green left in the app */
+  --pitch-b: #209D57;
+  --pitch-line: rgba(255, 255, 255, .7);
   --scrim: rgba(17, 20, 24, .5);
   --shadow: rgba(17, 20, 24, .32);
+  --shadow-menu: 0 12px 32px rgba(55, 0, 60, .25); /* top menu and card menu pop-overs */
   --ring: 0 0 0 2px #fff, 0 1px 6px rgba(0, 0, 0, .32);
-  /* Soft picture backgrounds for players without a photo */
-  --av0: #cfe3ff; --av1: #ffd9c2; --av2: #d7f0cf; --av3: #f5d0ee;
-  --av4: #fff0a8; --av5: #cdeff0; --av6: #e1d4ff; --av7: #e6e6e6; --av-photo: #d6d6d6;
+  /* Tinted discs for players without a photo (six tints, repeated) */
+  --av0: #D4F7FA; --av1: #E4DCFF; --av2: #FFD6E7; --av3: #DCE6FF;
+  --av4: #F0E6FF; --av5: #CDEFF1; --av6: #D4F7FA; --av7: #E4DCFF; --av-photo: #d6d6d6;
 
   /* Shape */
-  --r-control: 12px;           /* controls, cards, pitch, tags */
+  --r-pill: 999px;             /* buttons, text boxes, selects, the Home/Away toggle */
+  --r-card: 20px;              /* cards, bench panel, pitch, form card, pop-overs */
+  --r-hero: 0 0 28px 28px;     /* header band (GDA-131) */
+  --r-control: 16px;           /* square icon buttons on a card */
+  --r-tag: 12px;               /* OFF/ON tags, time pills, status chips */
   --r-sheet: 24px;
   --r-round: 50%;
   --tap: 44px;
@@ -76,6 +87,7 @@
   --s17: 17px;
   --s18: 18px;
   --s20: 20px;
+  --s21: 21px;
   --s22: 22px;
   --s24: 24px;
   --s26: 26px;
@@ -105,6 +117,8 @@
   --s104: 104px;
   --s110: 110px;
   --s130: 130px;
+  --s70: 70px;
+  --s140: 140px;
   --s170: 170px;
   --s360: 360px;
   --s393: 393px;

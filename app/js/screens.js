@@ -818,7 +818,7 @@ function playerSlot(player, state, canMove, isKeeper = false, benchTimer = false
   // Room for the rings above and below the circle so they never cover the name (one ring step is weight + 1px gap).
   const frozenSpace = stints ? Math.min(stints.length, MAX_FROZEN_RINGS) * (dims.weight + 1) : 0;
   // A planned swap: OFF and ON tags on the circles (GDA-75), and a dotted line between them (GDA-80, drawPairLines).
-  const planTag = plannedOff ? h("span", { class: "pt" }, "OFF") : plannedOn ? h("span", { class: "pt" }, "ON") : null;
+  const planTag = plannedOff ? h("span", { class: "pt" }, "OFF") : plannedOn ? h("span", { class: "pt on" }, "ON") : null;
   // The keeper is shown by the glove badge on the circle alone (GDA-99: no "GK" text after the name).
   const nameLine = h("div", { class: "nm" }, player.name);
   return h(

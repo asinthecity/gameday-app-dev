@@ -1416,11 +1416,33 @@ function swapPill(game, state, actions) {
     "span", // not a div: the pitch's last-of-type rules count its lines (divs) only
     { class: undo ? "pill undo" : "pill next", id: "swapPill" },
     h("div", { class: "drain" }),
+    undo ? null : pillRing(),
     undo ? h("div", { class: "ptx" }, h("div", { class: "pu" }, icon("undo"), "Undo")) : h("div", { class: "ptx", id: "pillText" }),
     undo
       ? h("button", { class: "pillTap", id: "undo", "aria-label": "Undo the swap", onclick: actions.undo })
       : planned ? h("button", { class: "pillTap", id: "swap", "aria-label": "Swap", onclick: actions.swap }) : null
   );
+}
+
+/**
+ * The ring round the swap pill (Ben, 2026-11-14): works like the ring round a bench circle. It fills clockwise
+ * from the top as the longest-waiting bench player's time runs towards the rotation length, is full when the swap
+ * is due, and turns red once it is late. It sits just inside the pill's edge, so the pill never changes size.
+ * drawSwapPill sets the fill. The path is measured as 100 long (pathLength), so the fill is a plain percentage.
+ */
+function pillRing() {
+  const w = 3; // stroke width; the path runs down the middle of it
+  const [W, H] = [112, 60]; // the pill's fixed size (--s112 x --s60)
+  const r = H / 2 - w / 2;
+  const [l, t, rt, b] = [w / 2, w / 2, W - w / 2, H - w / 2];
+  const d =
+    `M ${W / 2} ${t} H ${rt - r} A ${r} ${r} 0 0 1 ${rt - r} ${b} H ${l + r} A ${r} ${r} 0 0 1 ${l + r} ${t} Z`;
+  const holder = document.createElement("div");
+  holder.innerHTML =
+    `<svg class="pr" viewBox="0 0 ${W} ${H}" aria-hidden="true">` +
+    `<path class="r0" d="${d}" stroke-width="${w}" pathLength="100"></path>` +
+    `<path class="r1" d="${d}" stroke-width="${w}" pathLength="100" stroke-dasharray="0 100"></path></svg>`;
+  return holder.firstChild;
 }
 
 let lastActions = null;
@@ -1540,9 +1562,9 @@ export function drawClock(state) {
 }
 
 /**
- * Fills the swap pill (GDA-104, GDA-125): "SWAP IN 3:20" counting down with the lilac fill draining, "SWAP / IN 0:15"
- * for the last 30 seconds, "SWAP / TIME" when due, "SWAP / +1:10" once late (light pink after 30 seconds; the plus shows
- * at once), and "TIME" when the half length is reached. While "Undo" is showing the pill is left alone. Time only, no
+ * Fills the swap pill (GDA-104, GDA-125): "SWAP IN / 3:20" counting down with the lilac fill draining and the ring
+ * filling, "SWAP NOW / 0:00" when due, "SWAP LATE / +1:10" once late (red ring at once, light pink after 30 seconds),
+ * and "TIME" when the half length is reached. While "Undo" is showing the pill is left alone. Time only, no
  * names. The words carry the message, not colour alone. The pill never changes size, so the pitch never moves.
  */
 function drawSwapPill(game, squad, now, timeUp) {
@@ -1552,23 +1574,26 @@ function drawSwapPill(game, squad, now, timeUp) {
   }
   const mmss = (total) => `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
   const message = timeUp ? null : swapMessage(game, squad, now);
-  let lines; // [text, size] pairs: lg = 20px, sm = 12px, md = 16px
+  // [text, size] pairs: sm = 12px words on top, lg = 20px time below. Always that way round, so the time is
+  // always the biggest thing and never swaps places (Ben, 2026-11-14).
+  let lines;
   let look;
   let drain = 0;
+  let ring = 0; // how full the ring is, 0 to 1
+  let over = false; // red ring: the swap is late
   if (timeUp || !message) {
     lines = [["TIME", "lg"]];
     look = "timeup";
-  } else if (message.phase === "next") {
+  } else if (message.phase === "next" || message.phase === "warn") {
     lines = [["SWAP IN", "sm"], [mmss(message.countdown), "lg"]];
-    look = "next";
+    look = message.phase;
     drain = message.countdown / rotationSecondsOf(game);
-  } else if (message.phase === "warn") {
-    lines = [["SWAP", "lg"], [`IN ${mmss(message.countdown)}`, "sm"]];
-    look = "warn";
-    drain = message.countdown / rotationSecondsOf(game);
+    ring = 1 - drain;
   } else {
-    lines = [["SWAP", "lg"], message.late > 0 ? [`+${mmss(message.late)}`, "md"] : ["TIME", "sm"]];
+    over = message.late > 0;
+    lines = over ? [["SWAP LATE", "sm"], [`+${mmss(message.late)}`, "lg"]] : [["SWAP NOW", "sm"], ["0:00", "lg"]];
     look = message.late >= 30 ? "late" : "swap";
+    ring = 1;
   }
   const key = lines.map((line) => line.join(":")).join("|");
   const text = document.getElementById("pillText");
@@ -1580,7 +1605,8 @@ function drawSwapPill(game, squad, now, timeUp) {
       tap.setAttribute("aria-label", "Swap, " + lines.map((line) => line[0]).join(" "));
     }
   }
-  pill.className = "pill " + look;
+  pill.className = "pill " + look + (over ? " over" : "");
+  pill.querySelector(".pr .r1")?.setAttribute("stroke-dasharray", `${(Math.max(0, Math.min(1, ring)) * 100).toFixed(1)} 100`);
   pill.querySelector(".drain").style.width = (Math.max(0, Math.min(1, drain)) * 100).toFixed(1) + "%";
 }
 

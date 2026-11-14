@@ -280,7 +280,11 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .pill .sm { font-size: var(--fs-small); font-weight: var(--bold); line-height: var(--s14); letter-spacing: .04em; }
 .pill.warn, .pill.swap, .pill.timeup { background: var(--grad-alert); }
 .pill.late { background: var(--late); }
-.pill.warn, .pill.swap, .pill.late, .pill.undo { box-shadow: 0 0 0 var(--s3) var(--ink); }
+/* The ring (Ben, 2026-11-14) replaces the old dark outline: like a bench ring, it fills with the wait and turns red once late. */
+.pill .pr { position: absolute; left: 0; top: 0; width: 100%; height: 100%; pointer-events: none; }
+.pill .pr path { fill: none; }
+.pill.over .pr .r0, .pill.over .pr .r1 { stroke: var(--danger); }
+.pill.timeup .pr { display: none; }
 .pill.timeup { box-shadow: none; }
 .pill.undo { background: var(--btn); }
 .pill .pu { display: flex; align-items: center; gap: var(--s6); font-size: var(--fs-title); font-weight: var(--bold); line-height: var(--s22); }

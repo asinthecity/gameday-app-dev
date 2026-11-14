@@ -400,7 +400,10 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 /* GDA-96: wording and look fixes */
 .hint { margin-top: var(--s6); font-size: var(--fs-body); font-weight: var(--bold); color: var(--muted); }
 .hint[hidden] { display: none; }
-.homeCrest { flex: none; height: var(--s46); width: auto; display: block; }
+/* Team logo (GDA-126): a picture or initials disc, always a circle. Home header size, and the team form's big size. */
+.logo.pic { width: var(--s26); border-radius: 50%; object-fit: cover; }
+.logo.homeLogo { width: var(--s46); height: var(--s46); max-width: none; font-size: var(--fs-body); }
+.logo.bigLogo { width: 100%; height: 100%; max-width: none; font-size: var(--fs-big); }
 .score small { max-width: var(--s64); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 input:focus, input:focus-visible { outline: var(--bw-signal) solid var(--focus); outline-offset: 1px; }
 /* GDA-96: on Half Time the title stays whole; the score box shrinks and the team names are cut short instead. */

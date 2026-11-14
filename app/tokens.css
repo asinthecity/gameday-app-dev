@@ -1,6 +1,6 @@
 /* The one place for colours, type sizes, radii and spacing (GDA-74, docs/discovery/11-visual-style.md
    section 4). style.css uses these and writes no colour or px size of its own (0, 1px and % excepted).
-   Changing the team colours later means changing --brand, --brand-bright, --alert and app/crest.png. */
+   Changing the team colours later means changing --brand, --brand-bright, --alert. */
 :root {
   /* Colour */
   --page: #F3F4F6;

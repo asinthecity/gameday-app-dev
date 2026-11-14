@@ -4,7 +4,7 @@
 // text ("2026-11-14", "08:30"). They never pass through a time zone, so a game
 // cannot slip to the day before or after, whatever the phone's zone or region.
 
-import { formationOf, placeCount, startingFormation } from "./formation-rules.js";
+import { fitsTeam, formationOf, placeCount, startingFormation } from "./formation-rules.js";
 
 // Fixed for now (J1-S5 is on the Later list). Stored on each game, so changing
 // them later leaves old games correct.
@@ -106,7 +106,8 @@ export function newGame(form, id, createdOrder, squad, team = null) {
   // GDA-22: the game takes the team's size, half length and starting shape, fixed for this game.
   // With no team given (older callers and tests) it is the old 9 a side, 3-3-2, 25 minutes.
   const halfMinutes = team?.halfMinutes ?? HALF_MINUTES;
-  const formation = team ? startingFormation(team) : FORMATION;
+  // GDA-127: a shape typed on the Create game form is used for both halves if it fits the team.
+  const formation = team ? (form.formation && fitsTeam(form.formation, team.playersPerSide) ? form.formation : startingFormation(team)) : FORMATION;
   const game = {
     id,
     createdOrder,

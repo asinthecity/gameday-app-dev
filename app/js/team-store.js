@@ -68,7 +68,7 @@ export function switchTeam(db, id) {
  * with a game in progress. Other teams' records are never touched. The Sheet is never touched.
  */
 export function deleteTeam(db, id) {
-  return change(db, ["teams", "players", "games", "events", "meta", "photos"], (tx) => {
+  return change(db, ["teams", "players", "games", "events", "meta", "photos", "logos"], (tx) => {
     const teams = tx.objectStore("teams");
     teams.getAll().onsuccess = (foundTeams) => {
       const all = foundTeams.target.result.sort((a, b) => a.id - b.id);
@@ -98,6 +98,7 @@ export function deleteTeam(db, id) {
           });
         };
         teams.delete(id);
+        tx.objectStore("logos").delete(id); // Its logo goes too (GDA-126).
         tx.objectStore("meta").put({ key: CURRENT, value: remaining[0].id });
       };
     };

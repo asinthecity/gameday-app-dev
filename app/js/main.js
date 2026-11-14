@@ -57,13 +57,15 @@ import { canSend, checkMessage, parseSetupCode, SETTINGS_KEY, sheetTabOf } from 
 import { checkSheetConnection, sendGameToSheet } from "./sheet-send.js";
 import { shareCsv } from "./share-file.js";
 import { askToKeepDataOnce } from "./persistence.js";
-import { drawClock, drawLineUpActions, drawPairLines, drawScreen, screenHalf, setPhotos, startScoreFlash } from "./screens.js";
+import { drawClock, drawLineUpActions, drawPairLines, drawScreen, screenHalf, setLogos, setPhotos, startScoreFlash } from "./screens.js";
 import { shrinkPhoto } from "./photo-image.js";
 import { PHOTO_PROBLEM } from "./photo-rules.js";
 import { loadPhotos, removePhoto, savePhoto } from "./photo-store.js";
+import { loadLogos, removeLogo, saveLogo } from "./logo-store.js";
 import { csvFileName, recordToCsv } from "./record-rules.js";
 import { cleanName } from "./squad-rules.js";
 import { addPlayer, loadSquad, removePlayer, renamePlayer } from "./squad-store.js";
+import { fitsTeam, startingFormation } from "./formation-rules.js";
 import { addTeam, deleteTeam, loadTeams, switchTeam, updateTeam } from "./team-store.js";
 import { rememberFirstTeamId, canSwitchTeams, cleanTeamForm, deleteRefusal, firstTeamIdOf, sheetOf } from "./team-rules.js";
 import { applyUpdate, currentUpdateNotice, startUpdates } from "./updates.js";
@@ -92,6 +94,7 @@ const state = {
   selectedId: null, // The player selected on the line-up. Never saved.
   editId: null,
   photos: {}, // playerId -> small photo, kept on this phone only (GDA-52).
+  logos: {}, // teamId -> small logo, kept on this phone only (GDA-126).
   addCameFrom: "home",
   showRemoveWarning: false,
   hereDraft: null, // GDA-43: the Who is here picker's unsaved draft (a Set of player ids), or null when closed.
@@ -147,17 +150,53 @@ async function loadEverything() {
   state.players = await squadNow();
   state.photos = await loadPhotos(db);
   setPhotos(state.photos);
+  state.logos = await loadLogos(db);
+  setLogos(state.logos);
   state.games = await gamesNow();
   state.sheetSettings = sheetOf(currentTeam(), state.legacySheet, state.firstTeamId);
+}
+
+const LOGO_PROBLEM = "Couldn't save the logo";
+
+/** Writes the form's logo choice for a team that is already saved. Finishes with a message if it failed, else nothing. */
+async function applyLogo(teamId, logo) {
+  if (logo === undefined) {
+    return null;
+  }
+  try {
+    await (logo === null ? removeLogo(db, teamId) : saveLogo(db, teamId, logo));
+    return null;
+  } catch (error) {
+    console.warn("Logo not saved", error);
+    return LOGO_PROBLEM;
+  }
+}
+
+/** Redraws the team form after a logo change, keeping what was typed in the name box. */
+function drawKeepingTypedTeamName() {
+  const box = document.getElementById("teamName");
+  if (box) {
+    state.teamForm.values.name = box.value;
+  }
+  draw();
 }
 
 /** Saves a team change, reloads everything, then shows Home. A failed save shows a message and keeps the form. */
 async function saveTeamThenHome(save) {
   saving = true;
   try {
-    await save();
+    // save() may finish with a plain message (a logo that could not be saved after the team was).
+    const logoProblem = await save();
     await loadEverything();
     saving = false;
+    if (logoProblem) {
+      // The team is saved; stay on its settings so the coach sees why the logo is not there.
+      const team = currentTeam();
+      state.teamForm = { mode: "edit", values: { name: team.name, size: String(team.playersPerSide), minutes: String(team.halfMinutes) }, errors: {} };
+      state.problem = logoProblem;
+      draw();
+      return;
+    }
     state.teamForm = null;
     goTo("home");
   } catch (error) {
@@ -324,6 +363,13 @@ async function saveGameThenShowLineUp() {
     return;
   }
   try {
+    // GDA-127: a different shape typed on the form becomes the team's last-used shape.
+    const team = currentTeam();
+    const chosen = state.form.formation;
+    if (chosen && chosen !== team.formation && fitsTeam(chosen, team.playersPerSide)) {
+      await updateTeam(db, team.id, { formation: chosen });
+      state.teams = state.teams.map((t) => (t.id === team.id ? { ...t, formation: chosen } : t));
+    }
     state.games = await gamesNow();
     saving = false;
     state.form = null;
@@ -604,6 +650,8 @@ const actions = {
     const half = currentTeam().halfMinutes;
     state.form = blankGameForm();
     state.form.halfMinutes = half;
+    state.form.playersPerSide = currentTeam().playersPerSide;
+    state.form.formation = startingFormation(currentTeam()); // GDA-127
     if (state.form.rotationMinutes > half) {
       state.form.rotationNote = `Rotation lowered to ${half} min to fit the half.`;
       state.form.rotationMinutes = clampRotation(state.form.rotationMinutes, half);
@@ -922,6 +970,24 @@ const actions = {
     state.teamForm = { mode: "edit", values: { name: team.name, size: String(team.playersPerSide), minutes: String(team.halfMinutes) }, errors: {} };
     goTo("teamForm");
   }),
+  // Logo (GDA-126): the picture is held in the form and saved with the team when Save is tapped.
+  logoPicked: async (file) => {
+    if (!file || saving) {
+      return; // The picker was cancelled: nothing changes.
+    }
+    try {
+      state.teamForm.logo = await shrinkPhoto(file);
+      state.problem = "";
+    } catch (error) {
+      console.warn("Logo not read", error);
+      state.problem = LOGO_PROBLEM;
+    }
+    drawKeepingTypedTeamName();
+  },
+  removeLogo: tap(() => {
+    state.teamForm.logo = null;
+    drawKeepingTypedTeamName();
+  }),
   saveTeam: tap(() => {
     // Size and half length are steppers, so their values are already in the form (name is the only text box).
     const typed = { name: document.getElementById("teamName").value, size: state.teamForm.values.size, minutes: state.teamForm.values.minutes };
@@ -931,10 +997,14 @@ const actions = {
       draw();
       return;
     }
+    const logo = state.teamForm.logo; // undefined = unchanged, a picture, or null = remove
     if (state.teamForm.mode === "add") {
-      saveTeamThenHome(() => addTeam(db, cleaned.values));
+      saveTeamThenHome(async () => applyLogo(await addTeam(db, cleaned.values), logo));
     } else {
-      saveTeamThenHome(() => updateTeam(db, state.currentTeamId, cleaned.values));
+      saveTeamThenHome(async () => {
+        await updateTeam(db, state.currentTeamId, cleaned.values);
+        return applyLogo(state.currentTeamId, logo);
+      });
     }
   }),
   cancelTeamForm: tap(() => {

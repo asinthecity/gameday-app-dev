@@ -282,6 +282,23 @@ function deleteSheet(state, actions) {
   );
 }
 
+/** The logo row of the team form (GDA-126): the picture or initials disc, Add / Replace / Remove logo. Like photoBlock. */
+function logoBlock(state, actions) {
+  const form = state.teamForm;
+  // form.logo: undefined = unchanged, a picture = chosen but not saved yet, null = removed.
+  const shown = form.logo !== undefined ? form.logo : form.mode === "edit" ? currentLogos[state.currentTeamId] : null;
+  const picker = h("input", { type: "file", accept: "image/*", id: "logoFile", hidden: true, onchange: () => actions.logoPicked(picker.files[0]) });
+  return h(
+    "div",
+    { class: "photoBlock" },
+    h("div", { class: "photoBig" }, teamLogo(form.values.name, shown, "bigLogo")),
+    h("button", { class: "btn", id: "logoBtn", onclick: () => picker.click() }, shown ? "Replace logo" : "Add logo"),
+    shown ? h("button", { class: "btn redtext", id: "logoRemove", onclick: actions.removeLogo }, "Remove logo") : null,
+    picker,
+    h("p", { class: "photoNote" }, "Stays on this phone only.")
+  );
+}
+
 /** Add team / Team settings (GDA-68): name, players per side, half length. */
 function teamFormScreen(state, actions) {
   const form = state.teamForm;
@@ -321,6 +338,7 @@ function teamFormScreen(state, actions) {
       h(
         "div",
         { class: "body" },
+        logoBlock(state, actions),
         setCard(
           field("teamName", "Team name", form.values.name, form.errors.name),
           numberRow("Players per side", "size", { less: "teamSizeLess", more: "teamSizeMore", value: "teamSize" }, MIN_SIDE, MAX_SIDE, (n) => String(n)),
@@ -449,7 +467,7 @@ function homeScreen(state, actions) {
   );
   return {
     nodes: [
-      header("Game Day", null, topMenu, null, h("img", { class: "homeCrest", src: "crest.png", alt: "", draggable: false })),
+      header("Game Day", null, topMenu, null, teamLogo(currentTeamOf(state)?.name ?? "", currentLogos[state.currentTeamId], "homeLogo")),
       h(
         "div",
         { class: "body" },
@@ -720,6 +738,8 @@ function createGameScreen(state, actions) {
               form.rotationExtraSeconds = snappedSeconds(seconds, form.rotationMinutes, form.halfMinutes);
             })
           ),
+          // GDA-127: the first game's shape, starting from the team's last-used one; never read-only here.
+          formationBox({ size: form.playersPerSide, shown: form.formation, disabled: false, onValid: (formation) => { form.formation = formation; } }),
           // GDA-22: the half length is the team's, fixed for this game. Shown so it is not a surprise.
           factRow("Half length", `${form.halfMinutes} min`, "halfInfo")
         ),
@@ -1006,8 +1026,16 @@ function notStartedHalf(state, actions, half) {
  * the last good shape stays saved.
  */
 function formationRow(game, actions) {
-  const size = game.lineups.firstHalf.positions.length;
-  const shown = shownFormation(game);
+  return formationBox({
+    size: game.lineups.firstHalf.positions.length,
+    shown: shownFormation(game),
+    disabled: formationRowHalf(game) === null,
+    onValid: actions.setFormation,
+  });
+}
+
+/** The Formation box itself, used by the game rows above and by the Create game form (GDA-127). */
+function formationBox({ size, shown, disabled, onValid }) {
   const input = h("input", {
     id: "formation",
     type: "text", // text (not number) so the value can hold dashes
@@ -1019,7 +1047,7 @@ function formationRow(game, actions) {
     autocorrect: "off",
     spellcheck: "false",
     "aria-label": "Formation",
-    disabled: formationRowHalf(game) === null,
+    disabled,
   });
   // The shape last saved from this box (the closed-over `game` goes stale as Ben types).
   let saved = shown;
@@ -1033,7 +1061,7 @@ function formationRow(game, actions) {
     input.classList.toggle("bad", !result.ok);
     if (result.ok && result.formation !== saved) {
       saved = result.formation;
-      actions.setFormation(result.formation);
+      onValid(result.formation);
     }
   });
   return h("div", { class: "f" }, h("label", { for: "formation" }, "Formation"), input);
@@ -1222,11 +1250,21 @@ export function startScoreFlash() {
   scoreFlashAt = Date.now();
 }
 
-/** Our crest, or a grey disc with initials for a team with no crest (the opponent, for now). */
-function teamLogo(name, isUs) {
-  return isUs
-    ? h("img", { class: "logo", src: "crest.png", alt: "", draggable: false })
-    : h("span", { class: "logo disc", "aria-hidden": "true" }, initialsFor(name));
+/** A team's logo (GDA-126) if it has one, otherwise a grey disc with its initials (always the case for the opposition). */
+function teamLogo(name, logo, extraClass = "") {
+  return logo
+    ? h("img", { class: ("logo pic " + extraClass).trim(), src: logo, alt: "", draggable: false })
+    : h("span", { class: ("logo disc " + extraClass).trim(), "aria-hidden": "true" }, initialsFor(name));
+}
+
+function currentTeamOf(state) {
+  return state.teams.find((t) => t.id === state.currentTeamId);
+}
+
+// Team logos by team id, kept on this phone. main.js sets them before each draw (like setPhotos).
+let currentLogos = {};
+export function setLogos(logos) {
+  currentLogos = logos;
 }
 
 /**
@@ -1239,8 +1277,8 @@ function gameHeader(text, label, game, actions, state, arrows) {
   const score = scoreOf(game);
   const team = state.teams.find((t) => t.id === (game.teamId ?? state.currentTeamId));
   const usName = team?.name ?? "Us";
-  const row = (name, isUs, n, id) => h("span", { class: "trow" }, teamLogo(name, isUs), h("span", { class: "tn" }, name), h("span", { class: "tg", id }, String(n)));
-  const rows = [row(usName, true, score.us, "scoreUs"), row(game.opposition, false, score.them, "scoreThem")];
+  const row = (name, logo, n, id) => h("span", { class: "trow" }, teamLogo(name, logo), h("span", { class: "tn" }, name), h("span", { class: "tg", id }, String(n)));
+  const rows = [row(usName, currentLogos[team?.id], score.us, "scoreUs"), row(game.opposition, null, score.them, "scoreThem")];
   const teams = actions
     ? h("button", { ...scoreFlashProps("teams"), id: "score", "aria-label": `Score, ${usName} ${score.us}, ${game.opposition} ${score.them}. Tap to add or undo a goal`, onclick: actions.openGoalDialog }, ...rows)
     : h("div", { ...scoreFlashProps("teams"), id: "score" }, ...rows);

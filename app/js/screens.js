@@ -913,6 +913,15 @@ function lineUpRow(title, rowClass, players, state, canMove, benchTimers = false
   // Circle size and ring weight (GDA-85): a crowded live bench has smaller circles and thinner rings.
   const dims = { size: rowClass.includes("many") ? CIRCLE_SIZES.benchMany : CIRCLE_SIZES.bench, weight: RING_WEIGHT };
   const slots = players.map((player) => playerSlot(player, state, canMove, false, benchTimers, false, dims));
+  // An empty BENCH row keeps its normal height (Ben, 2026-11-14): one invisible stand-in slot, built like a real one,
+  // so the row measures the same with or without players. It carries no player id, so it can't be dragged or tapped.
+  if (title === "BENCH" && slots.length === 0) {
+    const ghost = playerSlot({ id: "", name: "Bench" }, state, false, false, false, false, dims);
+    ghost.removeAttribute("data-player");
+    ghost.classList.add("ghost");
+    ghost.setAttribute("aria-hidden", "true");
+    slots.push(ghost);
+  }
   // `zone` makes the whole row a drop target (GDA-62): "absent" or "bench", line-up screen only.
   return h("div", { class: rowClass, ...(rowClass.includes("live") ? { style: `--subs: ${Math.max(players.length, 4)}` } : {}), ...(zone ? { "data-zone": zone } : {}) }, h("span", { class: "t" }, title), ...slots);
 }
@@ -955,9 +964,9 @@ function pitchAndBench(view, state, canMove, crowded, live = false, benchZone = 
     ...rows.map(line)
   );
   if (live) {
-    // Game under way: bench circles carry timers; nobody on the bench means no bench row.
+    // Game under way: bench circles carry timers. The row stays when nobody is on the bench, so nothing moves (Ben, 2026-11-14).
     const rowClass = view.bench.length > 6 ? "row live many" : "row live";
-    return view.bench.length > 0 ? [pitch, lineUpRow("BENCH", rowClass, view.bench, state, canMove, true)] : [pitch];
+    return [pitch, lineUpRow("BENCH", rowClass, view.bench, state, canMove, true)];
   }
   // GDA-107: the 2nd Half plan at half time carries the bench ring and tag, so its bench row is drawn the way the live one is.
   const atHalfTime = screenHalf(state.screen) === 2 && planFigures(game, 0) !== null;

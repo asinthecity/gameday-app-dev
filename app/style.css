@@ -56,7 +56,7 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .btn:active, .back:active, .cog:active, .ic:active { filter: brightness(.92); }
 .btn.pri { background: var(--go); background-origin: border-box; border-color: transparent; color: var(--ink); }
 .btn.pri.sendNow, .gagainst .btn { background: var(--brand); border-color: transparent; color: var(--card); }
-.btn.grey, .btn.eh { background: var(--btn); border-color: transparent; color: var(--ink); }
+.btn.grey { background: var(--btn); border-color: transparent; color: var(--ink); }
 .btn.big { min-height: var(--s60); }
 .btn.del { background: var(--danger); border-color: var(--danger); color: var(--card); }
 .btn[disabled] { background: var(--btn); border-color: transparent; color: var(--btn-off-ink); opacity: 1; cursor: default; filter: none; }
@@ -165,11 +165,8 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 
 /* Game header card (GDA-75): half and clock on the left, two team rows on the right, a half bar along the bottom. */
 .clk { position: relative; z-index: 21; flex: none; display: flex; align-items: center; gap: var(--s8); height: var(--s68); margin: calc(var(--s6) + env(safe-area-inset-top)) var(--s12) 0; padding: var(--s4) var(--s12) var(--s6); border-radius: var(--r-card); background: var(--card); overflow: hidden; }
-.clk .ck { flex: none; width: var(--clock-w); display: flex; flex-direction: column; }
-.clk .hf { font-size: var(--fs-small); font-weight: var(--bold); line-height: var(--s14); letter-spacing: .1em; }
+.clk .ck { flex: none; width: var(--clock-w); text-align: center; }
 .clk b { font-size: var(--fs-clock); font-weight: var(--bold); line-height: 1.05; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.teams { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--s2); align-self: stretch; justify-content: center; padding: 0 0 0 var(--s10); border: 0; border-left: var(--bw) solid var(--edge); border-radius: 0; background: transparent; color: var(--ink); font: inherit; text-align: left; }
-.trow { display: flex; align-items: center; gap: var(--s8); min-width: 0; }
 .logo { flex: none; height: var(--s26); width: auto; max-width: var(--s34); display: block; }
 .logo.disc { width: var(--s26); border-radius: 50%; background: var(--btn); display: flex; align-items: center; justify-content: center; font-size: var(--fs-small); font-weight: var(--bold); }
 .tn { flex: 1; min-width: 0; font-size: var(--fs-body); font-weight: var(--bold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -184,16 +181,33 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .clk.bar { margin: 0; height: calc(var(--s68) + var(--s6) + env(safe-area-inset-top)); padding: calc(var(--s10) + env(safe-area-inset-top)) var(--s24) var(--s6); background: var(--grad-hero); border-radius: var(--r-hero); overflow: visible; }
 .clk.bar .arrow { border-radius: var(--r-round); background: var(--back-fill); }
 .clk.bar .arrow.off { color: var(--muted); background: var(--back-fill-off); }
+/* Head bar of the half screens and Full Time (GDA-120): back arrow, half label, clock, chip slot, next arrow. Five fixed columns (44, 64, 102, 64, 44)
+   spread evenly, so the clock is dead centre whatever sits in the label or chip slot. 12px side padding on a 360px phone, so 318px of controls fit. */
+.clk.bar.hb { display: grid; gap: 0; grid-template-columns: var(--s44) var(--s64) var(--clock-w) var(--s64) var(--s44); justify-content: space-between; align-items: center; }
+@media (max-width: 380px) { .clk.bar.hb { padding-left: var(--s12); padding-right: var(--s12); } }
+.hb .hl { flex: none; margin: 0; white-space: normal; overflow: visible; width: var(--s64); height: var(--s44); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; font-size: var(--fs-small); font-weight: var(--bold); line-height: var(--s14); letter-spacing: .06em; text-transform: uppercase; }
+.hb .cs { width: var(--s64); height: var(--s44); display: flex; align-items: center; justify-content: center; }
+.hb .arrow.off { border: var(--bw-signal) dashed var(--muted); }
+.hb .arrow.go { background: var(--brand); color: var(--card); }  /* Half Time: the next arrow looks different from the quiet undo chip */
+/* The Start / Stop / Resume chip: 44px round. Solid dark (.go) = Start, or Stop when time is up. The shape inside names the button. */
+.chip { flex: none; width: var(--s44); height: var(--s44); border: 0; border-radius: var(--r-round); background: var(--back-fill); color: var(--ink); padding: 0; display: flex; align-items: center; justify-content: center; }
+.chip svg { width: var(--s22); height: var(--s22); }
+.chip.go { background: var(--brand); color: var(--card); }
+.chip.off, .chip:disabled { background: var(--back-fill-off); color: var(--muted); border: var(--bw-signal) dashed var(--muted); }
+.chip:active { filter: brightness(.92); }
+/* The score card: one white 44px card; the whole card is the tap target and the thing that flashes. */
+.scard { flex: none; position: relative; z-index: 21; height: var(--s44); margin: var(--s6) var(--s12) 0; padding: 0 var(--s16); border: 0; border-radius: var(--r-card); background: var(--card); color: var(--ink); font: inherit; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; text-align: left; }
+.scard .side { display: flex; align-items: center; gap: var(--s6); min-width: 0; }
+.scard .side.l .tn { text-align: right; }
+.scard .side.r .tn { text-align: left; }
+.scard .tn { font-weight: var(--regular); }
+.scard .mid { display: flex; align-items: center; gap: var(--s6); padding: 0 var(--s10); }
 .clk h1 { margin: 0; font-size: var(--fs-title); font-weight: var(--bold); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.hp { position: absolute; left: 0; right: 0; bottom: 0; height: var(--s5); background: var(--line); }
-.hp i { display: block; height: 100%; width: 0; background: var(--brand-bright); }
 .acts .pair { display: flex; gap: var(--s10); }
 .acts .pair .btn.pri { flex: 1.6; }
 .acts .pair .btn:not(.pri) { flex: 1; }
 
 /* End Half (GDA-36) */
-.btn.eh { font-size: var(--fs-body); }
-.btn.eh.pri { background: var(--go); background-origin: border-box; border-color: transparent; color: var(--ink); font-size: var(--fs-title); }
 /* Half over (temporary, goes with GDA-50) */
 .stop { padding: var(--s40) 0 var(--s28); text-align: center; font-size: var(--fs-final); font-weight: var(--bold); line-height: 1; font-variant-numeric: tabular-nums; }
 
@@ -235,11 +249,9 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 
 /* Rotation chip, stepper and sheet (GDA-32) */
 .cog { flex: none; width: var(--s48); height: var(--s48); margin-left: var(--s8); padding: 0; border: 0; border-radius: var(--r-control); background: var(--btn); color: var(--ink); line-height: 1; display: flex; align-items: center; justify-content: center; }
-.cog.gone { visibility: hidden; }
 .cog svg, .ic svg { width: var(--s24); height: var(--s24); }
 .hdr .cog { margin-left: 0; }
 /* Settings in the bottom row of the game screen (GDA-75). */
-.cog.bot { width: var(--s52); height: var(--s64); margin-left: 0; }
 /* GDA-86: carry-over switches: a plain settings list around native switch inputs */
 .swlist { display: flex; flex-direction: column; gap: var(--s6); }
 .swhead { padding: var(--s6) var(--s4) 0; }
@@ -289,8 +301,8 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .pill.undo { background: var(--btn); }
 .pill .pu { display: flex; align-items: center; gap: var(--s6); font-size: var(--fs-title); font-weight: var(--bold); line-height: var(--s22); }
 .pill .pu svg { width: var(--s20); height: var(--s20); }
-/* The keeper's name plate in the pill's row stops short of it, so a long name never reaches the pill. */
-.pitch.pilled .line:last-of-type .nm { max-width: calc(100% - var(--s24)); }
+/* The keeper's name plate in the pill's row stops short of the pill and of the Settings button (GDA-120), so a long name never reaches either. */
+.pitch.cogged .line:last-of-type .nm { max-width: calc(100% - var(--s24)); }
 /* The tap area: the whole pill, only there when a tap does something (Swap with a pair planned, Undo after a swap). */
 .pill .pillTap { position: absolute; left: 0; top: 0; right: 0; bottom: 0; border: 0; border-radius: var(--r-pill); padding: 0; background: transparent; }
 
@@ -305,15 +317,9 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .acts.game { border-top: 0; padding: var(--s4) var(--s12) calc(var(--s6) + env(safe-area-inset-bottom)); }
 .gr { display: flex; gap: var(--s8); }
 .gr .btn { flex: 1; min-width: 0; height: var(--s64); min-height: var(--s64); font-size: var(--fs-body); line-height: 1.15; padding: 0 var(--s4); }
-.gr .btn.eh.wide { flex: 1; width: auto; flex-direction: row; gap: var(--s8); padding: 0 var(--s12); font-size: var(--fs-title); }
-.gr .btn.eh:not(.wide) { flex: none; width: var(--s64); flex-direction: column; gap: var(--s3); padding: 0; font-size: var(--fs-small); }
-.gr .btn.eh svg { width: var(--s24); height: var(--s24); }
-.gr .btn.eh.pri { font-size: var(--fs-small); }
-.acts .pair .cog.bot { align-self: stretch; height: auto; }
 /* The main button of a half screen (Start / End Half / Resume half): same spot in all three states. */
 .gr .btn.main { flex: 1; min-width: 0; font-size: var(--fs-title); }
 .gr .btn.main:disabled { font-size: var(--fs-body); line-height: 1.2; }
-.gr .mainGap { flex: 1; }
 .sheet .pair { display: flex; gap: var(--s10); }
 .sheet .pair .btn { flex: 1; }
 .undoAsk { gap: var(--s8); }
@@ -427,11 +433,12 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .pfoot .btn.undo2 small { font-size: var(--fs-small); font-weight: var(--bold); color: var(--muted); }
 .pfoot .btn.undo2:disabled { opacity: 1; }
 
-/* Score flash (GDA-90, GDA-133): a 3px violet outline for 1 second round the score block. An outline is drawn outside the box and
-   takes no room, so nothing moves or resizes; the digits stay dark on white. Reduced motion: it simply stays then goes, no fade. */
-@keyframes scoreFlash { 0%, 80% { outline: var(--s3) solid var(--flash); } 100% { outline: var(--s3) solid transparent; } }
-.score.flash, .teams.flash { animation: scoreFlash 1s linear; }
-@media (prefers-reduced-motion: reduce) { .score.flash, .teams.flash { animation-timing-function: steps(1, end); } }
+/* Score flash (GDA-90, GDA-120): the whole score card goes light pink (--late) and fades back to white over 1.5 seconds. Nothing is
+   outlined and nothing moves; the ink text stays readable (11.4:1 on --late). Keep the time in step with SCORE_FLASH_MS in screens.js.
+   Reduced motion: it simply stays pink then goes white, no fade. */
+@keyframes scoreFade { 0%, 40% { background: var(--late); } 100% { background: var(--card); } }
+.scard.flash { animation: scoreFade 1.5s linear; }
+@media (prefers-reduced-motion: reduce) { .scard.flash { animation-timing-function: steps(1, end); } }
 
 /* GDA-96: wording and look fixes */
 .hint { margin-top: var(--s6); font-size: var(--fs-body); font-weight: var(--bold); color: var(--muted); }
@@ -524,7 +531,6 @@ input:focus, input:focus-visible { outline: var(--bw-signal) solid var(--focus);
 .lu.setup .row:not(.ab):not(.live) .c6 { background: var(--av6); } .lu.setup .row:not(.ab):not(.live) .c7 { background: var(--av7); }
 .lu.setup .row .t, .swhead { letter-spacing: var(--tracking-caps); }
 .acts.setup .gr .btn, .acts.setup .gr .btn.main { height: var(--s56); min-height: var(--s56); }
-.acts.setup .cog.bot { width: var(--s56); height: var(--s56); border-radius: var(--r-round); }
 /* 7 or more subs: one row, the discs stay 44px and the names are cut with "..." (GDA-134). */
 .lu.setup .row.many { flex-wrap: nowrap; justify-content: space-between; }
 .lu.setup .row.many .slot { flex: 1 1 0; max-width: none; min-width: 0; }
@@ -539,4 +545,12 @@ input:focus, input:focus-visible { outline: var(--bw-signal) solid var(--focus);
 .row.live.many .nm { margin-top: var(--s10); }
 /* End Half / Resume half and Settings on the live game: the same 56px pill and round button as the line-up (GDA-133). */
 .acts.game:not(.setup) .gr .btn, .acts.game:not(.setup) .gr .btn.main { height: var(--s56); min-height: var(--s56); }
-.acts.game:not(.setup) .cog.bot { width: var(--s56); height: var(--s56); border-radius: var(--r-round); }
+
+/* GDA-120: Settings is a round 56px button. On a pitch it is 8px in from the bottom-left corner, mirroring the swap pill (same ring, same layer).
+   At Full Time it sits left of "End game and save" in a row (.endrow). */
+.cog.corner { width: var(--s56); height: var(--s56); margin-left: 0; border-radius: var(--r-round); }
+.pitch .cog.corner { position: absolute; left: var(--s8); bottom: var(--s8); z-index: 6; border: var(--s3) solid var(--card); box-shadow: var(--ring); }
+.endrow { display: flex; align-items: center; gap: var(--s8); }
+.endrow .btn { flex: 1; min-width: 0; }
+/* The row under the pitch holds only an error message; with nothing in it it takes no room. */
+.acts.game:empty { display: none; }

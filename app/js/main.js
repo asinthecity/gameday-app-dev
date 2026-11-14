@@ -25,8 +25,6 @@ import {
   US,
   clampRotation,
   liveAction,
-  markedAbsent,
-  markedBackIn,
   movedOnto,
   lineUpMoved,
   planMoved,
@@ -77,7 +75,6 @@ const TAP_PAUSE_MS = 300;
 
 let db = null;
 let ignoreTapsUntil = 0;
-let ignoreReadyUntil = 0;
 let saving = false;
 let listScroll = 0; // Where the Squad list was, for coming back to it.
 
@@ -428,17 +425,6 @@ async function saveThenShowLineUp(saveChange) {
   }
 }
 
-/**
- * Absent and Back in: a rule from game-rules.js applied to the selected player.
- * The bottom button becomes Ready for kick-off under the finger, so that one button
- * pauses briefly: a fast double tap must not go on to tap it too. The circles do
- * not pause, because the next step in a late change is tapping a bench player.
- */
-async function saveSelectedPlayer(rule) {
-  await saveThenShowLineUp(() => changeGame(db, state.gameId, (game) => rule(game, state.selectedId)));
-  ignoreReadyUntil = Date.now() + TAP_PAUSE_MS;
-}
-
 function saveMove(playerId, spot) {
   return saveThenShowLineUp(() => movePlayer(db, state.gameId, playerId, spot, Date.now()));
 }
@@ -660,8 +646,6 @@ const actions = {
     }
   }),
   openLineUp: tap((gameId) => openLineUp(gameId)),
-  markAbsent: tap(() => saveSelectedPlayer(markedAbsent)),
-  markBackIn: tap(() => saveSelectedPlayer(markedBackIn)),
   // The ‹ and › arrows (GDA-95). They only change which screen is shown: nothing is saved, and the
   // clock, swap alert and bench timers (all worked out from saved times) carry on underneath.
   // GDA-100: open a finished game for looking. It starts on 1st Half; ‹ there goes back to Home. Nothing is written.
@@ -817,10 +801,7 @@ const actions = {
     draw();
   }),
   startFirstHalf: tap(() => {
-    // The button under a selected player is Absent / Back in, which pauses briefly after it changes (see saveSelectedPlayer).
-    if (Date.now() >= ignoreReadyUntil) {
-      startGame();
-    }
+    startGame();
   }),
   swap: tap(() => saveSwap()),
   // GDA-90: the score header opens "Who scored?" while a half runs and at Half Time.
@@ -1144,6 +1125,7 @@ const presses = watchLineUpPresses({
     state.noteFor = spot.playerId;
     state.noteDraft = null;
     state.problem = "";
+    ignoreTapsUntil = Date.now() + TAP_PAUSE_MS; // GDA-120: lifting the finger must not hit Done, which can now sit under a low bench circle
     draw();
   },
   canPress: () => circleMode() !== null && readyForTaps(),

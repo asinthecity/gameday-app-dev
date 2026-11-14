@@ -223,11 +223,11 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 /* GDA-115: top-right of the circle, a touch lower than its top edge so it stays inside the bench row (4px padding above) */
 .tm { position: absolute; right: calc(-1 * clamp(var(--bw), var(--spare, var(--s17)), var(--s17))); top: var(--s2); z-index: 3; padding: 0 var(--s5); border: var(--bw) solid var(--edge); border-radius: var(--r-tag); background: var(--card); color: var(--ink); font-size: var(--fs-small); font-weight: var(--bold); line-height: var(--s16); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .lt .tm { color: var(--danger); border-color: var(--danger); }
-/* Frozen bench rings on a pitch circle at Half Time (GDA-80/85, GDA-136): drawn on the green pitch as a white track and a white progress ring;
-   a long stint is a red ring a little softer, so it reads as stopped. */
+/* Frozen bench rings on a pitch circle (GDA-80/85), during play and at Half Time: a pale track and a softened violet arc
+   so they read as stopped; late stints stay red. White (GDA-136) vanished against the white circle, so violet as before (Ben, 2026-11-14). */
 .fz { z-index: -1; }
-.fz .r0 { stroke: var(--pitch-track); }
-.fz .r1 { stroke: var(--card); stroke-linecap: butt; }
+.fz .r0 { stroke: var(--track); }
+.fz .r1 { stroke: var(--brand-bright); stroke-opacity: .55; stroke-linecap: butt; }
 .fz .r1.late { stroke: var(--danger); stroke-opacity: .55; }
 .turn { right: calc(-1 * clamp(0px, var(--spare), var(--s7))); }
 .turn { position: absolute; right: calc(-1 * var(--s7)); bottom: 0; z-index: 2; width: var(--s22); height: var(--s22); border-radius: 50%; background: var(--ink); color: var(--card); border: var(--s2) solid var(--card); font-size: var(--fs-small); font-weight: var(--bold); line-height: var(--s18); text-align: center; }

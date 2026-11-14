@@ -17,10 +17,12 @@
   --status-text: #00727A;      /* teal text of a status tag ("Planning") on its white pill: 5.7:1 (the bright #009FA8 is only 3.2:1 as text) */
   --back-fill: rgba(255, 255, 255, .5);     /* round back, forward and menu buttons on the header band (GDA-131) */
   --back-fill-off: rgba(255, 255, 255, .25); /* a forward arrow that cannot be used */
-  --grad-alert: linear-gradient(90deg, #7BEFF5 0%, #B6A6FF 100%); /* swap due strip, --ink text on it 8:1 or better */
+  --grad-alert: linear-gradient(90deg, #7BEFF5 0%, #B6A6FF 100%); /* swap pill when due, --ink text on it 8:1 or better */
   --tag-off: #FF2882;          /* OFF tag, --ink text 4.8:1 */
   --tag-on: #04F5FF;           /* ON tag, --ink text 12.6:1 */
-  --late: #FFC2DA;             /* late swap strip, light pink (Ben chose A, GDA-137): --ink text on it 11.4:1 */
+  --drain: #E4DCFF;            /* the lilac that drains out of the swap pill (GDA-125): --ink text on it 13:1 */
+  --drain-dark: rgba(55, 0, 60, .14); /* the small dark remnant left in the pill in the last 30 seconds */
+  --late: #FFC2DA;             /* late swap pill, light pink (Ben chose A, GDA-137): --ink text on it 11.4:1 */
   --here-bg: #D4F7FA;          /* pale cyan behind a player who is here (Ben chose option A, GDA-137): ink on it 15.1:1 */
   --track: rgba(55, 0, 60, .12); /* frozen bench ring track */
   --focus: #7C5CFF;            /* focus ring on text boxes */
@@ -111,6 +113,7 @@
   --s54: 54px;
   --s56: 56px;
   --s60: 60px;
+  --s112: 112px;
   --s64: 64px;
   --s68: 68px;
   --s72: 72px;

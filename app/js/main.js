@@ -50,7 +50,6 @@ import {
   carriesBenchTime,
   withVenue,
   hereDifferences,
-  pairsOf,
 } from "./game-rules.js";
 import { loadGameEvents, archiveGame, deleteGame, markSentToSheet, addGame, addGoal, removeGoal, changeGame, endHalf, fullTime, loadGames, moveFieldPlayer, movePlan, movePlayer, planPair, prePlaceGame, reopenHalf, reorderBench, reorderPlanBench, startFirstHalf, startSecondHalf, undoKickOff, swapPlayers, toggleHere, undoSwap, unplanPair } from "./game-store.js";
 import { canSend, checkMessage, parseSetupCode, SETTINGS_KEY, sheetTabOf } from "./sheet-rules.js";
@@ -468,14 +467,10 @@ function saveLive(playerId, spot) {
 const UNDO_MS = 5000;
 async function saveSwap() {
   saving = true;
-  // Who swapped, for the strip's "Swapped" line (GDA-99). Worked out first: the planned pairs are cleared by the swap.
-  const planned = pairsOf(openGame());
-  const nameOf = (id) => state.players.find((player) => player.id === id)?.name ?? "";
-  const names = { off: planned.filter((pair) => pair.fieldId !== null).map((pair) => nameOf(pair.fieldId)), on: planned.map((pair) => nameOf(pair.benchId)) };
   try {
     const done = await swapPlayers(db, state.gameId, Date.now());
     state.games = await gamesNow();
-    state.undo = { before: done.before, eventId: done.eventId, names, until: Date.now() + UNDO_MS };
+    state.undo = { before: done.before, eventId: done.eventId, until: Date.now() + UNDO_MS };
   } catch (error) {
     console.warn("Swap did not save", error);
     saving = false;

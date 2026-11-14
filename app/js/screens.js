@@ -21,6 +21,8 @@ const ICONS = {
   back: ["M15 5l-7 7 7 7"],
   next: ["M9 5l7 7-7 7"],
   flag: ["M6 21V4", "M6 5h11l-2.5 4 2.5 4H6"],
+  // Undo arrow (GDA-125): the swap pill after a swap.
+  undo: ["M9 14L4 9l5-5", "M4 9h10a6 6 0 0 1 0 12h-3"],
   // Goalkeeper glove (GDA-85): three fingers, a thumb and a cuff.
   // Football (GDA-108): a circle with a centre patch and seam lines.
   // A path starting with "F " is filled (the solid centre patch makes it read as a ball, not a wheel, at text size).
@@ -940,7 +942,7 @@ function lineUpButton(view, state, actions) {
 function openRowsTight(shape) {
   return pitchRows(shape).length >= 5;
 }
-function pitchAndBench(view, state, canMove, crowded, live = false, benchZone = false) {
+function pitchAndBench(view, state, canMove, crowded, live = false, benchZone = false, overlay = null) {
   const game = openGame(state);
   // GDA-127: the pitch draws the Formation of the half the screen shows.
   const shape = formationOf(game, screenHalf(state.screen) || 1);
@@ -960,8 +962,9 @@ function pitchAndBench(view, state, canMove, crowded, live = false, benchZone = 
   const pitch = h(
     "div",
     // Five or more rows need the smaller circles to fit.
-    { class: tight ? "pitch tight" : "pitch", style: `grid-template-rows: repeat(${rows.length}, minmax(0, 1fr))` },
-    ...rows.map(line)
+    { class: (tight ? "pitch tight" : "pitch") + (overlay ? " pilled" : ""), style: `grid-template-rows: repeat(${rows.length}, minmax(0, 1fr))` },
+    ...rows.map(line),
+    overlay // GDA-125: the swap pill sits inside the pitch's bottom-right corner (live half only)
   );
   if (live) {
     // Game under way: bench circles carry timers. The row stays when nobody is on the bench, so nothing moves (Ben, 2026-11-14).
@@ -1315,10 +1318,10 @@ function gameHeader(text, label, game, actions, state, arrows) {
 /**
  * A half that is In progress or Ended (GDA-95). In progress: the time is worked out from the saved start
  * time every time it is drawn; End Half is the main button. Ended: the clock is frozen at the saved end
- * time, a note replaces the swap strip, nothing can be moved, and the main button is Resume half (only
- * while the next half has not started). The header, strip, pitch and bottom row are the same size in both
- * states, so nothing jumps. The TIME strip and the black End Half are always drawn but hidden, and
- * drawClock shows them, so nothing is rebuilt as the clock runs.
+ * time, there is no swap pill, nothing can be moved, and the main button is Resume half (only
+ * while the next half has not started). The header, pitch and bottom row are the same size in both
+ * states, so nothing jumps. The black End Half is always drawn, and
+ * drawClock colours it and fills in the swap pill, so nothing is rebuilt as the clock runs.
  */
 function runningHalf(state, actions, half) {
   const game = openGame(state);
@@ -1328,9 +1331,6 @@ function runningHalf(state, actions, half) {
   const endedAt = half === 2 ? game.secondHalfEndedAt : game.firstHalfEndedAt;
   const clock = clockText(startedAt, live ? Date.now() : endedAt, halfOf(game));
   const label = half === 2 ? "2ND HALF" : "1ST HALF";
-  const strip = live
-    ? swapStrip(game, state, actions)
-    : h("div", { class: "strip", id: "strip" }, h("div", { class: "sl", id: "endedNote" }, h("b", { class: "a" }, `${half === 2 ? "2nd" : "1st"} half ended`)));
   let main;
   if (live) {
     main = h("button", { class: "btn eh wide", id: "endHalf", onclick: actions.endHalf }, icon("flag"), "End Half");
@@ -1344,8 +1344,8 @@ function runningHalf(state, actions, half) {
     noMove: true,
     nodes: [
       gameHeader(clock, label, game, canAddGoal(game) ? actions : null, state, navArrows(state, actions)),
-      strip,
-      h("div", { class: "lu" }, ...pitchAndBench(view, state, live, view.bench.length > 6, true)),
+      // GDA-125: no strip. The swap pill lives on the pitch and only while the half is running.
+      h("div", { class: "lu" }, ...pitchAndBench(view, state, live, view.bench.length > 6, true, false, live ? swapPill(game, state, actions) : null)),
       bottomBar(state, actions, main),
       gameDetailsSheet(state, game, actions),
       goalDialog(state, game, actions),
@@ -1403,38 +1403,55 @@ function goalDialog(state, game, actions) {
 }
 
 /**
- * The one fixed-height strip under the clock (GDA-63). It holds, one at a time, the Swap
- * Time message (drawSwapMessage fills it in), "Swap done / Undo" for about 5 seconds after
- * a Swap, or TIME when the half is over (drawClock shows it). The Swap button sits beside
- * the message or TIME while pairs are planned. The height never changes, so the pitch and
- * bench never move. The rules for Swap, Undo and the message are unchanged.
+ * The swap pill (GDA-125), inside the pitch's bottom-right corner, in the keeper's row. It does every job the old
+ * swap strip did, in 112 x 60 and never changing size: counts down to the swap (the lilac fill drains), shows Swap
+ * in the last 30 seconds, SWAP TIME, late, TIME, and Undo for UNDO_MS after a swap. Only drawn while a half runs.
+ * drawSwapPill fills in the words each second. The button on top is there only when a tap does something
+ * (Swap while a pair is planned, Undo after a swap), so with nothing planned a tap does nothing.
  */
-/** One names line of the strip: "Off A, B -> On C, D" (or just "On C" when nobody comes off). Used for the swap message and "Swapped". */
-function namesLine(off, on) {
-  return off === null || off === ""
-    ? h("div", { class: "b" }, h("b", {}, "On"), ` ${on}`)
-    : h("div", { class: "b" }, h("b", {}, "Off"), ` ${off} \u2192 `, h("b", {}, "On"), ` ${on}`);
-}
-
-function swapStrip(game, state, actions) {
+function swapPill(game, state, actions) {
   const planned = pairsOf(game).length > 0;
   const undo = !planned && state.undo && Date.now() < state.undo.until ? state.undo : null;
-  // GDA-99: the same layout in every state. Words on the left, one button on the right (Swap, or Undo for a few seconds after a swap).
   return h(
-    "div",
-    { class: "strip", id: "strip" },
-    h("div", { class: "sl", id: "swapMsg", hidden: true }),
-    h("div", { class: "sl", id: "timeStrip", hidden: true }, h("div", { class: "a" }, "TIME")),
+    "span", // not a div: the pitch's last-of-type rules count its lines (divs) only
+    { class: undo ? "pill undo" : "pill next", id: "swapPill" },
+    h("div", { class: "drain" }),
+    undo ? h("div", { class: "ptx" }, h("div", { class: "pu" }, icon("undo"), "Undo")) : h("div", { class: "ptx", id: "pillText" }),
     undo
-      ? h("div", { class: "sl", id: "swappedMsg" }, h("div", { class: "a" }, "Swapped"), undo.names ? namesLine(undo.names.off.join(", "), undo.names.on.join(", ")) : null)
-      : null,
-    undo
-      ? h("button", { class: "btn swp undoBtn", id: "undo", onclick: actions.undo }, "Undo")
-      : planned ? h("button", { class: "btn swp", id: "swap", onclick: actions.swap }, "Swap") : null
+      ? h("button", { class: "pillTap", id: "undo", "aria-label": "Undo the swap", onclick: actions.undo })
+      : planned ? h("button", { class: "pillTap", id: "swap", "aria-label": "Swap", onclick: actions.swap }) : null
   );
 }
 
 let lastActions = null;
+
+/** How far a planned-pair line or cross keeps from the swap pill (GDA-125). */
+const PILL_CLEAR = 4;
+
+/**
+ * The parts of the line `cut` that lie outside `box` (grown by `margin`): none, one or two pieces. Lets a planned-pair
+ * line run "behind" the swap pill without ever touching it. Plain rectangle clipping along the line.
+ */
+function outsideBox(cut, box, margin) {
+  const left = box.left - margin, right = box.right + margin, top = box.top - margin, bottom = box.bottom + margin;
+  const dx = cut.x2 - cut.x1, dy = cut.y2 - cut.y1;
+  let t0 = 0, t1 = 1;
+  for (const [p, q] of [[-dx, cut.x1 - left], [dx, right - cut.x1], [-dy, cut.y1 - top], [dy, bottom - cut.y1]]) {
+    if (p === 0) {
+      if (q < 0) return [cut]; // parallel to this side and outside it: never inside
+    } else if (p < 0) {
+      t0 = Math.max(t0, q / p);
+    } else {
+      t1 = Math.min(t1, q / p);
+    }
+  }
+  if (t0 >= t1) return [cut]; // misses the box
+  const piece = (from, to) => ({ x1: cut.x1 + dx * from, y1: cut.y1 + dy * from, x2: cut.x1 + dx * to, y2: cut.y1 + dy * to });
+  const parts = [];
+  if (t0 > 0) parts.push(piece(0, t0));
+  if (t1 < 1) parts.push(piece(t1, 1));
+  return parts;
+}
 
 /**
  * Draws a dotted line for each planned pair, from the bench circle to the field player
@@ -1456,6 +1473,11 @@ export function drawPairLines(state, actions = lastActions) {
     return { x: c.left + c.width / 2 - box.left, y: c.top + c.height / 2 - box.top };
   };
   const edge = (area.querySelector(".row.live")?.getBoundingClientRect().top ?? box.bottom) - box.top;
+  // GDA-125: the swap pill's box (with a small margin), so a line never runs over it and a cross never sits on it.
+  const pillRaw = area.querySelector("#swapPill")?.getBoundingClientRect();
+  const pill = pillRaw
+    ? { left: pillRaw.left - box.left, right: pillRaw.right - box.left, top: pillRaw.top - box.top, bottom: pillRaw.bottom - box.top }
+    : null;
   let lines = "";
   const crosses = h("div", { class: "px" });
   for (const pair of pairsOf(game)) {
@@ -1471,11 +1493,17 @@ export function drawPairLines(state, actions = lastActions) {
       const radius = (slot) => slot.querySelector(".av").getBoundingClientRect().width / 2 + 2;
       const cut = trimmedLine(a, b, radius(from), radius(to));
       if (cut) {
-        lines += `<line class="dl plan" x1="${cut.x1}" y1="${cut.y1}" x2="${cut.x2}" y2="${cut.y2}" stroke-dasharray="2 6"></line>`;
+        for (const part of pill ? outsideBox(cut, pill, PILL_CLEAR) : [cut]) {
+          lines += `<line class="dl plan" x1="${part.x1}" y1="${part.y1}" x2="${part.x2}" y2="${part.y2}" stroke-dasharray="2 6"></line>`;
+        }
       }
     }
     const along = !b || b.y === a.y ? 0.5 : (edge - a.y) / (b.y - a.y);
-    const x = Math.max(22, Math.min(box.width - 22, b ? a.x + (b.x - a.x) * along : a.x));
+    let x = Math.max(22, Math.min(box.width - 22, b ? a.x + (b.x - a.x) * along : a.x));
+    // The cross is 44px wide to tap; if that would touch the pill it moves to just left of it.
+    if (pill && edge - 14 + 22 > pill.top - PILL_CLEAR && x + 22 > pill.left - PILL_CLEAR && x - 22 < pill.right + PILL_CLEAR) {
+      x = pill.left - PILL_CLEAR - 22;
+    }
     crosses.append(
       h("button", { class: "xx", "aria-label": "Remove pair", style: `left:${x}px;top:${edge - 14}px`, onclick: () => actions.unpair(pair.benchId) }, h("span", {}, "\u00d7"))
     );
@@ -1486,7 +1514,7 @@ export function drawPairLines(state, actions = lastActions) {
   area.append(holder.firstChild, crosses);
 }
 
-/** Moves the clock, the TIME strip and the End Half colour on, without redrawing the screen. Safe at any moment. */
+/** Moves the clock, the swap pill and the End Half colour on, without redrawing the screen. Safe at any moment. */
 export function drawClock(state) {
   if (state.screen === "interchange") {
     drawTally(state);
@@ -1498,15 +1526,13 @@ export function drawClock(state) {
     const now = Date.now();
     clock.textContent = clockText(startedAtOf(game), now, halfOf(game));
     const timeUp = isTimeUp(startedAtOf(game), now, halfOf(game));
-    // TIME takes the message's place in the same strip (but not while "Swapped / Undo" is showing).
-    document.getElementById("timeStrip").hidden = !timeUp || !!document.getElementById("swappedMsg");
     document.getElementById("endHalf").classList.toggle("pri", timeUp);
     // The half progress bar along the bottom of the header card.
     const seconds = Math.max(0, (now - startedAtOf(game)) / 1000);
     document.getElementById("halfBar").style.width = Math.min(100, (seconds / (halfOf(game) * 60)) * 100).toFixed(1) + "%";
     drawBenchTimers(game, now);
-    drawSwapMessage(game, state.players, now, timeUp);
-    // The strip never changes height, so the pair lines never need redrawing here.
+    drawSwapPill(game, state.players, now, timeUp);
+    // The pill never changes size, so the pair lines never need redrawing here.
   } else if (clock === null && screenHalf(state.screen) === 2 && game && game.state === FIRST_HALF && typeof game.firstHalfStartedAt === "number" && typeof game.firstHalfEndedAt !== "number") {
     // GDA-107: the 2nd Half plan while the 1st half runs: only the bench rings and tags move (text and ring length, no redraw).
     drawBenchTimers(game, Date.now());
@@ -1514,31 +1540,48 @@ export function drawClock(state) {
 }
 
 /**
- * Fills the swap time into the strip (GDA-104): "SWAP IN 3:20" counting down, yellow for the last
- * 30 seconds, then "SWAP TIME" when due, red with "+1:10" once it is late (30 seconds or more; before
- * that the plus shows but the colour stays black). Time only, no names. The words carry the message,
- * not colour alone. The strip has a fixed height, so the pitch never moves.
+ * Fills the swap pill (GDA-104, GDA-125): "SWAP IN 3:20" counting down with the lilac fill draining, "SWAP / IN 0:15"
+ * for the last 30 seconds, "SWAP / TIME" when due, "SWAP / +1:10" once late (light pink after 30 seconds; the plus shows
+ * at once), and "TIME" when the half length is reached. While "Undo" is showing the pill is left alone. Time only, no
+ * names. The words carry the message, not colour alone. The pill never changes size, so the pitch never moves.
  */
-function drawSwapMessage(game, squad, now, timeUp) {
-  const strip = document.getElementById("strip");
-  const box = document.getElementById("swapMsg");
-  const swapped = !!document.getElementById("swappedMsg"); // "Swapped / Undo" has the strip for a few seconds.
-  const message = timeUp || swapped ? null : swapMessage(game, squad, now);
-  if (!message) {
-    box.hidden = true;
-    box.textContent = "";
-    box.dataset.key = "";
-    strip.className = timeUp && !swapped ? "strip timeup" : "strip";
+function drawSwapPill(game, squad, now, timeUp) {
+  const pill = document.getElementById("swapPill");
+  if (!pill || pill.classList.contains("undo")) {
     return;
   }
   const mmss = (total) => `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
-  const title = message.phase === "due" ? (message.late > 0 ? `SWAP TIME +${mmss(message.late)}` : "SWAP TIME") : `SWAP IN ${mmss(message.countdown)}`;
-  if (box.dataset.key !== title) {
-    box.dataset.key = title;
-    box.replaceChildren(h("div", { class: "a" }, title));
+  const message = timeUp ? null : swapMessage(game, squad, now);
+  let lines; // [text, size] pairs: lg = 20px, sm = 12px, md = 16px
+  let look;
+  let drain = 0;
+  if (timeUp || !message) {
+    lines = [["TIME", "lg"]];
+    look = "timeup";
+  } else if (message.phase === "next") {
+    lines = [["SWAP IN", "sm"], [mmss(message.countdown), "lg"]];
+    look = "next";
+    drain = message.countdown / rotationSecondsOf(game);
+  } else if (message.phase === "warn") {
+    lines = [["SWAP", "lg"], [`IN ${mmss(message.countdown)}`, "sm"]];
+    look = "warn";
+    drain = message.countdown / rotationSecondsOf(game);
+  } else {
+    lines = [["SWAP", "lg"], message.late > 0 ? [`+${mmss(message.late)}`, "md"] : ["TIME", "sm"]];
+    look = message.late >= 30 ? "late" : "swap";
   }
-  box.hidden = false;
-  strip.className = "strip " + (message.phase === "next" ? "" : message.phase === "warn" ? "warn" : message.late >= 30 ? "late" : "swap");
+  const key = lines.map((line) => line.join(":")).join("|");
+  const text = document.getElementById("pillText");
+  if (text.dataset.key !== key) {
+    text.dataset.key = key;
+    text.replaceChildren(...lines.map(([words, size]) => h("div", { class: size }, words)));
+    const tap = pill.querySelector(".pillTap");
+    if (tap && tap.id === "swap") {
+      tap.setAttribute("aria-label", "Swap, " + lines.map((line) => line[0]).join(" "));
+    }
+  }
+  pill.className = "pill " + look;
+  pill.querySelector(".drain").style.width = (Math.max(0, Math.min(1, drain)) * 100).toFixed(1) + "%";
 }
 
 /** Sets each bench circle's time and ring from the saved times. Same path as the clock, so a lock or reload cannot skew it. */

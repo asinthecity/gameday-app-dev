@@ -120,7 +120,7 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .pitch:before { content: ""; position: absolute; left: 0; right: 0; top: 50%; border-top: var(--s2) solid var(--pitch-line); pointer-events: none; }
 /* The white box in front of the goal (bottom) and the small one at the top, behind the players (GDA-75). */
 .line:first-child:before { content: ""; position: absolute; z-index: -1; left: 30%; right: 30%; top: 0; height: var(--s30); border: var(--s2) solid var(--pitch-line); border-top: 0; pointer-events: none; }
-.line:last-child:after { content: ""; position: absolute; z-index: -1; left: 25%; right: 25%; bottom: 0; height: var(--s48); border: var(--s2) solid var(--pitch-line); border-bottom: 0; pointer-events: none; }
+.line:last-of-type:after { content: ""; position: absolute; z-index: -1; left: 25%; right: 25%; bottom: 0; height: var(--s48); border: var(--s2) solid var(--pitch-line); border-bottom: 0; pointer-events: none; }
 .line { position: relative; display: flex; justify-content: center; align-items: stretch; min-height: 0; }
 .slot { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; min-width: 0; }
 .line .slot { flex: 0 0 33.33%; max-width: 33.33%; }
@@ -191,7 +191,7 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .acts .pair .btn.pri { flex: 1.6; }
 .acts .pair .btn:not(.pri) { flex: 1; }
 
-/* End Half and the TIME strip (GDA-36) */
+/* End Half (GDA-36) */
 .btn.eh { font-size: var(--fs-body); }
 .btn.eh.pri { background: var(--go); background-origin: border-box; border-color: transparent; color: var(--ink); font-size: var(--fs-title); }
 /* Half over (temporary, goes with GDA-50) */
@@ -234,10 +234,6 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .turn { position: absolute; right: calc(-1 * var(--s7)); bottom: 0; z-index: 2; width: var(--s22); height: var(--s22); border-radius: 50%; background: var(--ink); color: var(--card); border: var(--s2) solid var(--card); font-size: var(--fs-small); font-weight: var(--bold); line-height: var(--s18); text-align: center; }
 
 /* Rotation chip, stepper and sheet (GDA-32) */
-/* GDA-63: one strip, one height, every state. Only colours change, never size. */
-/* GDA-99: the same layout in every state: words on the left (a bold line, then the names), one button on the right.
-   Only the background changes: white, yellow when a swap is near or due, pink once late. */
-.strip { flex: none; box-sizing: border-box; height: var(--s84); margin: var(--s6) var(--s12) 0; padding: 0 var(--s12) 0 var(--s16); border-radius: var(--r-card); background: var(--card); color: var(--ink); display: flex; align-items: center; gap: var(--s10); overflow: hidden; }
 .cog { flex: none; width: var(--s48); height: var(--s48); margin-left: var(--s8); padding: 0; border: 0; border-radius: var(--r-control); background: var(--btn); color: var(--ink); line-height: 1; display: flex; align-items: center; justify-content: center; }
 .cog.gone { visibility: hidden; }
 .cog svg, .ic svg { width: var(--s24); height: var(--s24); }
@@ -272,15 +268,27 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .xx { position: absolute; width: var(--s44); height: var(--s44); margin: calc(-1 * var(--s22)) 0 0 calc(-1 * var(--s22)); padding: 0; border: 0; background: none; pointer-events: auto; display: flex; align-items: center; justify-content: center; }
 .xx span { width: var(--s26); height: var(--s26); border-radius: 50%; background: var(--card); border: var(--bw-signal) solid var(--ink); color: var(--ink); font-size: var(--fs-title); font-weight: var(--bold); line-height: 1; display: flex; align-items: center; justify-content: center; }
 
-/* The words in the strip (GDA-35, GDA-99): a bold line, then who swaps. Words always carry the message, not colour alone. */
-.strip .sl { flex: 1; min-width: 0; }
-.strip .sl .a { display: block; font-size: var(--fs-title); font-weight: var(--bold); line-height: var(--s24); font-variant-numeric: tabular-nums; }
-.strip .sl .b { margin-top: var(--s2); font-size: var(--fs-body); font-weight: var(--bold); line-height: var(--s20); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.strip.warn, .strip.swap, .strip.timeup { background: var(--grad-alert); }
-.strip.late { background: var(--late); }
-/* Swap (black) and, after a swap, Undo (standard grey) sit in the same place. */
-.strip .swp { flex: none; width: var(--s96); min-height: var(--s56); padding: 0; background: var(--ink); border-color: var(--ink); color: var(--card); }
-.strip .swp.undoBtn { background: var(--btn); border-color: transparent; color: var(--ink); }
+
+/* The swap pill (GDA-125): 112 x 60 in the pitch's bottom-right corner, in the keeper's row. One size in every state; only fill, outline and words change.
+   The lilac .drain shrinks from the right as the swap gets near (no animation). Words always carry the message, not colour alone. */
+.pill { position: absolute; right: var(--s10); bottom: var(--s6); z-index: 6; box-sizing: border-box; width: var(--s112); height: var(--s60); border-radius: var(--r-pill); overflow: hidden; background: var(--card); color: var(--ink); box-shadow: var(--ring); display: flex; align-items: center; justify-content: center; }
+.pill .drain { position: absolute; left: 0; top: 0; bottom: 0; width: 0; background: var(--drain); }
+.pill.warn .drain { background: var(--drain-dark); }
+.pill .ptx { position: relative; display: flex; flex-direction: column; align-items: center; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pill .lg { font-size: var(--fs-title); font-weight: var(--bold); line-height: var(--s22); }
+.pill .md { font-size: var(--fs-body); font-weight: var(--bold); line-height: var(--s18); }
+.pill .sm { font-size: var(--fs-small); font-weight: var(--bold); line-height: var(--s14); letter-spacing: .04em; }
+.pill.warn, .pill.swap, .pill.timeup { background: var(--grad-alert); }
+.pill.late { background: var(--late); }
+.pill.warn, .pill.swap, .pill.late, .pill.undo { box-shadow: 0 0 0 var(--s3) var(--ink); }
+.pill.timeup { box-shadow: none; }
+.pill.undo { background: var(--btn); }
+.pill .pu { display: flex; align-items: center; gap: var(--s6); font-size: var(--fs-title); font-weight: var(--bold); line-height: var(--s22); }
+.pill .pu svg { width: var(--s20); height: var(--s20); }
+/* The keeper's name plate in the pill's row stops short of it, so a long name never reaches the pill. */
+.pitch.pilled .line:last-of-type .nm { max-width: calc(100% - var(--s24)); }
+/* The tap area: the whole pill, only there when a tap does something (Swap with a pair planned, Undo after a swap). */
+.pill .pillTap { position: absolute; left: 0; top: 0; right: 0; bottom: 0; border: 0; border-radius: var(--r-pill); padding: 0; background: transparent; }
 
 #frame.fix #screen { position: relative; }
 

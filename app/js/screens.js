@@ -779,7 +779,7 @@ function newGameScreen(state, actions) {
   const game = openGame(state);
   return {
     nodes: [
-      navBar("New game", null, state, actions),
+      navBar(gameHasKickedOff(game) ? "Game details" : "New game", null, state, actions),
       h(
         "div",
         { class: "body" },
@@ -914,7 +914,7 @@ function emptySlot(place, canMove, state) {
     "div",
     { class: planned ? "slot plan" : "slot", ...(canMove ? { "data-place": place } : {}) },
     h("div", { class: "ci" }, h("div", { class: "av em" })),
-    h("div", { class: "nm" }, "\u00a0")
+    h("div", { class: "nm none" }, "\u00a0") // GDA-139: keeps the height, shows no plate
   );
 }
 
@@ -1001,6 +1001,16 @@ function planBody(game, view, state, actions, { editable, firstHalf, note, overl
   );
 }
 
+/** GDA-143: true once either half has kicked off (the game details screen is then "Game details", not "New game"). */
+function gameHasKickedOff(game) {
+  return typeof game.firstHalfStartedAt === "number" || typeof game.secondHalfStartedAt === "number";
+}
+
+/** True while the 1st half is In progress (started, not ended). GDA-142 uses it for goals from the 2nd half plan. */
+function firstHalfRunning(game) {
+  return game.state === FIRST_HALF && typeof game.firstHalfStartedAt === "number" && typeof game.firstHalfEndedAt !== "number";
+}
+
 /**
  * A half that is Not started (GDA-95, GDA-120). The head bar has the Start chip (1st Half: always; 2nd Half: greyed out until the
  * 1st half has ended) and a 0:00 clock. 1st Half: the line-up. 2nd Half: the half-time plan, or the line-up for looking at.
@@ -1018,10 +1028,12 @@ function notStartedHalf(state, actions, half) {
     fixed: true,
     noMove: true,
     nodes: [
-      ...gameHead(state, actions, { label: half === 1 ? "1st Half" : "2nd Half", clock: "0:00", chip, tapScore: false }),
+      // GDA-142: on the 2nd half plan while the 1st half runs, the score card takes goals (they go to the 1st half).
+      ...gameHead(state, actions, { label: half === 1 ? "1st Half" : "2nd Half", clock: "0:00", chip, tapScore: half === 2 && firstHalfRunning(game) }),
       planBody(game, view, state, actions, { editable, firstHalf: half === 1 }), // Absent / Back in is by drag only (Ben, 2026-11-15)
       bottomBar(state, actions), // empty unless there is an error message
       gameDetailsSheet(state, game, actions),
+      half === 2 && firstHalfRunning(game) ? goalDialog(state, game, actions) : null,
     ],
   };
 }
@@ -1225,7 +1237,7 @@ function gameDetailsSheet(state, game, actions) {
     h(
       "div",
       { class: "sheet" },
-      sheetHead("Game details", actions.closeRotation, "rotX"),
+      sheetHead("Game settings", actions.closeRotation, "rotX"),
       setCard(
         h("div", { class: "setrow" }, h("span", {}, "Rotation length"), rotationPicker(clampRotation(game.rotationMinutes ?? 6, halfOf(game)), snappedSeconds(game.rotationExtraSeconds, clampRotation(game.rotationMinutes ?? 6, halfOf(game)), halfOf(game)), halfOf(game), actions.setRotation)),
         formationRow(game, actions),
@@ -1234,8 +1246,9 @@ function gameDetailsSheet(state, game, actions) {
       ),
       // GDA-86, GDA-105: on both half screens (editable until the 2nd half starts, read-only after).
       carryOverSwitches(carryValuesOf(game), !canChangeCarryOver(game), actions),
-      undoRow && !state.undoKickOffAsk ? setCard(undoRow) : undoRow,
-      h("button", { class: "btn pri", id: "rotDone", onclick: actions.closeRotation }, "Done")
+      // GDA-143: Done sits where Undo kick-off used to, Undo kick-off at the bottom.
+      h("button", { class: "btn pri", id: "rotDone", onclick: actions.closeRotation }, "Done"),
+      undoRow && !state.undoKickOffAsk ? setCard(undoRow) : undoRow
     )
   );
 }
@@ -1285,7 +1298,21 @@ function headChip(id, label, iconName, go, onClick) {
   } else {
     props.disabled = true; // a real disabled button: it cannot be tapped or focused, and a screen reader says so
   }
-  return h("button", props, icon(iconName));
+  const chip = h("button", props, icon(iconName));
+  chip.tapAction = onClick; // GDA-141: the clock beside it does the same thing
+  return chip;
+}
+
+/**
+ * The clock in the head bar (GDA-141). With a live chip beside it, a tap on the clock does exactly what the chip does (it is the
+ * chip's own handler, so a double tap is guarded the same way). With no chip or a greyed one it is plain text and does nothing.
+ * Its name is the chip's name, so a screen reader hears the same thing. drawClock only changes its text.
+ */
+function clockNode(clock, chip) {
+  const action = chip && !chip.disabled ? chip.tapAction : null;
+  return action
+    ? h("button", { class: "clockBtn", id: "clock", "aria-label": chip.getAttribute("aria-label"), onclick: action }, clock)
+    : h("b", { id: "clock" }, clock);
 }
 
 /**
@@ -1303,7 +1330,7 @@ function gameHead(state, actions, { label, clock, chip = null, nextGo = false, t
   const [back, next] = navArrows(state, actions, nextGo);
   const words = label.split(" ");
   const labelNode = h("h1", { class: "hl" }, words[0], " ", h("br"), words.slice(1).join(" ")); // the screen's heading, in two lines
-  const band = h("div", { class: "clk bar hb" }, back, labelNode, h("div", { class: "ck" }, h("b", { id: "clock" }, clock)), h("div", { class: "cs" }, chip), next);
+  const band = h("div", { class: "clk bar hb" }, back, labelNode, h("div", { class: "ck" }, clockNode(clock, chip)), h("div", { class: "cs" }, chip), next);
   const parts = [
     h("span", { class: "side l" }, teamLogo(usName, currentLogos[team?.id]), h("span", { class: "tn" }, usName)),
     h("span", { class: "mid" }, h("span", { class: "tg", id: "scoreUs" }, String(score.us)), h("span", { class: "dash", "aria-hidden": "true" }, "\u2013"), h("span", { class: "tg", id: "scoreThem" }, String(score.them))),
@@ -1403,7 +1430,7 @@ function goalDialog(state, game, actions) {
 
 /**
  * The swap pill (GDA-125), inside the pitch's bottom-right corner, in the keeper's row. It does every job the old
- * swap strip did, in 112 x 60 and never changing size: counts down to the swap (the lilac fill drains), shows Swap
+ * swap strip did, in 112 x 60 and never changing size: counts down to the swap (the pill fades from white to pink), shows Swap
  * in the last 30 seconds, SWAP TIME, late, TIME, and Undo for UNDO_MS after a swap. Only drawn while a half runs.
  * drawSwapPill fills in the words each second. The button on top is there only when a tap does something
  * (Swap while a pair is planned, Undo after a swap), so with nothing planned a tap does nothing.
@@ -1414,7 +1441,6 @@ function swapPill(game, state, actions) {
   return h(
     "span", // not a div: the pitch's last-of-type rules count its lines (divs) only
     { class: undo ? "pill undo" : "pill next", id: "swapPill" },
-    h("div", { class: "drain" }),
     undo ? null : pillRing(),
     undo ? h("div", { class: "ptx" }, h("div", { class: "pu" }, icon("undo"), "Undo")) : h("div", { class: "ptx", id: "pillText" }),
     undo
@@ -1584,7 +1610,7 @@ function drawSwapPill(game, squad, now, timeUp) {
   // always the biggest thing and never swaps places (Ben, 2026-11-14).
   let lines;
   let look;
-  let drain = 0;
+  let fade = 1; // GDA-140: 0 = white (rotation just started) to 1 = pink (Swap Time and later)
   let ring = 0; // how full the ring is, 0 to 1
   let over = false; // red ring: the swap is late
   if (timeUp || !message) {
@@ -1593,12 +1619,12 @@ function drawSwapPill(game, squad, now, timeUp) {
   } else if (message.phase === "next" || message.phase === "warn") {
     lines = [["SWAP IN", "sm"], [mmss(message.countdown), "lg"]];
     look = message.phase;
-    drain = message.countdown / rotationSecondsOf(game);
-    ring = 1 - drain;
+    ring = 1 - message.countdown / rotationSecondsOf(game);
+    fade = ring;
   } else {
     over = message.late > 0;
     lines = over ? [["SWAP LATE", "sm"], [`+${mmss(message.late)}`, "lg"]] : [["SWAP NOW", "sm"], ["0:00", "lg"]];
-    look = message.late >= 30 ? "late" : "swap";
+    look = over ? "late" : "swap";
     ring = 1;
   }
   const key = lines.map((line) => line.join(":")).join("|");
@@ -1613,7 +1639,7 @@ function drawSwapPill(game, squad, now, timeUp) {
   }
   pill.className = "pill " + look + (over ? " over" : "");
   pill.querySelector(".pr .r1")?.setAttribute("stroke-dasharray", `${(Math.max(0, Math.min(1, ring)) * 100).toFixed(1)} 100`);
-  pill.querySelector(".drain").style.width = (Math.max(0, Math.min(1, drain)) * 100).toFixed(1) + "%";
+  pill.style.setProperty("--pill-fade", Math.max(0, Math.min(1, fade)).toFixed(3)); // the CSS mixes white to pink by this much
 }
 
 /** Sets each bench circle's time and ring from the saved times. Same path as the clock, so a lock or reload cannot skew it. */

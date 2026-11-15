@@ -538,7 +538,7 @@ export function anyInProgress(games) {
  * The clock text, "12:34", worked out from the saved real start time and the real
  * time now (both in milliseconds), never from counting ticks. A phone clock set
  * back cannot make it negative. GDA-147: it keeps counting in plain m:ss past the half
- * length ("25:01", "31:40"), never a "+"; the screen marks "over time" with a pink background instead.
+ * length ("25:01", "31:40"), never a "+"; the solid dark Stop chip marks "over time" (GDA-154: no pink head bar).
  */
 export function clockText(startedAt, now, halfMinutes = HALF_MINUTES) {
   const elapsed = Math.floor((now - startedAt) / 1000);

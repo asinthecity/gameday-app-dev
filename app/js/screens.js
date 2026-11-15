@@ -1621,7 +1621,7 @@ export function drawClock(state) {
     const now = Date.now();
     clock.textContent = clockText(startedAtOf(game), now, halfOf(game));
     const timeUp = isTimeUp(startedAtOf(game), now, halfOf(game));
-    clock.closest(".clk")?.classList.toggle("over", timeUp); // GDA-147: over the half length, the whole head bar turns pink (the clock box has no pink of its own)
+    clock.closest(".clk")?.classList.toggle("over", timeUp); // marks time up; no look of its own (GDA-154: the pink head bar was removed)
     document.getElementById("endHalf")?.classList.toggle("go", timeUp); // time up: the Stop chip goes solid dark
     // GDA-150: the pill is drawn first and each part on its own, so a problem in one can never leave the pill without its time.
     try { drawSwapPill(game, state.players, now, timeUp); } catch (error) { console.error("swap pill", error); }
@@ -1646,7 +1646,7 @@ function drawSwapPill(game, squad, now, timeUp) {
     return;
   }
   const mmss = (total) => `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
-  const message = swapMessage(game, squad, now); // GDA-150: still counts when the half is over time (the pink head bar says time is up)
+  const message = swapMessage(game, squad, now); // GDA-150: still counts when the half is over time (the clock and the solid Stop chip say time is up)
   // [text, size] pairs: sm = 12px words on top, lg = 20px time below. Always that way round, so the time is
   // always the biggest thing and never swaps places (Ben, 2026-11-14).
   let lines;

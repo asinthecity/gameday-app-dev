@@ -173,8 +173,7 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .clk .ck { flex: none; width: var(--clock-w); text-align: center; }
 .clk b, .clk .clockBtn { font-size: var(--fs-clock); font-weight: var(--bold); line-height: 1.05; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .clk .ck #clock { display: block; width: 100%; }
-/* GDA-147 (Ben, version 78): over the half length the whole head bar turns pink; nothing on it moves or changes size. The clock box has no pink of its own. */
-.clk.bar.hb.over { background: var(--tag-off); }
+/* GDA-154 (Ben, 2026-11-15): the head bar no longer turns pink over the half length; it stays white. The "over" class still marks time up (tests use it). */
 .logo { flex: none; height: var(--s26); width: auto; max-width: var(--s34); display: block; }
 .logo.disc { width: var(--s26); border-radius: 50%; background: var(--btn); display: flex; align-items: center; justify-content: center; font-size: var(--fs-small); font-weight: var(--bold); }
 .tn { flex: 1; min-width: 0; font-size: var(--fs-body); font-weight: var(--bold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

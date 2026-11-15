@@ -169,6 +169,9 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .clockBtn { border: 0; background: transparent; color: inherit; font-family: inherit; padding: 0; margin: 0; cursor: pointer; }
 .clk .ck { flex: none; width: var(--clock-w); text-align: center; }
 .clk b, .clk .clockBtn { font-size: var(--fs-clock); font-weight: var(--bold); line-height: 1.05; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* GDA-147: always a full-width box with a clear background, so going over time only changes its colour, never its size. */
+.clk .ck #clock { display: block; width: 100%; border-radius: var(--r-control); }
+.clk .ck #clock.over { background: var(--tag-off); color: var(--ink); }
 .logo { flex: none; height: var(--s26); width: auto; max-width: var(--s34); display: block; }
 .logo.disc { width: var(--s26); border-radius: 50%; background: var(--btn); display: flex; align-items: center; justify-content: center; font-size: var(--fs-small); font-weight: var(--bold); }
 .tn { flex: 1; min-width: 0; font-size: var(--fs-body); font-weight: var(--bold); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -215,10 +218,10 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 
 /* Bench timers on the game screen (GDA-23): ring fills to the rotation length, red once late.
    GDA-75: rings stay smaller than the mock-up (52px, not 66px) to protect the pitch; time under the name. */
-.row.live { padding-top: var(--s4); height: var(--s82); align-content: flex-start; } /* GDA-133: 82px whatever the number of subs, so the pitch never changes */
+.row.live { padding-top: var(--s4); height: calc(var(--s82) + var(--s18)); align-content: flex-start; } /* GDA-133: the same height whatever the number of subs, so the pitch never changes. GDA-145: +18px (9 above and 9 below each circle) for up to 3 frozen rings, always reserved so it never changes as rings appear */
 .row.live .t { display: none; }  /* no BENCH label on a live game: the row sits under the pitch (GDA-99) */
 .row.live .slot { flex: 1 1 0; max-width: 25%; }
-.row.live .ci { width: calc(var(--circle-bench) + var(--s8)); height: calc(var(--circle-bench) + var(--s8)); }
+.row.live .ci { width: calc(var(--circle-bench) + var(--s8)); height: calc(var(--circle-bench) + var(--s8)); margin: var(--s9) 0; }
 .row.live .av { position: absolute; left: var(--s4); top: var(--s4); width: var(--circle-bench); height: var(--circle-bench); }
 .row.live .nm { font-size: var(--fs-body); }
 /* How much room a live bench circle has beside it before the next one (GDA-118): its slot (the row's width shared by --subs,
@@ -341,6 +344,9 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 
 /* Home tidy (GDA-69): card menus, top menu, Archive confirm, green Sent bar */
 .card .head { display: flex; align-items: stretch; gap: var(--s8); }
+.card .nameRow { display: flex; align-items: center; gap: var(--s8); min-width: 0; }
+.card .nameRow b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.card .tag.status { background: var(--btn); }
 .card .info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--s3); }
 .menuwrap { flex: none; display: flex; align-items: flex-start; position: relative; }
 .ic { width: var(--s48); height: var(--s48); border: 0; border-radius: var(--r-control); background: var(--btn); color: var(--ink); font-size: var(--fs-big); line-height: 1; padding: 0; }

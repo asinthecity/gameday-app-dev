@@ -657,6 +657,12 @@ const actions = {
     state.viewId = gameId;
     goTo("half1");
   }),
+  // GDA-149: leave a finished game being looked at, straight to Home. goTo("home") clears viewId; nothing is saved.
+  closeGame: tap(() => {
+    if (state.viewId) {
+      goTo("home");
+    }
+  }),
   goBack: tap(() => {
     const to = state.viewId && state.screen === "half1" ? "home" : backScreen(state.screen);
     if (to) {

@@ -537,15 +537,14 @@ export function anyInProgress(games) {
 /**
  * The clock text, "12:34", worked out from the saved real start time and the real
  * time now (both in milliseconds), never from counting ticks. A phone clock set
- * back cannot make it negative. The clock keeps running past the half length and
- * then shows the time over, "+0:01" (GDA-36); at exactly 25:00 it shows "25:00".
+ * back cannot make it negative. GDA-147: it keeps counting in plain m:ss past the half
+ * length ("25:01", "31:40"), never a "+"; the screen marks "over time" with a pink background instead.
  */
 export function clockText(startedAt, now, halfMinutes = HALF_MINUTES) {
   const elapsed = Math.floor((now - startedAt) / 1000);
   const seconds = Number.isFinite(elapsed) ? Math.max(0, elapsed) : 0;
   const text = (total) => `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
-  const half = halfMinutes * 60;
-  return seconds > half ? "+" + text(seconds - half) : text(seconds);
+  return text(seconds);
 }
 
 /**
@@ -1393,7 +1392,8 @@ export function planFiguresFor(figures, playerId, onPitch) {
     const spells = [...(figures.stints[playerId] ?? []), ...(running === undefined ? [] : [running])];
     return { rings: spells.filter((seconds) => seconds >= 1), seconds: null };
   }
-  return { rings: [], seconds: running === undefined ? null : running };
+  // GDA-145: a bench circle also shows its earlier bench stints (the running one is the live ring).
+  return { rings: (figures.stints[playerId] ?? []).filter((seconds) => seconds >= 1), seconds: running === undefined ? null : running };
 }
 
 /**

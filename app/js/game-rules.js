@@ -1594,6 +1594,34 @@ export function goalRemoved(game, goalId) {
 }
 
 /**
+ * GDA-94: gives a goal for us to another player (or null = own goal). The goal keeps its id, half and minute;
+ * nothing else in the game changes. A goal against, an unknown goal, a stranger's id or the same scorer change nothing.
+ */
+export function goalScorerChanged(game, goalId, scorerId) {
+  const target = goalsOf(game).find((goal) => goal.id === goalId);
+  const next = scorerId !== null && gamePlayerIds(game).has(scorerId) ? scorerId : null;
+  if (!target || target.side === THEM || target.scorerId === next || (scorerId !== null && next === null)) {
+    return game;
+  }
+  return { ...game, goals: goalsOf(game).map((goal) => (goal.id === goalId ? { ...goal, scorerId: next } : goal)) };
+}
+
+/**
+ * GDA-94: what the correction pop-up and its confirm need for one goal: { id, side, scorerId, title, scoreAfter }.
+ * title is "Leo, 1st 17'" (or "Own goal, ..." / "Opposition, ..."); scoreAfter is the score if it were removed.
+ * null if there is no such goal or goals can no longer be corrected (after End game and save).
+ */
+export function goalFixOf(game, goalId, nameOf) {
+  const goal = goalsOf(game).find((g) => g.id === goalId);
+  if (!goal || !canEditNotes(game)) {
+    return null;
+  }
+  const row = summaryOf(game, [], nameOf).goals[goalsOf(game).indexOf(goal)];
+  const after = scoreOf(goalRemoved(game, goalId));
+  return { id: goal.id, side: row.side, scorerId: goal.scorerId ?? null, title: `${row.who}, ${row.when}`, scoreAfter: `${after.us} - ${after.them}` };
+}
+
+/**
  * The second line of "Undo last goal" (GDA-91): who scored the newest goal and the score before it,
  * e.g. "Ronan · 1 - 0", "Own goal · 1 - 0", "Opposition · 1 - 0". null if there are no goals.
  * `nameOf(id)` gives a player's name (or undefined).
@@ -1672,9 +1700,10 @@ export function withPotd(game, playerId, on) {
  * What the Summary page shows (GDA-82), from the game and the squad. Names come from the squad, which keeps
  * players who left. goals: oldest first, each { when: "1st 4'" or "1st", who, side }. notes: players with a note, A to Z.
  */
-export function summaryOf(game, players) {
-  const nameOf = (id) => players.find((p) => p.id === id)?.name ?? null;
+export function summaryOf(game, players, nameLookup) {
+  const nameOf = nameLookup ?? ((id) => players.find((p) => p.id === id)?.name ?? null);
   const goals = goalsOf(game).map((goal) => ({
+    id: goal.id,
     when: `${goal.half === "secondHalf" ? "2nd" : "1st"}${typeof goal.minute === "number" ? ` ${goal.minute}'` : ""}`,
     who: goal.side === THEM ? "Opposition" : goal.scorerId === null ? "Own goal" : nameOf(goal.scorerId) ?? "Goal for us",
     side: goal.side === THEM ? THEM : US,

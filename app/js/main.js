@@ -21,6 +21,8 @@ import {
   withNote,
   withPotd,
   lastGoal,
+  goalRemoved,
+  goalScorerChanged,
   THEM,
   US,
   clampRotation,
@@ -96,6 +98,8 @@ const state = {
   undoKickOffAsk: false, // Undo kick-off confirm showing in the Game details sheet.
   rotationOpen: false, // The rotation stepper sheet on the ready and game screens.
   goalOpen: false, // The "Who scored?" dialog (GDA-90).
+  goalFixId: null, // GDA-94: the goal whose change/remove pop-up is open (from the Summary). Never saved.
+  goalRemoveAsk: null, // GDA-94: the goal whose "Remove this goal?" confirm is showing. Never saved.
   interchange: null, // GDA-121: { events } read when Interchange history opens. Never saved.
   interchangeBack: null, // The screen Interchange history returns to. Never saved.
   tallySort: { column: "name", descending: false }, // The bench time table's sort. Not remembered.
@@ -220,6 +224,8 @@ function goTo(screen) {
   state.selectedId = null;
   state.undo = null;
   state.goalOpen = false;
+  state.goalFixId = null;
+  state.goalRemoveAsk = null;
   state.noteFor = null;
   state.noteDraft = null;
   state.potdOpen = false;
@@ -552,6 +558,13 @@ async function saveGoalRemoval(goalId) {
   draw();
 }
 
+/** GDA-94: saves a goal correction (one step, then closes the pop-up and confirm). */
+async function saveGoalFix(change) {
+  state.goalFixId = null;
+  state.goalRemoveAsk = null;
+  await saveGameChange(change);
+}
+
 /** Saves a change to the open game (notes, Player of the day), then redraws. Gives false (and a message) if it did not save. */
 async function saveGameChange(change) {
   saving = true;
@@ -831,6 +844,40 @@ const actions = {
     if (goal && canAddGoal(openGame())) {
       saveGoalRemoval(goal.id);
     }
+  }),
+  // GDA-94: tap a goal in the Summary's timeline. Only before End game and save, never on a finished game.
+  openGoalFix: tap((goalId) => {
+    if (!state.viewId && canEditNotes(openGame())) {
+      state.goalFixId = goalId;
+      draw();
+    }
+  }),
+  closeGoalFix: tap(() => {
+    state.goalFixId = null;
+    draw();
+  }),
+  changeGoalScorer: tap((scorerId) => {
+    const goalId = state.goalFixId;
+    const same = openGame().goals.find((g) => g.id === goalId)?.scorerId === scorerId;
+    if (same) {
+      state.goalFixId = null;
+      draw();
+      return;
+    }
+    saveGoalFix((game) => goalScorerChanged(game, goalId, scorerId));
+  }),
+  askRemoveGoal: tap(() => {
+    state.goalRemoveAsk = state.goalFixId;
+    state.goalFixId = null;
+    draw();
+  }),
+  cancelRemoveGoal: tap(() => {
+    state.goalRemoveAsk = null;
+    draw();
+  }),
+  confirmRemoveGoal: tap(() => {
+    const goalId = state.goalRemoveAsk;
+    saveGoalFix((game) => goalRemoved(game, goalId));
   }),
   // GDA-108: the Summary opens from "Who scored?" (which closes); Back returns to the game. Nothing is paused or saved.
   openSummary: tap(() => {

@@ -6,7 +6,7 @@
 
 import { hasRecord } from "./record-rules.js";
 import { trimmedLine } from "./drag.js";
-import { FINISHED, FIRST_HALF, SECOND_HALF, canPlan, IN_PROGRESS_PHASE, NOT_STARTED_PHASE, phaseOf, canStartHalf, canResumeHalf, halfLineUpView, nextScreen, lineupKey, canChangeWhoIsHere, startedAtOf, endedAtOf, canUndoKickOff, formationRowHalf, shownFormation, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, planFigures, planFiguresFor, firstHalfFigures, firstHalfCopyOf, frozenRingLook, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationSecondsOf, rotationText, ROTATION_EXTRA_SECONDS, snappedSeconds, clampRotation, halfOf, carriesRotationOrder, carriesBenchTime, canChangeCarryOver, MIN_ROTATION, MAX_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, canEditNotes, noteOf, potdOf, summaryOf } from "./game-rules.js";
+import { FINISHED, FIRST_HALF, SECOND_HALF, canPlan, IN_PROGRESS_PHASE, NOT_STARTED_PHASE, phaseOf, canStartHalf, canResumeHalf, halfLineUpView, nextScreen, lineupKey, canChangeWhoIsHere, startedAtOf, endedAtOf, canUndoKickOff, formationRowHalf, shownFormation, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, planFigures, planFiguresFor, firstHalfFigures, firstHalfCopyOf, frozenRingLook, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationSecondsOf, rotationText, ROTATION_EXTRA_SECONDS, snappedSeconds, clampRotation, halfOf, carriesRotationOrder, carriesBenchTime, canChangeCarryOver, MIN_ROTATION, MAX_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, canEditNotes, noteOf, potdOf, summaryOf, goalFixOf } from "./game-rules.js";
 import { TALLY_COLUMNS, interchangeRows, sortTally, tallyRows } from "./interchange-rules.js";
 import { checkFormation, formatFormationDigits, formationOf, pitchRows } from "./formation-rules.js";
 import { archiveWarning, canDeleteGame, setupCodeOf, sheetStatus } from "./sheet-rules.js";
@@ -1733,12 +1733,69 @@ function summaryBody(state, game, actions, { canChoose, soFar }) {
     h("div", { class: "lbl", id: "fullTimeTitle" }, `${ourName} v ${game.opposition}${soFar ? " \u00b7 so far" : ""}`),
     h("div", { class: "bigscore", id: "finalScore" }, `${summary.score.us} - ${summary.score.them}`),
     summary.goals.length > 0
-      ? h("div", { class: "card", id: "timeline" }, ...summary.goals.map((g) => h("div", { class: g.side === US ? "tl" : "tl them" }, h("span", { class: "t" }, g.when), h("span", { class: "ball" }, icon("ball")), h("span", { class: g.side === US ? "" : "ro" }, g.who))))
+      ? h("div", { class: "card", id: "timeline" }, ...summary.goals.map((g) => h(canChoose ? "button" : "div", { class: g.side === US ? "tl" : "tl them", ...(canChoose ? { type: "button", "data-goal": g.id, onclick: () => actions.openGoalFix(g.id) } : {}) }, h("span", { class: "t" }, g.when), h("span", { class: "ball" }, icon("ball")), h("span", { class: g.side === US ? "" : "ro" }, g.who))))
       : null,
     summary.notes.length > 0 ? h("div", { class: "card nt", id: "notesCard" }, ...summary.notes.map((n) => h("div", {}, h("b", {}, n.name), " ", n.text))) : null,
     potdRow,
     setCard(interchangeRow(actions)),
+    goalFixSheet(state, game, actions, canChoose),
   ];
+}
+
+/**
+ * GDA-94: the change/remove pop-up for one goal tapped in the Summary's timeline, and its "Remove this goal?" confirm.
+ * Our goal: the "Who scored?" tiles (current scorer ticked), Own goal, and Remove this goal. Opposition goal: Remove only.
+ * Shown only while the game can still be corrected (before End game and save).
+ */
+function goalFixSheet(state, game, actions, canChoose) {
+  const nameOf = (id) => state.players.find((p) => p.id === id)?.name ?? null;
+  const fix = canChoose ? goalFixOf(game, state.goalFixId ?? state.goalRemoveAsk, nameOf) : null;
+  if (!fix) {
+    return null;
+  }
+  const remove = h("button", { class: "btn redtext", id: "removeGoal", onclick: actions.askRemoveGoal }, "Remove this goal");
+  if (state.goalRemoveAsk !== null) {
+    return h(
+      "div",
+      { class: "scrim", id: "removeGoalConfirm" },
+      h(
+        "div",
+        { class: "sheet" },
+        h("h2", {}, "Remove this goal?"),
+        h("p", {}, `${fix.title}. The score goes to ${fix.scoreAfter}.`),
+        h("button", { class: "btn del", id: "confirmRemoveGoal", onclick: actions.confirmRemoveGoal }, "Remove goal"),
+        h("button", { class: "btn", id: "cancelRemoveGoal", onclick: actions.cancelRemoveGoal }, "Cancel")
+      )
+    );
+  }
+  if (fix.side !== US) {
+    return h(
+      "div",
+      { class: "scrim", id: "goalFix" },
+      h("div", { class: "sheet" }, h("div", { class: "phead" }, h("h2", {}, fix.title), h("button", { class: "pkx", id: "pickerX", "aria-label": "Close", onclick: actions.closeGoalFix }, "\u00d7")), remove)
+    );
+  }
+  const players = scorerChoices(game, state.players, game.played);
+  const ownGoal = h(
+    "button",
+    { class: "ptile og" + (fix.scorerId === null ? " here" : ""), id: "ownGoal", onclick: () => actions.changeGoalScorer(null) },
+    h("span", { class: "pav" }, h("span", { class: "av c3" }, "OG")),
+    h("span", { class: "pnm" }, "Own goal"),
+    fix.scorerId === null ? h("span", { class: "pchk" }, "\u2713") : null
+  );
+  return playerPicker({
+    id: "goalFix",
+    columns: players.length >= 13 ? 4 : 3,
+    title: fix.title,
+    players,
+    selected: new Set(),
+    multi: false,
+    chosen: fix.scorerId,
+    onToggle: actions.changeGoalScorer,
+    onCancel: actions.closeGoalFix,
+    gridTail: ownGoal,
+    footer: h("div", { class: "pfoot" }, remove),
+  });
 }
 
 /** The mid-game Summary (GDA-108): opened from "Who scored?". Back returns to the game; nothing here changes the game except Player of the day. */

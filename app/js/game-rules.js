@@ -707,6 +707,17 @@ export function frozenRingLook(seconds, rotationSeconds = ROTATION_MINUTES * 60)
 export const WARN_SECONDS = 30;
 
 /**
+ * GDA-152: the wait the swap pill counts from. The rule: from the LATER of the half's start and the player's own bench start.
+ * So the pill restarts a full rotation at the 2nd half kick-off even when Carry over bench time is ON (the bench timers and rings
+ * still use benchSeconds and keep the carried wait); a player who went to the bench later counts from then.
+ */
+function pillWaitSeconds(game, playerId, now) {
+  const since = Math.max(game.benchSince?.[playerId] ?? -Infinity, startedAtOf(game));
+  const seconds = Math.floor((now - since) / 1000);
+  return Number.isFinite(seconds) ? Math.max(0, seconds) : 0;
+}
+
+/**
  * The swap bar's time (GDA-35, GDA-104), worked out from the saved bench times and the rotation
  * length every time, with nothing stored, so it is right after a lock, a reload, an Undo or a changed
  * length. Time only, never names. The bench player who has waited longest sets it. Gives
@@ -720,7 +731,7 @@ export function swapMessage(game, squad, now) {
   }
   const limit = rotationSecondsOf(game);
   // The bench player who has waited longest sets the time of the next swap.
-  const longest = Math.max(0, ...benchIds(game, squad).map((id) => benchSeconds(game, id, now)));
+  const longest = Math.max(0, ...benchIds(game, squad).map((id) => pillWaitSeconds(game, id, now)));
   if (longest >= limit) {
     return { phase: "due", late: longest - limit };
   }

@@ -1324,8 +1324,8 @@ function headChip(id, label, iconName, go, onClick) {
 function clockNode(clock, chip, over = false) {
   const action = chip && !chip.disabled ? chip.tapAction : null;
   return action
-    ? h("button", { class: over ? "clockBtn over" : "clockBtn", id: "clock", "aria-label": chip.getAttribute("aria-label"), onclick: action }, clock)
-    : h("b", { id: "clock", class: over ? "over" : "" }, clock);
+    ? h("button", { class: "clockBtn", id: "clock", "aria-label": chip.getAttribute("aria-label"), onclick: action }, clock)
+    : h("b", { id: "clock" }, clock);
 }
 
 /**
@@ -1343,7 +1343,7 @@ function gameHead(state, actions, { label, clock, over = false, chip = null, nex
   const [back, next] = navArrows(state, actions, nextGo);
   const words = label.split(" ");
   const labelNode = h("h1", { class: "hl" }, words[0], " ", h("br"), words.slice(1).join(" ")); // the screen's heading, in two lines
-  const band = h("div", { class: "clk bar hb" }, back, labelNode, h("div", { class: "ck" }, clockNode(clock, chip, over)), h("div", { class: "cs" }, chip), next);
+  const band = h("div", { class: over ? "clk bar hb over" : "clk bar hb" }, back, labelNode, h("div", { class: "ck" }, clockNode(clock, chip, over)), h("div", { class: "cs" }, chip), next);
   const parts = [
     h("span", { class: "side l" }, teamLogo(usName, currentLogos[team?.id]), h("span", { class: "tn" }, usName)),
     h("span", { class: "mid" }, h("span", { class: "tg", id: "scoreUs" }, String(score.us)), h("span", { class: "dash", "aria-hidden": "true" }, "\u2013"), h("span", { class: "tg", id: "scoreThem" }, String(score.them))),
@@ -1597,10 +1597,11 @@ export function drawClock(state) {
     const now = Date.now();
     clock.textContent = clockText(startedAtOf(game), now, halfOf(game));
     const timeUp = isTimeUp(startedAtOf(game), now, halfOf(game));
-    clock.classList.toggle("over", timeUp); // GDA-147: over the half length, the clock's background turns pink (digits stay dark)
+    clock.closest(".clk")?.classList.toggle("over", timeUp); // GDA-147: over the half length, the whole head bar turns pink (the clock box has no pink of its own)
     document.getElementById("endHalf")?.classList.toggle("go", timeUp); // time up: the Stop chip goes solid dark
-    drawBenchTimers(game, now);
-    drawSwapPill(game, state.players, now, timeUp);
+    // GDA-150: the pill is drawn first and each part on its own, so a problem in one can never leave the pill without its time.
+    try { drawSwapPill(game, state.players, now, timeUp); } catch (error) { console.error("swap pill", error); }
+    try { drawBenchTimers(game, now); } catch (error) { console.error("bench timers", error); }
     // The pill never changes size, so the pair lines never need redrawing here.
   } else if (screenHalf(state.screen) === 2 && game && game.state === FIRST_HALF && typeof game.firstHalfStartedAt === "number" && typeof game.firstHalfEndedAt !== "number") {
     // GDA-107: the 2nd Half plan while the 1st half runs: only the bench rings and tags move (text and ring length, no redraw). (GDA-120: this screen now shows a 0:00 clock on the band, so this no longer depends on there being no clock.)
@@ -1614,13 +1615,14 @@ export function drawClock(state) {
  * and "TIME" when the half length is reached. While "Undo" is showing the pill is left alone. Time only, no
  * names. The words carry the message, not colour alone. The pill never changes size, so the pitch never moves.
  */
+const PILL_WHITE_FROM = 0.85; // how far the white-to-pink fade must have gone (0 to 1) before the pill text turns white
 function drawSwapPill(game, squad, now, timeUp) {
   const pill = document.getElementById("swapPill");
   if (!pill || pill.classList.contains("undo")) {
     return;
   }
   const mmss = (total) => `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
-  const message = timeUp ? null : swapMessage(game, squad, now);
+  const message = swapMessage(game, squad, now); // GDA-150: still counts when the half is over time (the pink head bar says time is up)
   // [text, size] pairs: sm = 12px words on top, lg = 20px time below. Always that way round, so the time is
   // always the biggest thing and never swaps places (Ben, 2026-11-14).
   let lines;
@@ -1628,7 +1630,7 @@ function drawSwapPill(game, squad, now, timeUp) {
   let fade = 1; // GDA-140: 0 = white (rotation just started) to 1 = pink (Swap Time and later)
   let ring = 0; // how full the ring is, 0 to 1
   let over = false; // red ring: the swap is late
-  if (timeUp || !message) {
+  if (!message) {
     lines = [["TIME", "lg"]];
     look = "timeup";
   } else if (message.phase === "next" || message.phase === "warn") {
@@ -1652,7 +1654,8 @@ function drawSwapPill(game, squad, now, timeUp) {
       tap.setAttribute("aria-label", "Swap, " + lines.map((line) => line[0]).join(" "));
     }
   }
-  pill.className = "pill " + look + (over ? " over" : "");
+  // GDA-140: the words and time go white from the point where the pink is dark enough for white to read (3:1 or better); dark before, so never white on white.
+  pill.className = "pill " + look + (over ? " over" : "") + (look !== "timeup" && fade >= PILL_WHITE_FROM ? " white" : "");
   pill.querySelector(".pr .r1")?.setAttribute("stroke-dasharray", `${(Math.max(0, Math.min(1, ring)) * 100).toFixed(1)} 100`);
   pill.style.setProperty("--pill-fade", Math.max(0, Math.min(1, fade)).toFixed(3)); // the CSS mixes white to pink by this much
 }

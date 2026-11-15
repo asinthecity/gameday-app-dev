@@ -218,7 +218,7 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 
 /* Bench timers on the game screen (GDA-23): ring fills to the rotation length, red once late.
    GDA-75: rings stay smaller than the mock-up (52px, not 66px) to protect the pitch; time under the name. */
-.row.live { padding-top: var(--s4); height: calc(var(--s82) + var(--s18)); align-content: flex-start; } /* GDA-133: the same height whatever the number of subs, so the pitch never changes. GDA-145: +18px (9 above and 9 below each circle) for up to 3 frozen rings, always reserved so it never changes as rings appear */
+.row.live { padding-top: var(--s4); height: calc(var(--s82) + var(--s18)); align-content: flex-start; isolation: isolate; } /* GDA-145 fix: frozen rings sit at z-index -1; without its own layer they were drawn behind the row's white background */ /* GDA-133: the same height whatever the number of subs, so the pitch never changes. GDA-145: +18px (9 above and 9 below each circle) for up to 3 frozen rings, always reserved so it never changes as rings appear */
 .row.live .t { display: none; }  /* no BENCH label on a live game: the row sits under the pitch (GDA-99) */
 .row.live .slot { flex: 1 1 0; max-width: 25%; }
 .row.live .ci { width: calc(var(--circle-bench) + var(--s8)); height: calc(var(--circle-bench) + var(--s8)); margin: var(--s9) 0; }

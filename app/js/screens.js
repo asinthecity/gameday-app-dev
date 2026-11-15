@@ -11,6 +11,7 @@ import { TALLY_COLUMNS, interchangeRows, sortTally, tallyRows } from "./intercha
 import { checkFormation, formatFormationDigits, formationOf, pitchRows } from "./formation-rules.js";
 import { archiveWarning, canDeleteGame, setupCodeOf, sheetStatus } from "./sheet-rules.js";
 import { canSaveName, initialsFor } from "./squad-rules.js";
+import { RESTORE_ASK } from "./backup-rules.js";
 import { MIN_SIDE, MAX_SIDE, canSwitchTeams, deleteRefusal, deleteSummary, IN_PROGRESS_REFUSAL, LAST_TEAM_MESSAGE, LOCKED_MESSAGE, plural, UPGRADE_FAILED_MESSAGE } from "./team-rules.js";
 
 /** One small inline SVG icon (24px, 2.2 stroke, round ends, takes the text colour). GDA-74. */
@@ -308,6 +309,24 @@ function deleteSheet(state, actions) {
   );
 }
 
+/** "Restore will replace all data..." (GDA-153): one confirm, shown before the file picker opens. */
+function restoreSheet(state, actions) {
+  if (!state.restoreAsk) {
+    return null;
+  }
+  return h(
+    "div",
+    { class: "scrim", id: "restoreConfirm" },
+    h(
+      "div",
+      { class: "sheet" },
+      h("h2", {}, RESTORE_ASK),
+      h("button", { class: "btn del", id: "confirmRestore", onclick: actions.confirmRestore }, "Continue"),
+      h("button", { class: "btn", id: "cancelRestore", onclick: actions.cancelRestore }, "Cancel")
+    )
+  );
+}
+
 /** The logo row of the team form (GDA-126): the picture or initials disc, Add / Replace / Remove logo. Like photoBlock. */
 function logoBlock(state, actions) {
   const form = state.teamForm;
@@ -488,7 +507,11 @@ function homeScreen(state, actions) {
         h("button", { class: "mi teamSettings", onclick: actions.openTeamSettings }, "Team settings"),
         // With no players, "+ Add players" on Home does the job, so the Squad item waits until there is a squad.
         hasPlayers ? h("button", { class: "mi squadItem", onclick: actions.openSquad }, `Squad (${state.players.length})`) : null,
-        h("button", { class: "mi sheetSettings", onclick: actions.openSheetSettings }, "Sheet settings")
+        h("button", { class: "mi sheetSettings", onclick: actions.openSheetSettings }, "Sheet settings"),
+        // GDA-153: one file with everything on the phone.
+        h("div", { class: "mhd" }, "All app data"),
+        h("button", { class: "mi backUpData", onclick: actions.backUpData }, "Back up data"),
+        h("button", { class: "mi restoreData", onclick: actions.askRestore }, "Restore data")
       )
     )
   );
@@ -513,6 +536,7 @@ function homeScreen(state, actions) {
       ),
       deleteSheet(state, actions),
       archiveSheet(state, actions),
+      restoreSheet(state, actions),
     ].filter(Boolean),
   };
 }

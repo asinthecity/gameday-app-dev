@@ -35,6 +35,7 @@ const APP_FILES = [
   "./js/main.js",
   "./js/persistence.js",
   "./js/photo-image.js",
+  "./js/backup-rules.js",
   "./js/photo-rules.js",
   "./js/photo-store.js",
   "./js/formation-rules.js",

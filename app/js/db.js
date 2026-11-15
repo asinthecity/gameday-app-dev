@@ -6,7 +6,7 @@
 
 import { firstTeam, withTeamId } from "./team-rules.js";
 
-const DB_VERSION = 6;
+export const DB_VERSION = 6;
 
 /** Opens the database, creating it on first use. */
 export function openDatabase(name) {
@@ -226,5 +226,42 @@ export function getMeta(db, key) {
 export function setMeta(db, key, value) {
   return change(db, ["meta"], (tx) => {
     tx.objectStore("meta").put({ key, value });
+  });
+}
+
+// ---- Backup and restore (GDA-153) ----
+/** Every store, in the order they are written back. */
+export const ALL_STORES = ["players", "meta", "games", "events", "teams", "photos", "logos"];
+
+/** Every record of every store, as { players: [...], meta: [...], ... }. One read transaction. */
+export function readAllStores(db) {
+  return read(db, ALL_STORES, (tx, answer) => {
+    const result = {};
+    let waiting = ALL_STORES.length;
+    for (const name of ALL_STORES) {
+      tx.objectStore(name).getAll().onsuccess = (event) => {
+        result[name] = event.target.result;
+        if (--waiting === 0) {
+          answer(result);
+        }
+      };
+    }
+  });
+}
+
+/**
+ * Replaces everything with the given records in ONE transaction: all of it is written or,
+ * if any record is refused, none of it (the browser puts the old data back). Keeping the
+ * records' own ids also moves each id counter past the highest restored id.
+ */
+export function replaceAllStores(db, data) {
+  return change(db, ALL_STORES, (tx) => {
+    for (const name of ALL_STORES) {
+      const store = tx.objectStore(name);
+      store.clear();
+      for (const record of data[name]) {
+        store.put(record);
+      }
+    }
   });
 }

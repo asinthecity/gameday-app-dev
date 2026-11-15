@@ -1,10 +1,10 @@
-// Hands a CSV file to the phone (GDA-50). On an iPhone this opens the normal Share /
+// Hands a file (the game CSV, GDA-50; the backup, GDA-153) to the phone. On an iPhone this opens the normal Share /
 // Save to Files panel. Where sharing files is not available (a computer), the file is
 // downloaded instead. Throws if the file cannot be made or handed over, so the caller
 // can say so; closing the share panel without choosing anything is not an error.
 
-export async function shareCsv(text, fileName) {
-  const type = "text/csv";
+/** Shares or downloads a text file of the given type. */
+export async function shareFile(text, fileName, type) {
   const file = new File([text], fileName, { type });
   if (navigator.canShare?.({ files: [file] })) {
     try {
@@ -26,3 +26,6 @@ export async function shareCsv(text, fileName) {
   link.remove();
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
+
+/** The game record CSV. */
+export const shareCsv = (text, fileName) => shareFile(text, fileName, "text/csv");

@@ -2,7 +2,7 @@
 // save it, read the saved data back, then draw. So the screen only ever shows
 // what is really stored.
 
-import { getMeta, openDatabase } from "./db.js";
+import { DB_VERSION, getMeta, openDatabase, readAllStores, replaceAllStores } from "./db.js";
 import { watchLineUpPresses } from "./drag.js";
 import { sortAfterTap } from "./interchange-rules.js";
 import { NO_SWIPE_START, POPUP_OPEN, swipeOf } from "./swipe-rules.js";
@@ -52,7 +52,8 @@ import {
 import { loadGameEvents, archiveGame, deleteGame, markSentToSheet, addGame, addGoal, removeGoal, changeGame, endHalf, fullTime, loadGames, moveFieldPlayer, movePlan, movePlayer, planPair, prePlaceGame, reopenHalf, reorderBench, reorderPlanBench, startFirstHalf, startSecondHalf, undoKickOff, swapPlayers, toggleHere, undoSwap, unplanPair } from "./game-store.js";
 import { canSend, checkMessage, parseSetupCode, SETTINGS_KEY, sheetTabOf } from "./sheet-rules.js";
 import { checkSheetConnection, sendGameToSheet } from "./sheet-send.js";
-import { shareCsv } from "./share-file.js";
+import { shareCsv, shareFile } from "./share-file.js";
+import { backupFileName, BACKUP_FAILED, makeBackup, parseBackup, RESTORE_BUSY, RESTORE_FAILED } from "./backup-rules.js";
 import { askToKeepDataOnce } from "./persistence.js";
 import { drawClock, drawLineUpActions, drawPairLines, drawScreen, screenHalf, setLogos, setPhotos, startScoreFlash } from "./screens.js";
 import { shrinkPhoto } from "./photo-image.js";
@@ -120,6 +121,7 @@ const state = {
   topMenuOpen: false, // The ☰ menu on Home. Never saved.
   fullTimeAsk: false, // "End the game?" is showing on Full Time. Never saved.
   archiveId: null, // The finished game being asked about ("Archive?"). Never saved.
+  restoreAsk: false, // "Restore will replace all data?" is showing. Never saved.
   deleteId: null, // The not-started game being asked about ("Delete?"). Never saved.
   updateNotice: currentUpdateNotice(),
 };
@@ -925,6 +927,47 @@ const actions = {
   }),
   sendNow: tap((gameId) => sendToSheet(gameId)),
   openSheetSettings: tap(() => goTo("sheetSettings")),
+  // ---- Back up and restore (GDA-153) ----
+  backUpData: tap(async () => {
+    state.topMenuOpen = false;
+    state.problem = "";
+    try {
+      const text = makeBackup(DB_VERSION, await readAllStores(db));
+      await shareFile(text, backupFileName(), "application/json");
+    } catch (error) {
+      console.warn("Could not back up", error);
+      state.problem = BACKUP_FAILED;
+    }
+    draw();
+  }),
+  askRestore: tap(() => {
+    state.topMenuOpen = false;
+    if (!canSwitchTeams(state.games)) {
+      state.problem = RESTORE_BUSY; // Nothing else opens.
+    } else {
+      state.problem = "";
+      state.restoreAsk = true;
+    }
+    draw();
+  }),
+  cancelRestore: tap(() => {
+    state.restoreAsk = false;
+    draw();
+  }),
+  // The picker must open straight from this tap, so it is made and clicked right here.
+  confirmRestore: tap(() => {
+    state.restoreAsk = false;
+    draw();
+    document.getElementById("restoreFile")?.remove();
+    const picker = document.createElement("input");
+    picker.type = "file";
+    picker.accept = ".json,application/json";
+    picker.id = "restoreFile";
+    picker.hidden = true;
+    picker.onchange = () => restoreFrom(picker.files[0]);
+    document.body.append(picker);
+    picker.click();
+  }),
   // ---- Teams (GDA-68) ----
   switchTeam: tap(async (id) => {
     if (!canSwitchTeams(state.games)) {
@@ -1270,6 +1313,29 @@ async function saveFile(gameId) {
     state.fileProblemFor = gameId;
   }
   draw();
+}
+
+/** Reads the chosen file, checks all of it, then replaces everything in one transaction. */
+async function restoreFrom(file) {
+  document.getElementById("restoreFile")?.remove();
+  if (!file) {
+    return; // The picker was cancelled: nothing changes.
+  }
+  try {
+    const parsed = parseBackup(await file.text(), DB_VERSION);
+    if (!parsed.ok) {
+      state.problem = parsed.message;
+      draw();
+      return;
+    }
+    await replaceAllStores(db, parsed.stores);
+    await loadEverything();
+    goTo("home");
+  } catch (error) {
+    console.warn("Could not restore", error);
+    state.problem = RESTORE_FAILED;
+    draw();
+  }
 }
 
 /** A new version may be noticed at any moment. Only Home shows it, so only Home redraws. */

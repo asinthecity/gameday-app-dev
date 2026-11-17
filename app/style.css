@@ -133,11 +133,12 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .ci { position: relative; flex: none; width: var(--circle-pitch); height: var(--circle-pitch); }
 .nm { width: 100%; margin-top: var(--s2); padding: 0 var(--s2); text-align: center; font-size: var(--fs-body); font-weight: var(--bold); line-height: var(--s16); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* Keeper (GDA-85, GDA-114): a small white disc with a green glove at the circle's bottom-left (also kept by a player who has had a full turn in goal) (no "GK" text, GDA-99). */
-.gkb { position: absolute; left: calc(-1 * var(--s6)); bottom: 0; z-index: 3; width: var(--s21); height: var(--s21); border-radius: 50%; background: var(--card); color: var(--brand-bright); box-shadow: 0 var(--bw) var(--s3) var(--shadow); display: flex; align-items: center; justify-content: center; }
-.gkb svg { width: var(--s15); height: var(--s15); }
-.tight .gkb { width: var(--s18); height: var(--s18); left: calc(-1 * var(--s5)); bottom: 0; }
-.tight .gkb svg { width: var(--s13); height: var(--s13); }
 .em { background: transparent; border: var(--bw-signal) dashed var(--muted); }
+/* The glove badge on the keeper before kick-off (the line-up screens). During a half the glove is a dot instead (GDA-156). */
+.gkb:not(.dot) { position: absolute; left: calc(-1 * var(--s6)); bottom: 0; z-index: 3; width: var(--s21); height: var(--s21); border-radius: 50%; background: var(--card); color: var(--brand-bright); box-shadow: 0 var(--bw) var(--s3) var(--shadow); display: flex; align-items: center; justify-content: center; }
+.gkb:not(.dot) svg { width: var(--s15); height: var(--s15); }
+.tight .gkb:not(.dot) { width: var(--s18); height: var(--s18); left: calc(-1 * var(--s5)); bottom: 0; }
+.tight .gkb:not(.dot) svg { width: var(--s13); height: var(--s13); }
 .tight .ci { width: var(--circle-pitch-tight); height: var(--circle-pitch-tight); }
 .tight .av { font-size: var(--fs-body); }
 .tight .nm { font-size: var(--fs-small); line-height: var(--s15); }
@@ -231,29 +232,38 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
    at least 4, set in screens.js) less its ring box. The time tag and bench number hang out by up to that much, never into the neighbour. */
 .row.live { --spare: calc((100vw - var(--s32)) / var(--subs, 4) - var(--circle-bench) - var(--s8)); }
 .row.live.many { --spare: calc((100vw - var(--s32)) / var(--subs, 4) - var(--circle-bench-many) - var(--s8)); }
-.row.live .turn { right: calc(-1 * clamp(0px, var(--spare), var(--s7))); }
 .slot.ghost { visibility: hidden; pointer-events: none; }
 .row.live.many .slot { max-width: 16.6%; }
 .row.live.many .ci { width: calc(var(--circle-bench-many) + var(--s8)); height: calc(var(--circle-bench-many) + var(--s8)); }
 .row.live.many .nm { font-size: var(--fs-small); }
 .row.live.many .av { left: var(--s4); top: var(--s4); width: var(--circle-bench-many); height: var(--circle-bench-many); font-size: var(--fs-small); }
 /* Status rings (GDA-85): a 140px box centred on the circle; the rings sit flush against its white edge. */
-.rg, .fz { position: absolute; left: 50%; top: 50%; width: var(--s140); height: var(--s140); margin: calc(-1 * var(--s70)) 0 0 calc(-1 * var(--s70)); overflow: visible; pointer-events: none; }
-.rg circle, .fz circle { fill: none; }
+.rg { position: absolute; left: 50%; top: 50%; width: var(--s140); height: var(--s140); margin: calc(-1 * var(--s70)) 0 0 calc(-1 * var(--s70)); overflow: visible; pointer-events: none; }
+.rg circle { fill: none; }
 .r0 { stroke: var(--line); }
 .r1 { stroke: var(--brand-bright); stroke-linecap: round; }
 .lt .r0, .lt .r1 { stroke: var(--danger); }
 /* GDA-115: top-right of the circle, a touch lower than its top edge so it stays inside the bench row (4px padding above) */
 .tm { position: absolute; right: calc(-1 * clamp(var(--bw), var(--spare, var(--s17)), var(--s17))); top: var(--s2); z-index: 3; padding: 0 var(--s5); border: var(--bw) solid var(--edge); border-radius: var(--r-tag); background: var(--card); color: var(--ink); font-size: var(--fs-small); font-weight: var(--bold); line-height: var(--s16); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .lt .tm { color: var(--danger); border-color: var(--danger); }
-/* Frozen bench rings on a pitch circle (GDA-80/85), during play and at Half Time: a pale track and a softened violet arc
-   so they read as stopped; late stints stay red. Pink (the OFF tag colour): white vanished on the white circle and violet was hard to see on the green (Ben, 2026-11-14). */
-.fz { z-index: -1; }
-.fz .r0 { stroke: var(--track); }
-.fz .r1 { stroke: var(--tag-off); stroke-linecap: butt; }
-.fz .r1.late { stroke: var(--danger); stroke-opacity: .55; }
-.turn { right: calc(-1 * clamp(0px, var(--spare), var(--s7))); }
-.turn { position: absolute; right: calc(-1 * var(--s7)); bottom: 0; z-index: 2; width: var(--s22); height: var(--s22); border-radius: 50%; background: var(--ink); color: var(--card); border: var(--s2) solid var(--card); font-size: var(--fs-small); font-weight: var(--bold); line-height: var(--s18); text-align: center; }
+/* GDA-156: turn dots under a circle, replacing the frozen rings, the number badge and the glove badge. Every dot is 20px.
+   Dark = a bench turn had, glove = a keeper turn (dark, white glove), light with a dark edge = a turn due. Each has the thin
+   white outline and soft shadow of the old number badge and overlaps its neighbour by 2px so the row reads as one group.
+   The row is centred under the circle and hangs a few px below it; the initial is raised to stay clear of it. */
+.dots { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(-1 * var(--s6)); z-index: 2; height: var(--s20); display: flex; align-items: center; white-space: nowrap; pointer-events: none; }
+.dot { flex: none; width: var(--s20); height: var(--s20); box-sizing: border-box; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: var(--fs-small); line-height: 1; box-shadow: var(--ring-dot); }
+.dot + .dot { margin-left: calc(-1 * var(--s2)); }
+.dot.dk, .dot.gl { background: var(--ink); color: var(--card); }
+.dot.lt { background: var(--due-fill); border: var(--s2) solid var(--muted); color: var(--ink); }
+.dot.turn { font-weight: var(--bold); }
+.dot.gl svg { width: var(--s14); height: var(--s14); display: block; }
+.ci.dotted .av { padding-bottom: var(--s16); }
+.lu .pitch .ci.dotted + .nm { margin-top: var(--s8); } /* the pitch name plate starts below the dots that hang under the circle (the bench has room already) */
+.row.live .ci.dotted .av { padding: 0 var(--s12) var(--s12) 0; } /* up, and left, so the initial stays clear of the time tag at the top right */
+.row.live.snug .ci.dotted .av { font-size: var(--fs-small); padding: var(--s6) var(--s12) 0 0; } /* 5 or more subs: the slot is narrow, so smaller letters, set lower, fit between the time tag and the dots */
+/* 7 or more subs: the time tag sits centred under the circle, so the dots go over the circle's top edge instead. */
+.row.live.many .ci.dotted .dots { bottom: auto; top: calc(-1 * var(--s10)); }
+.row.live.many .ci.dotted .av { padding: var(--s12) 0 0 0; }
 
 /* Rotation chip, stepper and sheet (GDA-32) */
 .cog { flex: none; width: var(--s48); height: var(--s48); margin-left: var(--s8); padding: 0; border: 0; border-radius: var(--r-control); background: var(--btn); color: var(--ink); line-height: 1; display: flex; align-items: center; justify-content: center; }
@@ -556,7 +566,6 @@ button.tl.them { text-align: right; }
 /* Bench ON tag: centred above its own ring (it no longer hangs out to the right). */
 .row.live .pt { right: auto; left: 50%; top: calc(-1 * var(--s8)); transform: translateX(-50%); }
 /* 7 or more subs: compact one row. Ring box 44px, initials inside, order number top-left, time pill centred on the ring's bottom edge, name 12px below it. */
-.row.live.many .turn { left: 0; right: auto; top: 0; bottom: auto; width: var(--s16); height: var(--s16); line-height: var(--s12); }
 .row.live.many .tm { left: 50%; right: auto; top: auto; bottom: calc(-1 * var(--s9)); transform: translateX(-50%); }
 .row.live.many .nm { margin-top: var(--s10); }
 /* End Half / Resume half and Settings on the live game: the same 56px pill and round button as the line-up (GDA-133). */

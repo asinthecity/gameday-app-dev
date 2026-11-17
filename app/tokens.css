@@ -22,7 +22,7 @@
   --tag-on: #04F5FF;           /* ON tag, --ink text 12.6:1 */
   --late: #FFC2DA;             /* late swap pill, light pink (Ben chose A, GDA-137): --ink text on it 11.4:1 */
   --here-bg: #D4F7FA;          /* pale cyan behind a player who is here (Ben chose option A, GDA-137): ink on it 15.1:1 */
-  --track: rgba(55, 0, 60, .12); /* frozen bench ring track */
+  --due-fill: #E4DCFF;         /* inside a light "turn due" dot (GDA-156); its --muted edge is 6.2:1 on a card */
   --focus: #7C5CFF;            /* focus ring on text boxes */
   --brand: #37003C;            /* solid primary button ("Send now", "Opposition goal"), white text 17.1:1 */
   --brand-bright: #7C5CFF;     /* progress bar, bench rings, selection halo: graphics only, never text */
@@ -37,6 +37,7 @@
   --shadow: rgba(17, 20, 24, .32);
   --shadow-menu: 0 12px 32px rgba(55, 0, 60, .25); /* top menu and card menu pop-overs */
   --ring: 0 0 0 2px #fff, 0 1px 6px rgba(0, 0, 0, .32);
+  --ring-dot: 0 0 0 2px #fff, 0 1px 4px rgba(0, 0, 0, .3); /* the thin white outline and soft shadow of a turn dot (GDA-156) */
   --ring-drop: 0 1px 6px rgba(0, 0, 0, .32); /* the soft shadow part of --ring (the swap pill adds its own coloured outline, GDA-140) */
   /* Tinted discs for players without a photo (six tints, repeated) */
   --av0: #D4F7FA; --av1: #E4DCFF; --av2: #FFD6E7; --av3: #DCE6FF;

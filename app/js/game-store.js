@@ -2,7 +2,7 @@
 // fully saved or not changed at all. See game-rules.js for what a game holds.
 
 import { change, read } from "./db.js";
-import { isInProgress, hereToggled, benchStints, firstHalfStintsOf, keeperTurns, lineUpMoved, SECOND_HALF, goalAdded, goalRemoved, playedToday, lineupKey, startedSecondHalf, undoneKickOff, isRemovedByUndo, endedHalf, reopenedHalf, benchReordered, planMoved, planBenchReordered, fieldMoved, pairPlanned, pairRemoved, swapEvent, swapUndone, swapped, gamesInOrder, halfEndCancelledEvent, halfEndEvent, halfStartEvent, movedOnto, newGame, nextCreatedOrder, positionChangeEvent, prePlaced, startedFirstHalf, withBenchOrder } from "./game-rules.js";
+import { isInProgress, hereToggled, dotTurns, firstHalfCopyOf, lineUpMoved, SECOND_HALF, goalAdded, goalRemoved, playedToday, lineupKey, startedSecondHalf, undoneKickOff, isRemovedByUndo, endedHalf, reopenedHalf, benchReordered, planMoved, planBenchReordered, fieldMoved, pairPlanned, pairRemoved, swapEvent, swapUndone, swapped, gamesInOrder, halfEndCancelledEvent, halfEndEvent, halfStartEvent, movedOnto, newGame, nextCreatedOrder, positionChangeEvent, prePlaced, startedFirstHalf, withBenchOrder } from "./game-rules.js";
 import { buildRecord, gameAtFullTime } from "./record-rules.js";
 import { canDeleteGame, gameArchived } from "./sheet-rules.js";
 import { squadInOrder } from "./squad-rules.js";
@@ -18,8 +18,8 @@ export function loadGames(db, teamId, firstTeamId) {
   return read(db, ["games", "events"], (tx, answer) => {
     tx.objectStore("games").getAll().onsuccess = (event) => {
       const games = gamesInOrder(ofTeam(event.target.result, teamId, firstTeamId));
-      // GDA-80: a game under way also carries `benchStints`, worked out from its saved events
-      // for the frozen bench rings. It is only added to the copy in memory; nothing new is saved.
+      // GDA-156: a game under way also carries its bench-turn dots, worked out from its saved events.
+      // They are only added to the copy in memory; nothing new is saved.
       const running = games.filter((game) => typeof game.firstHalfStartedAt === "number"); // started, or finished (GDA-114)
       if (running.length === 0) {
         answer(games);
@@ -28,9 +28,9 @@ export function loadGames(db, teamId, firstTeamId) {
       let waiting = running.length;
       for (const game of running) {
         tx.objectStore("events").index("gameId").getAll(game.id).onsuccess = (found) => {
-          game.benchStints = isInProgress(game) ? benchStints(game, found.target.result) : {};
-          game.firstHalfStints = firstHalfStintsOf(game, found.target.result); // GDA-116: the 1st half's rings, in memory only
-          game.keeperTurns = [...keeperTurns(game, found.target.result)]; // GDA-114: who has had a full turn in goal, in memory only
+          game.dotTurns = isInProgress(game) ? dotTurns(game, found.target.result) : null; // the half being played
+          const whistle = firstHalfCopyOf(game); // the 1st half as it ended (GDA-116); older games have no copy and show no dots
+          game.firstHalfDotTurns = whistle && typeof whistle.firstHalfEndedAt === "number" ? dotTurns(whistle, found.target.result.filter((e) => e.at <= whistle.firstHalfEndedAt)) : null;
           game.played = [...playedToday(game, found.target.result)]; // GDA-90: who the Who scored? dialog may offer, in memory only
           waiting -= 1;
           if (waiting === 0) {

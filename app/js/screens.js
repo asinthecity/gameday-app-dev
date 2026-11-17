@@ -6,7 +6,7 @@
 
 import { hasRecord } from "./record-rules.js";
 import { trimmedLine } from "./drag.js";
-import { FINISHED, FIRST_HALF, SECOND_HALF, canPlan, IN_PROGRESS_PHASE, NOT_STARTED_PHASE, phaseOf, canStartHalf, canResumeHalf, halfLineUpView, nextScreen, lineupKey, canChangeWhoIsHere, startedAtOf, endedAtOf, canUndoKickOff, formationRowHalf, shownFormation, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, planFigures, planFiguresFor, firstHalfFigures, firstHalfCopyOf, frozenRingLook, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationSecondsOf, rotationText, ROTATION_EXTRA_SECONDS, snappedSeconds, clampRotation, halfOf, carriesRotationOrder, carriesBenchTime, canChangeCarryOver, MIN_ROTATION, MAX_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, canEditNotes, noteOf, potdOf, summaryOf, goalFixOf } from "./game-rules.js";
+import { FINISHED, FIRST_HALF, SECOND_HALF, canPlan, IN_PROGRESS_PHASE, NOT_STARTED_PHASE, phaseOf, canStartHalf, canResumeHalf, halfLineUpView, nextScreen, lineupKey, canChangeWhoIsHere, startedAtOf, endedAtOf, canUndoKickOff, formationRowHalf, shownFormation, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, planFigures, planFiguresFor, firstHalfFigures, firstHalfCopyOf, dotsFor, dotsLabel, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationSecondsOf, rotationText, ROTATION_EXTRA_SECONDS, snappedSeconds, clampRotation, halfOf, carriesRotationOrder, carriesBenchTime, canChangeCarryOver, MIN_ROTATION, MAX_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, canEditNotes, noteOf, potdOf, summaryOf, goalFixOf } from "./game-rules.js";
 import { TALLY_COLUMNS, interchangeRows, sortTally, tallyRows } from "./interchange-rules.js";
 import { checkFormation, formatFormationDigits, formationOf, pitchRows } from "./formation-rules.js";
 import { archiveWarning, canDeleteGame, setupCodeOf, sheetStatus } from "./sheet-rules.js";
@@ -853,28 +853,19 @@ function playerSlot(player, state, canMove, isKeeper = false, benchTimer = false
   const afterHalf = screenHalf(state.screen) === 1 && started && [SECOND_HALF, FINISHED].includes(openGame(state).state);
   const atWhistle = afterHalf ? firstHalfCopyOf(openGame(state)) : null;
   const number = started ? benchNumberOf(afterHalf ? atWhistle ?? {} : openGame(state), player.id) : null;
-  const turnMark = number ? h("span", { class: "turn", "aria-label": `Bench order ${number}`, title: `Bench order ${number}` }, String(number)) : null;
-  // GDA-80: a pitch circle of someone who has been on the bench shows one thin frozen ring per stint (this half),
-  // each at how full the bench ring was when they came on. Nobody benched, no rings. (Replaces the "4m" label of GDA-29.)
-  // Frozen rings belong to the half being played, so only that half's screen shows them.
-  // GDA-107: the 2nd Half plan draws the 1st half's figures the same way (moving while it runs, frozen at the whistle),
-  // by where the player is on the plan now.
+  // GDA-156: the bench-turn dots under the circle replace the frozen rings, the number badge and the glove badge.
+  // GDA-107: the 2nd Half plan shows the 1st half's turns (moving while it runs, frozen at the whistle), by the player.
   const figures = afterHalf ? firstHalfFigures(openGame(state)) : screenHalf(state.screen) === 2 && started ? planFigures(openGame(state), Date.now()) : null;
   const shown = figures ? planFiguresFor(figures, player.id, onPitch) : null;
-  const liveStints = started && (screenHalf(state.screen) === 2) === (lineupKey(openGame(state)) === "secondHalf") ? openGame(state).benchStints?.[player.id] : undefined; // (with Carry over bench time ON these already include the 1st half's, GDA-116). GDA-145: bench circles show them too.
-  const stints = shown ? (shown.rings.length > 0 ? shown.rings : undefined) : liveStints;
-  const frozen = stints ? frozenRings(stints, rotationSecondsOf(openGame(state)), dims) : null;
+  const dotData = !started || !player.id ? null : afterHalf ? openGame(state).firstHalfDotTurns : figures || (screenHalf(state.screen) === 2) === (lineupKey(openGame(state)) === "secondHalf") ? openGame(state).dotTurns : null;
+  const dots = dotData ? dotRow(dotsFor(dotData, player.id, number)) : null;
   // Plan bench: the existing bench ring, filled to the spell running at the whistle, and the .tm tag (none if not on the bench then).
   const planBench = shown && !onPitch && (!benchTimer || afterHalf);
   // GDA-116: the 1st half's bench circles are drawn as it ended and do not tick (no data-plan-bench, so drawBenchTimers leaves them).
   const rotation = rotationSecondsOf(openGame(state));
-  // Room for the rings above and below the circle so they never cover the name (one ring step is weight + 1px gap).
-  // GDA-145: on the bench the live ring is drawn outside the frozen ones, one step further out for each.
-  const ringsDrawn = stints ? Math.min(stints.length, MAX_FROZEN_RINGS) : 0;
-  const frozenSpace = stints ? Math.min(stints.length, MAX_FROZEN_RINGS) * (dims.weight + 1) : 0;
   // A planned swap: OFF and ON tags on the circles (GDA-75), and a dotted line between them (GDA-80, drawPairLines).
   const planTag = plannedOff ? h("span", { class: "pt" }, "OFF") : plannedOn ? h("span", { class: "pt on" }, "ON") : null;
-  // The keeper is shown by the glove badge on the circle alone (GDA-99: no "GK" text after the name).
+  // The keeper is shown by a glove dot under the circle (GDA-99: no "GK" text after the name).
   const nameLine = h("div", { class: "nm" }, player.name);
   return h(
     "div",
@@ -885,7 +876,7 @@ function playerSlot(player, state, canMove, isKeeper = false, benchTimer = false
       ...(planBench && !afterHalf ? { "data-plan-bench": player.id } : {}), // GDA-107: the plan's bench circles move with the 1st half
       ...(benchTimer ? { "data-bench": player.id } : {}), // Marks a timer circle; it is not draggable.
     },
-    h("div", { class: "ci", ...(frozen && !benchTimer ? { style: `margin: ${frozenSpace}px 0` } : {}) }, avatar(player), benchTimer && !afterHalf ? ring(dims, 0, ringsDrawn) : planBench || (afterHalf && benchTimer) ? ring(dims, !shown || shown.seconds === null ? 0 : ringFraction(shown.seconds, rotation), ringsDrawn) : null, frozen, isKeeper || openGame(state).keeperTurns?.includes(player.id) ? h("span", { class: "gkb", "aria-hidden": "true" }, icon("glove")) : null, turnMark, planTag, benchTimer && !afterHalf ? h("div", { class: "tm" }) : planBench && shown.seconds !== null ? h("div", { class: "tm" }, benchTimerText(shown.seconds)) : null), // Bench time: a small tag at the circle's bottom-right; drawBenchTimers fills it.
+    h("div", { class: dots ? "ci dotted" : "ci" }, avatar(player), isKeeper && !started ? h("span", { class: "gkb", "aria-hidden": "true" }, icon("glove")) : null, benchTimer && !afterHalf ? ring(dims, 0) : planBench || (afterHalf && benchTimer) ? ring(dims, !shown || shown.seconds === null ? 0 : ringFraction(shown.seconds, rotation)) : null, dots, planTag, benchTimer && !afterHalf ? h("div", { class: "tm" }) : planBench && shown.seconds !== null ? h("div", { class: "tm" }, benchTimerText(shown.seconds)) : null), // Bench time: a small tag at the circle's bottom-right; drawBenchTimers fills it.
     nameLine
   );
 }
@@ -931,17 +922,21 @@ function ring(dims, fraction = 0, firstSlot = 0) {
 }
 
 /**
- * The frozen rings on a pitch circle (GDA-80), oldest innermost, in the same slot and weight as the live bench
- * ring (paler in CSS so they read as stopped). A stint that ended late stays red. At most MAX_FROZEN_RINGS are
- * drawn, keeping the latest.
+ * The row of turn dots under a circle (GDA-156). Dark = bench turn had, glove = keeper turn, light with a dark edge =
+ * turn due; the bench order number sits inside the first dot that is not a glove. The glove dot keeps the class `gkb`
+ * and a numbered dot the class `turn` (the names the glove and number had before), so the screen checks can find them.
  */
-const MAX_FROZEN_RINGS = 3;
-function frozenRings(stints, rotation, dims) {
-  const arcs = stints.slice(-MAX_FROZEN_RINGS).map((seconds) => frozenRingLook(seconds, rotation));
-  arcs.label = `Times on the bench: ${stints.map(benchTimerText).join(", ")}`;
-  const holder = document.createElement("div");
-  holder.innerHTML = ringCircles(dims, arcs, "fz");
-  return holder.firstChild;
+function dotRow(dots) {
+  const label = dotsLabel(dots);
+  return h(
+    "div",
+    { class: "dots", role: "img", "aria-label": label, title: label },
+    ...dots.map((dot) =>
+      dot.kind === "g"
+        ? h("span", { class: "dot gl gkb" }, icon("glove"))
+        : h("span", { class: `dot ${dot.kind === "d" ? "dk" : "lt"}${dot.number ? " turn" : ""}` }, dot.number ? String(dot.number) : null)
+    )
+  );
 }
 
 /** A position with nobody in it. The no-break space keeps it the same height as a filled one. */
@@ -1003,12 +998,12 @@ function pitchAndBench(view, state, canMove, crowded, live = false, benchZone = 
   );
   if (live) {
     // Game under way: bench circles carry timers. The row stays when nobody is on the bench, so nothing moves (Ben, 2026-11-14).
-    const rowClass = view.bench.length > 6 ? "row live many" : "row live";
+    const rowClass = view.bench.length > 6 ? "row live many" : view.bench.length > 4 ? "row live snug" : "row live";
     return [pitch, lineUpRow("BENCH", rowClass, view.bench, state, canMove, true)];
   }
   // GDA-107: the 2nd Half plan at half time carries the bench ring and tag, so its bench row is drawn the way the live one is.
   const atHalfTime = screenHalf(state.screen) === 2 && planFigures(game, 0) !== null;
-  const benchClass = atHalfTime ? (view.bench.length > 6 ? "row live many" : "row live") : view.bench.length > 6 ? "row many" : "row"; // GDA-134: 7 or more subs share one row
+  const benchClass = atHalfTime ? (view.bench.length > 6 ? "row live many" : view.bench.length > 4 ? "row live snug" : "row live") : view.bench.length > 6 ? "row many" : "row"; // GDA-134: 7 or more subs share one row
   return [pitch, lineUpRow("BENCH", benchClass, view.bench, state, canMove, false, benchZone ? "bench" : null)];
 }
 

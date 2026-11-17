@@ -688,20 +688,8 @@ export function isBenchLate(seconds, rotationSeconds = ROTATION_MINUTES * 60) {
 }
 
 /** A finished stint within this many seconds of the rotation length counts as a full rotation (GDA-84). */
+/** A keeper spell counts as a full turn within this much of the rotation length (GDA-84, GDA-114). */
 export const FROZEN_RING_TOLERANCE_SECONDS = 60;
-
-/**
- * How a frozen ring (a finished bench stint on a field player) looks, rounded out:
- * within 1 minute of the rotation length (either side) = full ring, not late;
- * over rotation + 1 minute = full and late; under rotation - 1 minute = part ring.
- * The live bench ring and swap message do not use this.
- */
-export function frozenRingLook(seconds, rotationSeconds = ROTATION_MINUTES * 60) {
-  const full = rotationSeconds;
-  if (seconds > full + FROZEN_RING_TOLERANCE_SECONDS) return { fraction: 1, late: true };
-  if (seconds >= full - FROZEN_RING_TOLERANCE_SECONDS) return { fraction: 1, late: false };
-  return { fraction: ringFraction(seconds, rotationSeconds), late: false };
-}
 
 /** The swap warning starts this many seconds before a bench player is due (fixed in the MVP). */
 export const WARN_SECONDS = 30;
@@ -1271,38 +1259,108 @@ export function benchTotalSeconds(game, playerId, now) {
 }
 
 /**
- * The frozen bench rings (GDA-80): for each player who has come on from the bench in the half being
- * played, a list with one entry per stint on the bench, oldest first: how many seconds it lasted, up
- * to the moment they came on. Worked out from the saved event log (swaps and instant moves), so nothing
- * extra is stored and Undo (which deletes the swap's event) takes the ring away again. A stint starts
- * when the player went to the bench in this half, or at the half's start. Players who never came on
- * from the bench have no entry. `events` are this game's events, any order.
+ * GDA-156: the bench-turn dots. For the half the game is in (`lineupKey`), each player's turns in order, worked
+ * out from the saved events every time (nothing is stored, so Undo and a reload give the same answer):
+ * "g" = a keeper turn (a full rotation in goal this half, or in goal now), "d" = a bench turn. A bench turn counts
+ * from the moment the player goes to the bench, or when they start the half there (so a player on the bench now
+ * is level with the others). Gloves come first. With Carry over bench time ON the 2nd half also counts the
+ * 1st half's turns (a player on the bench at the whistle who starts the 2nd half there is the same turn, counted once).
+ * Gives { turns: { playerId: ["g", "d", ...] }, keeper: id in goal now or null }, or null before kick-off.
+ * `events` are this game's events, any order.
  */
-export function benchStints(game, events) {
+export function dotTurns(game, events) {
+  const mine = halfTurns(game, events, new Set());
+  if (!mine) {
+    return null;
+  }
+  const copy = firstHalfCopyOf(game);
+  if (game.state !== SECOND_HALF || !carriesBenchTime(game) || !copy || typeof copy.firstHalfEndedAt !== "number") {
+    return mine;
+  }
+  const first = halfTurns(copy, events.filter((e) => e.at <= copy.firstHalfEndedAt), new Set());
+  if (!first) {
+    return mine;
+  }
+  // Benched at the whistle and still on the bench at the 2nd-half start: one turn, not two.
+  const sameTurn = new Set((copy.benchOrderAtEndHalf ?? copy.benchOrder ?? []).map(String));
+  const again = halfTurns(game, events, sameTurn);
+  const turns = {};
+  for (const id of new Set([...Object.keys(first.turns), ...Object.keys(again.turns)])) {
+    turns[id] = [...(first.turns[id] ?? []), ...(again.turns[id] ?? [])];
+  }
+  return { turns, keeper: again.keeper };
+}
+
+/** One half's turns (see dotTurns). `carried` = players whose start-on-the-bench is not a new turn. */
+function halfTurns(game, events, carried) {
   const half = lineupKey(game);
   const start = startedAtOf(game);
   if (typeof start !== "number") {
-    return {};
+    return null;
   }
-  const live = events
+  const moves = events
     .filter((e) => (e.type === SWAP || e.type === POSITION_CHANGE) && e.half === half && e.at >= start)
     .sort((a, b) => a.at - b.at || (a.id ?? 0) - (b.id ?? 0));
-  const benchedAt = {}; // playerId -> when the current stint began
-  const firstFrom = {}; // playerId -> where their first move this half started (BENCH means they began the half on the bench)
-  const stints = {};
-  for (const event of live) {
+  const benchTurns = {};
+  const firstFrom = {};
+  for (const event of moves) {
     for (const change of event.changes) {
       firstFrom[change.playerId] ??= change.from;
       if (change.to === BENCH && change.from !== BENCH) {
-        benchedAt[change.playerId] = event.at;
-      } else if (change.from === BENCH && typeof change.to === "number") {
-        const seconds = Math.max(0, Math.floor((event.at - (benchedAt[change.playerId] ?? start)) / 1000));
-        (stints[change.playerId] ??= []).push(seconds);
-        delete benchedAt[change.playerId];
+        benchTurns[change.playerId] = (benchTurns[change.playerId] ?? 0) + 1;
       }
     }
   }
-  return game.state === SECOND_HALF ? withCarriedRings(game, events, stints, firstFrom) : stints;
+  // Started the half on the bench: the first move came from the bench, or they never moved and are on it now.
+  // (Ids are compared as text, because object keys are text.)
+  const benchNow = new Set(((isHalfEnded(game) ? game.benchOrderAtEndHalf ?? game.benchOrder : game.benchOrder) ?? []).map(String));
+  for (const id of new Set([...benchNow, ...Object.keys(firstFrom)])) {
+    const startedOnBench = firstFrom[id] === undefined ? benchNow.has(id) : firstFrom[id] === BENCH;
+    if (startedOnBench && !carried.has(id)) {
+      benchTurns[id] = (benchTurns[id] ?? 0) + 1;
+    }
+  }
+  const keeper = game.lineups?.[half]?.positions?.[0] ?? null;
+  const gloves = new Set([...keeperTurns(game, events, half)].map(String));
+  if (keeper) {
+    gloves.add(String(keeper));
+  }
+  const turns = {};
+  for (const id of new Set([...Object.keys(benchTurns), ...gloves])) {
+    turns[id] = [...(gloves.has(id) ? ["g"] : []), ...Array(benchTurns[id] ?? 0).fill("d")];
+  }
+  return { turns, keeper };
+}
+
+/**
+ * What one player's row of dots looks like (GDA-156). Everyone shows as many dots as the most turns any player has had,
+ * leaving out the keeper in goal now, and at least 1: dark ("d") for a bench turn, glove ("g") for a keeper turn,
+ * light ("l") for a turn due. The bench order number sits in the first dot that is not a glove; a keeper with a number
+ * and only gloves gets a dark dot of its own for it, just before the glove. Returns [{ kind, number? }].
+ */
+export function dotsFor(data, playerId, number) {
+  const most = Math.max(1, ...Object.entries(data.turns).filter(([id]) => id !== String(data.keeper)).map(([, list]) => list.length));
+  const kinds = [...(data.turns[playerId] ?? [])];
+  while (kinds.length < most) {
+    kinds.push("l");
+  }
+  const dots = kinds.map((kind) => ({ kind }));
+  if (number) {
+    const at = dots.findIndex((dot) => dot.kind !== "g");
+    if (at >= 0) {
+      dots[at].number = number;
+    } else {
+      dots.unshift({ kind: "d", number });
+    }
+  }
+  return dots;
+}
+
+/** The label read out for a row of dots, e.g. "Bench turns this half: 1 of 2, order 3". */
+export function dotsLabel(dots) {
+  const had = dots.filter((dot) => dot.kind !== "l").length;
+  const number = dots.find((dot) => dot.number)?.number;
+  return `Bench turns this half: ${had} of ${dots.length}${number ? `, order ${number}` : ""}`;
 }
 
 /** The game as it stood at the 1st-half whistle: the kick-off copy, or (after Full Time, which drops the Undo copies) the one kept under its own name. */
@@ -1311,59 +1369,9 @@ export function firstHalfCopyOf(game) {
 }
 
 /**
- * The 1st half's frozen rings (GDA-116): the bench spells that ended with a swap on, worked out from the events
- * up to the whistle, for the copy of the game saved at 2nd-half kick-off. Empty for older games without the copy.
- */
-export function firstHalfStintsOf(game, events) {
-  const copy = firstHalfCopyOf(game);
-  if (!copy || typeof copy.firstHalfEndedAt !== "number") {
-    return {};
-  }
-  return benchStints(copy, events.filter((e) => e.at <= copy.firstHalfEndedAt));
-}
-
-/**
- * GDA-116: with Carry over bench time ON the live 2nd Half keeps the 1st half's rings and adds its own.
- * Order, oldest first: the 1st half's finished spells; the spell running at the whistle (for someone who began the
- * 2nd half on the pitch, a ring of its own; for someone who began it on the bench, it is added to their first
- * 2nd-half spell, because their timer carried on from it); then the 2nd half's spells. OFF: the 2nd half starts fresh.
- */
-function withCarriedRings(game, events, stints, firstFrom) {
-  const copy = firstHalfCopyOf(game);
-  if (!carriesBenchTime(game) || !copy) {
-    return stints;
-  }
-  const out = {};
-  for (const [id, list] of Object.entries(firstHalfStintsOf(game, events))) {
-    out[id] = [...list];
-  }
-  const second = game.lineups.secondHalf.positions;
-  const atWhistle = copy.benchOrderAtEndHalf ?? copy.benchOrder ?? [];
-  const mine = {};
-  for (const [id, list] of Object.entries(stints)) {
-    mine[id] = [...list];
-  }
-  for (const id of atWhistle) {
-    const seconds = benchSeconds(copy, id, 0);
-    if (firstFrom[id] === BENCH) {
-      if (mine[id]?.length) {
-        mine[id][0] += seconds;
-      }
-    } else if (seconds >= 1 && (firstFrom[id] !== undefined || second.includes(id))) {
-      (out[id] ??= []).push(seconds);
-    }
-  }
-  for (const [id, list] of Object.entries(mine)) {
-    out[id] = [...(out[id] ?? []), ...list];
-  }
-  return out;
-}
-
-/**
  * The 1st half's bench figures for the 2nd-half plan (GDA-107), the same ones the live 1st Half screen shows at
  * `now`: while the 1st half runs they move with it; once it has ended they are frozen at the whistle (benchSeconds
- * stops at End Half). Nothing is stored: `stints` is the in-memory `benchStints` of the 1st half (from the saved
- * events) and `bench` is each bench player's spell so far. Gives null before kick-off and once the 2nd half has started.
+ * stops at End Half). Nothing is stored: `bench` is each bench player's spell so far. Gives null before kick-off and once the 2nd half has started.
  */
 export function planFigures(game, now) {
   if (game.state !== FIRST_HALF || typeof game.firstHalfStartedAt !== "number") {
@@ -1374,13 +1382,12 @@ export function planFigures(game, now) {
   for (const id of benchNow ?? []) {
     bench[id] = benchSeconds(game, id, now);
   }
-  return { stints: game.benchStints ?? {}, bench };
+  return { bench };
 }
 
 /**
  * The 1st Half screen once the 2nd half has started, and in a finished game (GDA-116): the 1st half exactly as it
- * ended, drawn from the copy saved at 2nd-half kick-off, in the same shape as planFigures. `stints` are the 1st
- * half's rings (the game's in-memory `firstHalfStints`). Gives null for an older game that has no copy.
+ * ended, drawn from the copy saved at 2nd-half kick-off, in the same shape as planFigures. Gives null for an older game that has no copy.
  */
 export function firstHalfFigures(game) {
   const copy = firstHalfCopyOf(game);
@@ -1388,23 +1395,16 @@ export function firstHalfFigures(game) {
     return null;
   }
   const figures = planFigures({ ...copy, state: FIRST_HALF }, 0);
-  return figures && { ...figures, stints: game.firstHalfStints ?? {} };
+  return figures;
 }
 
 /**
- * How a player on the plan is drawn from those figures (GDA-107), by where they are now on the plan:
- * - on the pitch: one frozen ring per 1st-half bench spell of 1 second or more, including the spell that was
- *   running at half time if they were on the bench then (as in a live swap);
- * - on the bench: the spell running at half time (ring and time tag), or null for none (empty ring, no tag).
+ * How a player on the plan is drawn from those figures (GDA-107): on the bench, the spell running at half time
+ * (ring and time tag), or null for none (empty ring, no tag); on the pitch, no ring or tag. (The 1st half's turns are dots, GDA-156.)
  */
 export function planFiguresFor(figures, playerId, onPitch) {
   const running = figures.bench[playerId];
-  if (onPitch) {
-    const spells = [...(figures.stints[playerId] ?? []), ...(running === undefined ? [] : [running])];
-    return { rings: spells.filter((seconds) => seconds >= 1), seconds: null };
-  }
-  // GDA-145: a bench circle also shows its earlier bench stints (the running one is the live ring).
-  return { rings: (figures.stints[playerId] ?? []).filter((seconds) => seconds >= 1), seconds: running === undefined ? null : running };
+  return { seconds: onPitch || running === undefined ? null : running };
 }
 
 /**
@@ -1415,9 +1415,10 @@ export function planFiguresFor(figures, playerId, onPitch) {
  * Each half is measured on its own clock (from that half's start to its End Half), so the break adds
  * nothing and two short spells never add up. A spell still running (half not ended) is not counted:
  * the player in goal shows gloves anyway. Games saved by earlier versions work the same way, because
- * the log already holds every move. `events` are this game's events, any order.
+ * the log already holds every move. `events` are this game's events, any order. `onlyHalf` ("firstHalf" or
+ * "secondHalf") counts that half alone (GDA-156).
  */
-export function keeperTurns(game, events) {
+export function keeperTurns(game, events, onlyHalf = null) {
   const needed = rotationSecondsOf(game) - FROZEN_RING_TOLERANCE_SECONDS;
   const earned = new Set();
   const halves = [
@@ -1425,7 +1426,7 @@ export function keeperTurns(game, events) {
     { key: "secondHalf", start: game.secondHalfStartedAt, end: game.secondHalfEndedAt },
   ];
   for (const half of halves) {
-    if (typeof half.start !== "number") continue;
+    if (typeof half.start !== "number" || (onlyHalf && half.key !== onlyHalf)) continue;
     const moves = events
       .filter((e) => (e.type === SWAP || e.type === POSITION_CHANGE) && e.half === half.key && e.at >= half.start)
       .sort((a, b) => a.at - b.at || (a.id ?? 0) - (b.id ?? 0));

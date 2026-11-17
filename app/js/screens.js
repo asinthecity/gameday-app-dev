@@ -870,7 +870,8 @@ function playerSlot(player, state, canMove, isKeeper = false, benchTimer = false
   return h(
     "div",
     {
-      class: ["slot", player.id === state.selectedId ? "sel" : "", planned ? "plan" : "", isKeeper ? "keeper" : "", planBench && shown.seconds !== null && isBenchLate(shown.seconds, rotation) ? "lt" : ""].join(" ").trim(),
+      class: ["slot", player.id === state.selectedId ? "sel" : "", planned ? "plan" : "", isKeeper ? "keeper" : "", planBench && shown.seconds !== null && ringFraction(shown.seconds, rotation) >= PILL_WHITE_FROM ? "wh" : ""].join(" ").trim(),
+      ...(planBench && shown.seconds !== null ? { style: `--wait-fade: ${ringFraction(shown.seconds, rotation).toFixed(3)}` } : {}), // GDA-160: ring and tag colour for a frozen plan circle
       ...(canMove ? { "data-player": player.id } : {}),
       ...(canEditNotes(openGame(state)) && !state.viewId ? { "data-note": player.id } : {}), // GDA-81: can be held for a note
       ...(planBench && !afterHalf ? { "data-plan-bench": player.id } : {}), // GDA-107: the plan's bench circles move with the 1st half
@@ -896,6 +897,7 @@ function circleSize(token, fallback) {
 const CIRCLE_SIZES = {
   get pitch() { return circleSize("--circle-pitch", 50); },
   get pitchTight() { return circleSize("--circle-pitch-tight", 40); },
+  get large() { return circleSize("--circle-large", 80); },
   get bench() { return circleSize("--circle-bench", 44); },
   get benchMany() { return circleSize("--circle-bench-many", 36); },
 };
@@ -975,8 +977,10 @@ function pitchAndBench(view, state, canMove, crowded, live = false, benchZone = 
   const game = openGame(state);
   // GDA-127: the pitch draws the Formation of the half the screen shows.
   const shape = formationOf(game, screenHalf(state.screen) || 1);
-  const tight = crowded || openRowsTight(shape);
-  const dims = { size: tight ? CIRCLE_SIZES.pitchTight : CIRCLE_SIZES.pitch, weight: RING_WEIGHT };
+  // GDA-162: 3 rows or fewer (the keeper's row counts) get the large circles; the same row count decides 58px / 52px.
+  const roomy = pitchRows(shape).length <= 3;
+  const tight = !roomy && (crowded || openRowsTight(shape));
+  const dims = { size: roomy ? CIRCLE_SIZES.large : tight ? CIRCLE_SIZES.pitchTight : CIRCLE_SIZES.pitch, weight: RING_WEIGHT };
   const line = (places) =>
     h(
       "div",
@@ -991,7 +995,7 @@ function pitchAndBench(view, state, canMove, crowded, live = false, benchZone = 
   const pitch = h(
     "div",
     // Five or more rows need the smaller circles to fit.
-    { class: (tight ? "pitch tight" : "pitch") + (overlay ? " pilled" : "") + (actions ? " cogged" : ""), style: `grid-template-rows: repeat(${rows.length}, minmax(0, 1fr))` },
+    { class: (tight ? "pitch tight" : roomy ? "pitch roomy" : "pitch") + (overlay ? " pilled" : "") + (actions ? " cogged" : ""), style: `grid-template-rows: repeat(${rows.length}, minmax(0, 1fr))` },
     ...rows.map(line),
     overlay, // GDA-125: the swap pill sits inside the pitch's bottom-right corner (live half only)
     actions ? settingsButton(actions) : null // GDA-120: Settings mirrors it in the bottom-left corner
@@ -1630,8 +1634,8 @@ export function drawClock(state) {
 
 /**
  * Fills the swap pill (GDA-104, GDA-125): "SWAP IN / 3:20" counting down with the lilac fill draining and the ring
- * filling, "SWAP NOW / 0:00" when due, "SWAP LATE / +1:10" once late (red ring at once, light pink after 30 seconds),
- * and "TIME" when the half length is reached. While "Undo" is showing the pill is left alone. Time only, no
+ * filling, "SWAP DUE / 0:00" when due, "SWAP DUE / +1:10" once overdue (full strong pink, white words, from then on:
+ * no red, no change to light pink; GDA-160), and "TIME" when the half length is reached. While "Undo" is showing the pill is left alone. Time only, no
  * names. The words carry the message, not colour alone. The pill never changes size, so the pitch never moves.
  */
 const PILL_WHITE_FROM = 0.85; // how far the white-to-pink fade must have gone (0 to 1) before the pill text turns white
@@ -1648,7 +1652,6 @@ function drawSwapPill(game, squad, now, timeUp) {
   let look;
   let fade = 1; // GDA-140: 0 = white (rotation just started) to 1 = pink (Swap Time and later)
   let ring = 0; // how full the ring is, 0 to 1
-  let over = false; // red ring: the swap is late
   if (!message) {
     lines = [["TIME", "lg"]];
     look = "timeup";
@@ -1658,9 +1661,9 @@ function drawSwapPill(game, squad, now, timeUp) {
     ring = 1 - message.countdown / rotationSecondsOf(game);
     fade = ring;
   } else {
-    over = message.late > 0;
-    lines = over ? [["SWAP LATE", "sm"], [`+${mmss(message.late)}`, "lg"]] : [["SWAP NOW", "sm"], ["0:00", "lg"]];
-    look = over ? "late" : "swap";
+    // GDA-160: the same two words from due onwards; "+1:10" shows how long overdue. The look stays full pink with white words.
+    lines = [["SWAP DUE", "sm"], [message.late > 0 ? `+${mmss(message.late)}` : "0:00", "lg"]];
+    look = message.late > 0 ? "late" : "swap";
     ring = 1;
   }
   const key = lines.map((line) => line.join(":")).join("|");
@@ -1674,9 +1677,20 @@ function drawSwapPill(game, squad, now, timeUp) {
     }
   }
   // GDA-140: the words and time go white from the point where the pink is dark enough for white to read (3:1 or better); dark before, so never white on white.
-  pill.className = "pill " + look + (over ? " over" : "") + (look !== "timeup" && fade >= PILL_WHITE_FROM ? " white" : "");
+  pill.className = "pill " + look + (look !== "timeup" && fade >= PILL_WHITE_FROM ? " white" : "");
   pill.querySelector(".pr .r1")?.setAttribute("stroke-dasharray", `${(Math.max(0, Math.min(1, ring)) * 100).toFixed(1)} 100`);
   pill.style.setProperty("--pill-fade", Math.max(0, Math.min(1, fade)).toFixed(3)); // the CSS mixes white to pink by this much
+}
+
+/**
+ * GDA-160: a bench circle's ring and time tag follow the swap pill's white-to-pink fade, for that player's own wait
+ * (--wait-fade, 0 to 1; the CSS keeps the ring from going paler than its floor). Once the wait reaches the white-words point
+ * the tag's words go white, as the pill's do. Full pink and white words stay for as long as the player is overdue.
+ */
+function setWaitFade(slot, seconds, rotation) {
+  const fade = ringFraction(seconds, rotation);
+  slot.style.setProperty("--wait-fade", fade.toFixed(3));
+  slot.classList.toggle("wh", fade >= PILL_WHITE_FROM);
 }
 
 /** Sets each bench circle's time and ring from the saved times. Same path as the clock, so a lock or reload cannot skew it. */
@@ -1689,7 +1703,7 @@ function drawBenchTimers(game, now) {
     const arc = slot.querySelector(".r1");
     const length = Number(arc.getAttribute("data-len"));
     arc.setAttribute("stroke-dasharray", `${(ringFraction(seconds, rotation) * length).toFixed(1)} ${length.toFixed(1)}`);
-    slot.classList.toggle("lt", isBenchLate(seconds, rotation));
+    setWaitFade(slot, seconds, rotation);
   }
 }
 

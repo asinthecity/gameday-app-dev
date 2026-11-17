@@ -67,7 +67,9 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .av { width: 100%; height: 100%; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: var(--bold); font-size: var(--fs-body); color: var(--ink); border: var(--bw) solid var(--card); box-shadow: var(--ring); }
 .c0 { background: var(--av0); } .c1 { background: var(--av1); } .c2 { background: var(--av2); } .c3 { background: var(--av3); }
 /* GDA-75: on the pitch and bench a player with no photo is a white disc with dark initials. */
-.lu .av.c0, .lu .av.c1, .lu .av.c2, .lu .av.c3, .lu .av.c4, .lu .av.c5, .lu .av.c6, .lu .av.c7 { background: var(--card); }
+.lu .av.c0, .lu .av.c1, .lu .av.c2, .lu .av.c3, .lu .av.c4, .lu .av.c5, .lu .av.c6, .lu .av.c7 { background: var(--av-disc, var(--card)); }
+/* GDA-161: in the live game the initials sit on the same light grey as a photo's backing, centred. */
+.lu:not(.setup) { --av-disc: var(--av-photo); }
 .c4 { background: var(--av4); } .c5 { background: var(--av5); } .c6 { background: var(--av6); } .c7 { background: var(--av7); }
 
 /* Update notice and game cards on Home */
@@ -242,10 +244,8 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .rg circle { fill: none; }
 .r0 { stroke: var(--line); }
 .r1 { stroke: var(--brand-bright); stroke-linecap: round; }
-.lt .r0, .lt .r1 { stroke: var(--danger); }
 /* GDA-115: top-right of the circle, a touch lower than its top edge so it stays inside the bench row (4px padding above) */
 .tm { position: absolute; right: calc(-1 * clamp(var(--bw), var(--spare, var(--s17)), var(--s17))); top: var(--s2); z-index: 3; padding: 0 var(--s5); border: var(--bw) solid var(--edge); border-radius: var(--r-tag); background: var(--card); color: var(--ink); font-size: var(--fs-small); font-weight: var(--bold); line-height: var(--s16); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.lt .tm { color: var(--danger); border-color: var(--danger); }
 /* GDA-156: turn dots under a circle, replacing the frozen rings, the number badge and the glove badge. Every dot is 20px.
    Dark = a bench turn had, glove = a keeper turn (dark, white glove), light with a dark edge = a turn due. Each has the thin
    white outline and soft shadow of the old number badge and overlaps its neighbour by 2px so the row reads as one group.
@@ -262,15 +262,34 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .dot.lt { background: var(--due-fill); color: var(--ink); }
 .dot.turn { font-weight: var(--bold); }
 .dot.gl svg { width: var(--s14); height: var(--s14); display: block; }
-/* GDA-156: the dots sit ON the circle. Only the initials (never the disc or a photo) are nudged clear of the dots and the time tag. */
-.ci.dotted .in { display: block; transform: translateY(calc(-1 * var(--s6))); }
-.row.live .ci.dotted .in { transform: translate(calc(-1 * var(--s6)), calc(-1 * var(--s6))); }
-.row.live.many .ci.dotted .in { transform: translateY(var(--s6)); }
-.lu .pitch .ci.dotted + .nm { margin-top: var(--s8); } /* the pitch name plate starts below the dots that hang under the circle (the bench has room already) */
+/* GDA-161: the live game draws the name ABOVE each circle and the turn dots BELOW it (the dots hang --dots-hang under the circle's edge,
+   so nothing sits on a face or the initials, which stay centred on the grey disc). The slot is a reversed column, so the name (first in the
+   markup) shows on top; --dots-hang is also the room kept under the circle, so a row's dots never reach the next row's name. */
+.lu:not(.setup) { --dots-hang: var(--s14); }
+.lu:not(.setup) .slot { flex-direction: column-reverse; }
+.lu:not(.setup) .row.live .slot { justify-content: flex-end; } /* (reversed column: the name and circle start at the top of the bench row) */
+.lu:not(.setup) .slot .nm { margin: 0 0 var(--s2); }
+.lu:not(.setup) .slot .ci { margin: 0 0 var(--dots-hang); }
+.lu:not(.setup) .ci .in { display: block; }
+.lu:not(.setup) .av { line-height: 1; }
+/* GDA-160: a bench player's ring and time tag are the pill's colour for that player's own wait (white to strong pink); the ring never goes paler than --ring-floor.
+   White words on the tag from the same point as on the pill (class wh). No red anywhere on the bench. */
+.row.live .slot { --wait-fade: 0; --wait-colour: color-mix(in srgb, var(--tag-off) calc(var(--wait-fade) * 100%), var(--card)); --ring-colour: color-mix(in srgb, var(--tag-off) calc(max(var(--wait-fade), var(--ring-floor)) * 100%), var(--card)); }
+.row.live .r1 { stroke: var(--ring-colour); }
+.row.live .tm { background: var(--wait-colour); }
+.row.live .slot.wh .tm { color: var(--card); }
+@supports not (background: color-mix(in srgb, red 50%, white)) { .row.live .slot { --wait-colour: var(--tag-off); --ring-colour: var(--tag-off); } } /* so the initials' box is as tall as the letters and centres exactly */
+.lu:not(.setup) .row.live .tm { top: 0; }
+.lu:not(.setup) .row.live.many .tm { top: auto; } /* the bench time tag starts at the ring box's top edge, so it stays clear of the centred initials (7 or more subs: see .many below) */
+.lu:not(.setup) .dots { bottom: calc(-1 * var(--dots-hang)); }
+.lu:not(.setup) .slot .pt { top: 0; } /* the OFF/ON tag starts at the circle's top edge, so it never covers the name above */
+/* GDA-162: 3 rows or fewer on the pitch (keeper row counts): bigger circles. Only the photo and initials grow; names and dots keep their size. */
+.lu:not(.setup) .pitch.roomy .ci { width: var(--circle-large); height: var(--circle-large); }
+.lu:not(.setup) .pitch.roomy .av { font-size: var(--fs-initial-large); }
+/* 5 or more subs: the slot is narrow, so smaller letters */
 .row.live.snug .ci.dotted .av { font-size: var(--fs-small); }
-.row.live.snug .ci.dotted .in { transform: translate(calc(-1 * var(--s12)), var(--s2)); } /* 5 or more subs: the slot is narrow, so smaller letters */
-/* 7 or more subs: the time tag sits centred under the circle, so the dots go over the circle's top edge instead. */
-.row.live.many .ci.dotted .dots { bottom: auto; top: calc(-1 * var(--s10)); }
+/* 7 or more subs: the time tag sits centred over the circle's bottom edge, so the dots go below it. */
+.row.live.many .ci.dotted .dots { bottom: auto; top: calc(100% + var(--s10)); }
 
 /* Rotation chip, stepper and sheet (GDA-32) */
 .cog { flex: none; width: var(--s48); height: var(--s48); margin-left: var(--s8); padding: 0; border: 0; border-radius: var(--r-control); background: var(--btn); color: var(--ink); line-height: 1; display: flex; align-items: center; justify-content: center; }
@@ -309,7 +328,7 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 /* The swap pill (GDA-125): 112 x 60 in the pitch's bottom-right corner, in the keeper's row. One size in every state; only fill, outline and words change.
    GDA-140: the pill and its outer ring fade from white to the OFF-tag pink as Swap Time nears (--pill-fade, 0 to 1, set by drawSwapPill) and stay pink
    when late; no red on the pill. Words always carry the message, not colour alone. */
-.pill { position: absolute; right: var(--s10); bottom: var(--s6); z-index: 6; box-sizing: border-box; width: var(--s112); height: var(--s60); border-radius: var(--r-pill); overflow: hidden; --pill-fade: 0; --pill-colour: color-mix(in srgb, var(--tag-off) calc(var(--pill-fade) * 100%), var(--card)); background: var(--pill-colour); color: var(--ink); box-shadow: 0 0 0 var(--s2) var(--pill-colour), var(--ring-drop); display: flex; align-items: center; justify-content: center; }
+.pill { position: absolute; right: var(--s10); bottom: var(--s6); z-index: 6; box-sizing: border-box; width: var(--s112); height: var(--s60); border-radius: var(--r-pill); overflow: hidden; --pill-fade: 0; --pill-colour: color-mix(in srgb, var(--tag-off) calc(var(--pill-fade) * 100%), var(--card)); background: var(--pill-colour); color: var(--ink); box-shadow: 0 0 0 var(--s2) var(--card), var(--ring-drop); display: flex; align-items: center; justify-content: center; }
 .pill .ptx { position: relative; display: flex; flex-direction: column; align-items: center; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pill .lg { font-size: var(--fs-title); font-weight: var(--bold); line-height: var(--s22); }
 .pill .md { font-size: var(--fs-body); font-weight: var(--bold); line-height: var(--s18); }
@@ -574,7 +593,6 @@ button.tl.them { text-align: right; }
 .row.live .pt { right: auto; left: 50%; top: calc(-1 * var(--s8)); transform: translateX(-50%); }
 /* 7 or more subs: compact one row. Ring box 44px, initials inside, order number top-left, time pill centred on the ring's bottom edge, name 12px below it. */
 .row.live.many .tm { left: 50%; right: auto; top: auto; bottom: calc(-1 * var(--s9)); transform: translateX(-50%); }
-.row.live.many .nm { margin-top: var(--s10); }
 /* End Half / Resume half and Settings on the live game: the same 56px pill and round button as the line-up (GDA-133). */
 .acts.game:not(.setup) .gr .btn, .acts.game:not(.setup) .gr .btn.main { height: var(--s56); min-height: var(--s56); }
 

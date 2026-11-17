@@ -22,7 +22,8 @@
   --tag-on: #04F5FF;           /* ON tag, --ink text 12.6:1 */
   --late: #FFC2DA;             /* late swap pill, light pink (Ben chose A, GDA-137): --ink text on it 11.4:1 */
   --here-bg: #D4F7FA;          /* pale cyan behind a player who is here (Ben chose option A, GDA-137): ink on it 15.1:1 */
-  --due-fill: #E4DCFF;         /* inside a light "turn due" dot (GDA-156); its --muted edge is 6.2:1 on a card */
+  --turn-had: #6A4BE0;         /* turn had and glove dots (GDA-156): white on it 5.7:1; 4.3:1 against --due-fill */
+  --due-fill: #E4DCFF;         /* inside a light "turn due" dot (GDA-156) */
   --focus: #7C5CFF;            /* focus ring on text boxes */
   --brand: #37003C;            /* solid primary button ("Send now", "Opposition goal"), white text 17.1:1 */
   --brand-bright: #7C5CFF;     /* progress bar, bench rings, selection halo: graphics only, never text */

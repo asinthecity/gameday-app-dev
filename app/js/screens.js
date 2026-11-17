@@ -152,7 +152,7 @@ function avatar(player, photos = currentPhotos) {
   if (photo) {
     return h("div", { class: "av pic" }, h("img", { src: photo, alt: "", draggable: false }));
   }
-  return h("div", { class: "av c" + player.colour }, initialsFor(player.name));
+  return h("div", { class: "av c" + player.colour }, h("span", { class: "in" }, initialsFor(player.name)));
 }
 
 // Photos by player id, kept on this phone. main.js sets them before each draw.

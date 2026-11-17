@@ -253,17 +253,24 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .dots { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(-1 * var(--s6)); z-index: 2; height: var(--s20); display: flex; align-items: center; white-space: nowrap; pointer-events: none; }
 .dot { flex: none; width: var(--s20); height: var(--s20); box-sizing: border-box; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: var(--fs-small); line-height: 1; box-shadow: var(--ring-dot); }
 .dot + .dot { margin-left: calc(-1 * var(--s2)); }
-.dot.dk, .dot.gl { background: var(--ink); color: var(--card); }
-.dot.lt { background: var(--due-fill); border: var(--s2) solid var(--muted); color: var(--ink); }
+.dot.dk, .dot.gl { background: var(--turn-had); color: var(--card); }
+/* GDA-156: the first (numbered) dot sits on top of the second, which sits on top of the third */
+.dot { position: relative; }
+.dot:nth-child(1) { z-index: 3; }
+.dot:nth-child(2) { z-index: 2; }
+.dot:nth-child(3) { z-index: 1; }
+.dot.lt { background: var(--due-fill); color: var(--ink); }
 .dot.turn { font-weight: var(--bold); }
 .dot.gl svg { width: var(--s14); height: var(--s14); display: block; }
-.ci.dotted .av { padding-bottom: var(--s16); }
+/* GDA-156: the dots sit ON the circle. Only the initials (never the disc or a photo) are nudged clear of the dots and the time tag. */
+.ci.dotted .in { display: block; transform: translateY(calc(-1 * var(--s6))); }
+.row.live .ci.dotted .in { transform: translate(calc(-1 * var(--s6)), calc(-1 * var(--s6))); }
+.row.live.many .ci.dotted .in { transform: translateY(var(--s6)); }
 .lu .pitch .ci.dotted + .nm { margin-top: var(--s8); } /* the pitch name plate starts below the dots that hang under the circle (the bench has room already) */
-.row.live .ci.dotted .av { padding: 0 var(--s12) var(--s12) 0; } /* up, and left, so the initial stays clear of the time tag at the top right */
-.row.live.snug .ci.dotted .av { font-size: var(--fs-small); padding: var(--s6) var(--s12) 0 0; } /* 5 or more subs: the slot is narrow, so smaller letters, set lower, fit between the time tag and the dots */
+.row.live.snug .ci.dotted .av { font-size: var(--fs-small); }
+.row.live.snug .ci.dotted .in { transform: translate(calc(-1 * var(--s12)), var(--s2)); } /* 5 or more subs: the slot is narrow, so smaller letters */
 /* 7 or more subs: the time tag sits centred under the circle, so the dots go over the circle's top edge instead. */
 .row.live.many .ci.dotted .dots { bottom: auto; top: calc(-1 * var(--s10)); }
-.row.live.many .ci.dotted .av { padding: var(--s12) 0 0 0; }
 
 /* Rotation chip, stepper and sheet (GDA-32) */
 .cog { flex: none; width: var(--s48); height: var(--s48); margin-left: var(--s8); padding: 0; border: 0; border-radius: var(--r-control); background: var(--btn); color: var(--ink); line-height: 1; display: flex; align-items: center; justify-content: center; }

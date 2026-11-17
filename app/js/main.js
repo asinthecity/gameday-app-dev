@@ -123,6 +123,7 @@ const state = {
   sheetProblem: {}, // gameId -> "secret" after the script refused the secret. Never saved.
   menuId: null, // The game whose ⋯ menu is open. Never saved.
   topMenuOpen: false, // The ☰ menu on Home. Never saved.
+  teamListOpen: false, // The team list under Home's team line (GDA-157). Never saved.
   fullTimeAsk: false, // "End the game?" is showing on Full Time. Never saved.
   archiveId: null, // The finished game being asked about ("Archive?"). Never saved.
   restoreAsk: false, // "Restore will replace all data?" is showing. Never saved.
@@ -235,6 +236,7 @@ function goTo(screen) {
   state.deleteId = null;
   state.menuId = null;
   state.topMenuOpen = false;
+  state.teamListOpen = false;
   state.archiveId = null;
   state.fullTimeAsk = false;
   state.deleteTeamOpen = false;
@@ -1021,7 +1023,7 @@ const actions = {
       return; // Locked while a game is in progress.
     }
     if (id === state.currentTeamId) {
-      state.topMenuOpen = false;
+      state.teamListOpen = false;
       draw();
       return;
     }
@@ -1130,17 +1132,26 @@ const actions = {
   }),
   openMenu: tap((gameId) => {
     state.topMenuOpen = false;
+    state.teamListOpen = false;
     state.menuId = state.menuId === gameId ? null : gameId;
     draw();
   }),
   openTopMenu: tap(() => {
     state.menuId = null;
+    state.teamListOpen = false;
     state.topMenuOpen = !state.topMenuOpen;
+    draw();
+  }),
+  openTeamList: tap(() => {
+    state.menuId = null;
+    state.topMenuOpen = false;
+    state.teamListOpen = !state.teamListOpen;
     draw();
   }),
   closeMenu: tap(() => {
     state.menuId = null;
     state.topMenuOpen = false;
+    state.teamListOpen = false;
     draw();
   }),
   askArchive: tap((gameId) => {

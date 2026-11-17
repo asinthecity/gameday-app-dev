@@ -447,26 +447,34 @@ function sheetSettingsScreen(state, actions) {
   };
 }
 
-/** The current team's name and size under the Game Day heading (cut short if very long). */
-function teamLine(state) {
-  const team = state.teams.find((t) => t.id === state.currentTeamId);
-  return team ? h("p", { class: "team", id: "teamLine" }, h("b", {}, team.name), h("span", { class: "tsize" }, ` \u00b7 ${team.playersPerSide} a side`)) : null;
+/** The team line in Home's band (GDA-157): crest, name, "N a side" and a bare ▾. The whole line is one tap target that opens the team list. */
+function teamLine(state, actions) {
+  const team = currentTeamOf(state);
+  if (!team) {
+    return null;
+  }
+  return h(
+    "button",
+    { class: "team", id: "teamLine", "aria-label": `Team: ${team.name}. Change team`, onclick: actions.openTeamList },
+    teamLogo(team.name, currentLogos[state.currentTeamId], "homeLogo"),
+    h("span", { class: "tx" }, h("b", {}, team.name), h("span", { class: "tsize" }, `${team.playersPerSide} a side`)),
+    h("span", { class: "chev", "aria-hidden": "true" }, state.teamListOpen ? "\u25b4" : "\u25be")
+  );
 }
 
-/** The team list at the top of the menu: tick on the current team, locked while a game is in progress. */
+/** The team list under the team line: tick on the current team, "+ Add team" last, locked while a game is in progress. */
 function teamMenuItems(state, actions) {
   const locked = !canSwitchTeams(state.games);
   const items = state.teams.map((team) => {
     // The tick (violet) goes before the current team; the others get blank space of the same width so names line up.
-    const mark = team.id === state.currentTeamId ? h("span", { class: "tickMark" }, "\u2713") : "\u00a0\u00a0\u00a0";
-    return h("button", { class: "mi teamItem", "data-team": team.id, disabled: locked, onclick: () => actions.switchTeam(team.id) }, mark, " " + team.name);
+    const mark = team.id === state.currentTeamId ? h("span", { class: "tickMark tickCol" }, "\u2713") : h("span", { class: "tickCol" });
+    return h("button", { class: "mi teamItem", "data-team": team.id, disabled: locked, onclick: () => actions.switchTeam(team.id) }, mark, teamLogo(team.name, currentLogos[team.id], "rowLogo"), h("span", { class: "tmName" }, team.name, h("span", { class: "tsize" }, ` \u00b7 ${team.playersPerSide} a side`)));
   });
   return [
-    h("div", { class: "mhd" }, "Teams"),
     locked ? h("div", { class: "mlock", id: "teamLock" }, LOCKED_MESSAGE) : null,
     ...items,
     h("button", { class: "mi addTeam", disabled: locked, onclick: actions.openAddTeam }, "+ Add team"),
-  ];
+  ].filter(Boolean);
 }
 
 function homeScreen(state, actions) {
@@ -502,27 +510,34 @@ function homeScreen(state, actions) {
       h(
         "div",
         { class: "pop topMenu" + (state.topMenuOpen ? " show" : "") },
-        ...teamMenuItems(state, actions),
-        h("div", { class: "mhd" }, "This team"),
+        h("div", { class: "mhd" }, "Team"),
         h("button", { class: "mi teamSettings", onclick: actions.openTeamSettings }, "Team settings"),
         // With no players, "+ Add players" on Home does the job, so the Squad item waits until there is a squad.
         hasPlayers ? h("button", { class: "mi squadItem", onclick: actions.openSquad }, `Squad (${state.players.length})`) : null,
+        h("div", { class: "mhd" }, "App"),
+        // Sheet settings is still stored per team (GDA-163 will change that).
         h("button", { class: "mi sheetSettings", onclick: actions.openSheetSettings }, "Sheet settings"),
         // GDA-153: one file with everything on the phone.
-        h("div", { class: "mhd" }, "All app data"),
         h("button", { class: "mi backUpData", onclick: actions.backUpData }, "Back up data"),
-        h("button", { class: "mi restoreData", onclick: actions.askRestore }, "Restore data")
+        h("button", { class: "mi restoreData", onclick: actions.askRestore }, "Restore data"),
+        h("div", { class: "ver" }, `Version ${self.GAMEDAY_VERSION}`)
       )
     )
   );
   return {
     nodes: [
-      // Home's band (GDA-131): logo (or initials disc), Game Day and the menu button, with the team line under them.
+      // Home's band (GDA-157): small app header (clock logo, Game Day, menu button), then the team line that opens the team list.
       h(
         "div",
         { class: "hdr homeHdr" },
-        h("div", { class: "hrow" }, teamLogo(currentTeamOf(state)?.name ?? "", currentLogos[state.currentTeamId], "homeLogo"), h("h1", {}, "Game Day"), topMenu),
-        teamLine(state)
+        h("div", { class: "hrow" }, h("img", { class: "appLogo", src: "icons/icon-180.png", alt: "", draggable: false }), h("h1", {}, "Game Day"), topMenu),
+        teamLine(state, actions),
+        h(
+          "div",
+          {},
+          state.teamListOpen ? h("div", { class: "menuCover", onclick: actions.closeMenu }) : null,
+          h("div", { class: "pop teamList" + (state.teamListOpen ? " show" : "") }, ...teamMenuItems(state, actions))
+        )
       ),
       h(
         "div",
@@ -1368,9 +1383,9 @@ function gameHead(state, actions, { label, clock, over = false, chip = null, nex
   const labelNode = h("h1", { class: "hl" }, words[0], " ", h("br"), words.slice(1).join(" ")); // the screen's heading, in two lines
   const band = h("div", { class: over ? "clk bar hb over" : "clk bar hb" }, back, labelNode, h("div", { class: "ck" }, clockNode(clock, chip, over)), h("div", { class: "cs" }, chip), next);
   const parts = [
-    h("span", { class: "side l" }, teamLogo(usName, currentLogos[team?.id]), h("span", { class: "tn" }, usName)),
+    h("span", { class: "side l" }, teamLogo(usName, currentLogos[team?.id]), h("span", { class: "tname" }, usName)),
     h("span", { class: "mid" }, h("span", { class: "tg", id: "scoreUs" }, String(score.us)), h("span", { class: "dash", "aria-hidden": "true" }, "\u2013"), h("span", { class: "tg", id: "scoreThem" }, String(score.them))),
-    h("span", { class: "side r" }, h("span", { class: "tn" }, game.opposition), teamLogo(game.opposition, null)),
+    h("span", { class: "side r" }, h("span", { class: "tname" }, game.opposition), teamLogo(game.opposition, null)),
   ];
   const card = tapScore && canAddGoal(game)
     ? h("button", { ...scoreFlashProps("scard"), id: "score", "aria-label": `${usName} ${score.us}, ${game.opposition} ${score.them}. Who scored?`, onclick: actions.openGoalDialog }, ...parts)

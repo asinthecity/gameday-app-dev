@@ -328,10 +328,11 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 /* The swap pill (GDA-125): 112 x 60 in the pitch's bottom-right corner, in the keeper's row. One size in every state; only fill, outline and words change.
    GDA-140: the pill and its outer ring fade from white to the OFF-tag pink as Swap Time nears (--pill-fade, 0 to 1, set by drawSwapPill) and stay pink
    when late; no red on the pill. Words always carry the message, not colour alone. */
-.pill { position: absolute; right: var(--s10); bottom: var(--s6); z-index: 6; box-sizing: border-box; width: var(--s112); height: var(--s60); border-radius: var(--r-pill); overflow: hidden; --pill-fade: 0; --pill-colour: color-mix(in srgb, var(--tag-off) calc(var(--pill-fade) * 100%), var(--card)); background: var(--pill-colour); color: var(--ink); box-shadow: 0 0 0 var(--s2) var(--card), var(--ring-drop); display: flex; align-items: center; justify-content: center; }
+.pill { position: absolute; right: var(--s10); bottom: var(--s6); z-index: 6; box-sizing: border-box; width: var(--s64); height: var(--s64); border-radius: var(--r-round); overflow: hidden; --pill-fade: 0; --pill-colour: color-mix(in srgb, var(--tag-off) calc(var(--pill-fade) * 100%), var(--card)); background: var(--pill-colour); color: var(--ink); box-shadow: 0 0 0 var(--s2) var(--card), var(--ring-drop); display: flex; align-items: center; justify-content: center; }
 .pill .ptx { position: relative; display: flex; flex-direction: column; align-items: center; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pill .lg { font-size: var(--fs-title); font-weight: var(--bold); line-height: var(--s22); }
 .pill .md { font-size: var(--fs-body); font-weight: var(--bold); line-height: var(--s18); }
+.pill .pr .r1 { stroke: color-mix(in srgb, var(--tag-off) calc(max(var(--pill-fade), var(--ring-floor)) * 100%), var(--card)); stroke-linecap: round; } /* GDA-164: the same pink fade as the bench rings, never violet, never paler than the floor */
 .pill .sm { font-size: var(--fs-small); font-weight: var(--bold); line-height: var(--s14); letter-spacing: .04em; }
 .pill.timeup { background: var(--grad-alert); }
 .pill.white { color: var(--card); } /* GDA-140 (Ben, version 78): white words on the dark pink at Swap Time and late (3.6:1, large bold text) */
@@ -342,7 +343,7 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .pill.timeup .pr { display: none; }
 .pill.timeup { box-shadow: none; }
 .pill.undo { background: var(--btn); box-shadow: var(--ring); }
-.pill .pu { display: flex; align-items: center; gap: var(--s6); font-size: var(--fs-title); font-weight: var(--bold); line-height: var(--s22); }
+.pill .pu { display: flex; flex-direction: column; align-items: center; font-size: var(--fs-small); font-weight: var(--bold); line-height: var(--s14); } /* GDA-164: round Undo, arrow above the word */
 .pill .pu svg { width: var(--s20); height: var(--s20); }
 /* The keeper's name plate in the pill's row stops short of the pill and of the Settings button (GDA-120), so a long name never reaches either. */
 .pitch.cogged .line:last-of-type .nm { max-width: calc(100% - var(--s24)); }
@@ -606,7 +607,9 @@ button.tl.them { text-align: right; }
 
 /* GDA-133: the live game. White name plates on the pitch (as the line-up has them, GDA-134), 12px bold; the plate is as tall as the old name line. */
 .lu .pitch .nm.none { background: none; } /* GDA-139: an empty position has no name plate (it keeps its height) */
-.lu .pitch .nm { width: auto; max-width: 100%; margin-top: var(--s2); padding: 0 var(--s6); background: var(--card); border-radius: var(--r-tag); font-size: var(--fs-small); }
+/* GDA-164: no plate. Ink text with a slight white glow, same size as the bench names (12px on 5-across and tight rows, as the bench does with 7+ subs). */
+.lu .pitch .nm { width: auto; max-width: 100%; margin-top: var(--s2); padding: 0 var(--s2); color: var(--ink); text-shadow: var(--name-glow); font-size: var(--fs-body); }
+.lu .pitch .line.across5 .nm, .lu .pitch.tight .nm { font-size: var(--fs-small); }
 /* Bench ON tag: centred above its own ring (it no longer hangs out to the right). */
 .row.live .pt { right: auto; left: 50%; top: calc(-1 * var(--s8)); transform: translateX(-50%); }
 /* 7 or more subs: compact one row. Ring box 44px, initials inside, order number top-left, time pill centred on the ring's bottom edge, name 12px below it. */

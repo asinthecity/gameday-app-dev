@@ -1383,9 +1383,9 @@ function gameHead(state, actions, { label, clock, over = false, chip = null, nex
   const labelNode = h("h1", { class: "hl" }, words[0], " ", h("br"), words.slice(1).join(" ")); // the screen's heading, in two lines
   const band = h("div", { class: over ? "clk bar hb over" : "clk bar hb" }, back, labelNode, h("div", { class: "ck" }, clockNode(clock, chip, over)), h("div", { class: "cs" }, chip), next);
   const parts = [
-    h("span", { class: "side l" }, teamLogo(usName, currentLogos[team?.id]), h("span", { class: "tname" }, usName)),
+    h("span", { class: "side l" }, teamLogo(usName, currentLogos[team?.id]), h("span", { class: "tn" }, usName)),
     h("span", { class: "mid" }, h("span", { class: "tg", id: "scoreUs" }, String(score.us)), h("span", { class: "dash", "aria-hidden": "true" }, "\u2013"), h("span", { class: "tg", id: "scoreThem" }, String(score.them))),
-    h("span", { class: "side r" }, h("span", { class: "tname" }, game.opposition), teamLogo(game.opposition, null)),
+    h("span", { class: "side r" }, h("span", { class: "tn" }, game.opposition), teamLogo(game.opposition, null)),
   ];
   const card = tapScore && canAddGoal(game)
     ? h("button", { ...scoreFlashProps("scard"), id: "score", "aria-label": `${usName} ${score.us}, ${game.opposition} ${score.them}. Who scored?`, onclick: actions.openGoalDialog }, ...parts)
@@ -1481,8 +1481,8 @@ function goalDialog(state, game, actions) {
 }
 
 /**
- * The swap pill (GDA-125), inside the pitch's bottom-right corner, in the keeper's row. It does every job the old
- * swap strip did, in 112 x 60 and never changing size: counts down to the swap (the pill fades from white to pink), shows Swap
+ * The swap button (GDA-125, round 64px since GDA-164), inside the pitch's bottom-right corner, in the keeper's row. It does every job the old
+ * swap strip did, at 64 x 64 and never changing size: counts down to the swap (the pill fades from white to pink), shows Swap
  * in the last 30 seconds, SWAP TIME, late, TIME, and Undo for UNDO_MS after a swap. Only drawn while a half runs.
  * drawSwapPill fills in the words each second. The button on top is there only when a tap does something
  * (Swap while a pair is planned, Undo after a swap), so with nothing planned a tap does nothing.
@@ -1509,7 +1509,7 @@ function swapPill(game, state, actions) {
  */
 function pillRing() {
   const w = 3; // stroke width; the path runs down the middle of it
-  const [W, H] = [112, 60]; // the pill's fixed size (--s112 x --s60)
+  const [W, H] = [64, 64]; // the button's fixed size (--s64 x --s64): a circle (GDA-164)
   const r = H / 2 - w / 2;
   const [l, t, rt, b] = [w / 2, w / 2, W - w / 2, H - w / 2];
   const d =
@@ -1671,13 +1671,13 @@ function drawSwapPill(game, squad, now, timeUp) {
     lines = [["TIME", "lg"]];
     look = "timeup";
   } else if (message.phase === "next" || message.phase === "warn") {
-    lines = [["SWAP IN", "sm"], [mmss(message.countdown), "lg"]];
+    lines = [["IN", "sm"], [mmss(message.countdown), "md"]]; // GDA-164: round 64px button, short words
     look = message.phase;
     ring = 1 - message.countdown / rotationSecondsOf(game);
     fade = ring;
   } else {
     // GDA-160: the same two words from due onwards; "+1:10" shows how long overdue. The look stays full pink with white words.
-    lines = [["SWAP DUE", "sm"], [message.late > 0 ? `+${mmss(message.late)}` : "0:00", "lg"]];
+    lines = [["DUE", "sm"], [message.late > 0 ? `+${mmss(message.late)}` : "0:00", "md"]];
     look = message.late > 0 ? "late" : "swap";
     ring = 1;
   }

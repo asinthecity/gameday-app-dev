@@ -41,6 +41,7 @@
   --shadow-menu: 0 12px 32px rgba(55, 0, 60, .25); /* top menu and card menu pop-overs */
   --ring: 0 0 0 2px #fff, 0 1px 6px rgba(0, 0, 0, .32);
   --ring-dot: 0 0 0 2px #fff, 0 1px 4px rgba(0, 0, 0, .3); /* the thin white outline and soft shadow of a turn dot (GDA-156) */
+  --name-glow: 0 0 3px var(--card), 0 0 6px var(--glow-white), 0 0 10px rgba(255, 255, 255, .7); /* GDA-164: slight white glow behind ink names on the pitch (no plate) */
   --ring-drop: 0 1px 6px rgba(0, 0, 0, .32); /* the soft shadow part of --ring (the swap pill adds its own coloured outline, GDA-140) */
   /* Tinted discs for players without a photo (six tints, repeated) */
   --av0: #D4F7FA; --av1: #E4DCFF; --av2: #FFD6E7; --av3: #DCE6FF;

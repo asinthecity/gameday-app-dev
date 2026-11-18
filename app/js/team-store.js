@@ -25,7 +25,7 @@ export function loadTeams(db) {
 /** Makes a new team and makes it current, together. Finishes with its id. */
 export function addTeam(db, values) {
   return change(db, ["teams", "meta"], (tx, answer) => {
-    const team = { ...values, formation: firstFormationFor(values.playersPerSide), sheet: null };
+    const team = { formation: firstFormationFor(values.playersPerSide), ...values, sheet: null }; // GDA-167: a chosen default Formation wins
     tx.objectStore("teams").add(team).onsuccess = (added) => {
       tx.objectStore("meta").put({ key: CURRENT, value: added.target.result });
       answer(added.target.result);

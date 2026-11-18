@@ -34,7 +34,8 @@ export const UPGRADE_FAILED_MESSAGE =
 
 // ---- Several teams (GDA-68) ----
 
-import { anyInProgress } from "./game-rules.js";
+import { anyInProgress, blankGameForm, clampRotation, ROTATION_MINUTES } from "./game-rules.js";
+import { evenSplit, firstFormationFor, fitsTeam, startingFormation } from "./formation-rules.js";
 import { archiveWarning } from "./sheet-rules.js";
 import { hasRecord } from "./record-rules.js";
 
@@ -118,4 +119,73 @@ export function deleteSummary(players, games) {
 /** "1 player" / "14 players". */
 export function plural(count, word) {
   return `${count} ${word}${count === 1 ? "" : "s"}`;
+}
+
+// ---- Default game settings on the team (GDA-167) ----
+
+/**
+ * The settings a new game starts from. Teams made before GDA-167 (and old backups) have none of the new fields,
+ * so each falls back to today's behaviour: 6 min, the team's last-used Formation, both carry-overs ON.
+ */
+export function teamGameDefaults(team) {
+  return {
+    rotationMinutes: Number.isFinite(team.rotationMinutes) ? team.rotationMinutes : ROTATION_MINUTES,
+    rotationExtraSeconds: Number.isFinite(team.rotationExtraSeconds) ? team.rotationExtraSeconds : 0,
+    formation: startingFormation(team),
+    carryRotationOrder: team.carryRotationOrder !== false,
+    carryBenchTime: team.carryBenchTime !== false,
+  };
+}
+
+/** The New game form, pre-filled from the team's defaults. A rotation longer than the half is lowered on the form, with a note; the saved default is left alone. */
+export function newGameFormFor(team) {
+  const defaults = teamGameDefaults(team);
+  const form = blankGameForm();
+  form.halfMinutes = team.halfMinutes;
+  form.playersPerSide = team.playersPerSide;
+  form.formation = defaults.formation;
+  form.carryRotationOrder = defaults.carryRotationOrder;
+  form.carryBenchTime = defaults.carryBenchTime;
+  form.rotationMinutes = defaults.rotationMinutes;
+  form.rotationExtraSeconds = defaults.rotationExtraSeconds;
+  if (form.rotationMinutes > team.halfMinutes) {
+    form.rotationNote = `Rotation lowered to ${team.halfMinutes} min to fit the half.`;
+    form.rotationMinutes = clampRotation(form.rotationMinutes, team.halfMinutes);
+    form.rotationExtraSeconds = 0;
+  }
+  return form;
+}
+
+/** The default Formation to show when Players per side is set to `size`: unchanged if the size is the team's own, otherwise an even split. `team` is null for a new team. */
+export function formationAfterSizeChange(team, size) {
+  if (!team) {
+    return firstFormationFor(size); // a brand-new team starts as before: 3-3-2 for 9 a side, else an even split
+  }
+  return team.playersPerSide === size ? teamGameDefaults(team).formation : evenSplit(size);
+}
+
+/**
+ * What is saved for a team: the cleaned name, size and half length plus the default game settings.
+ * A default Formation that does not fit the size is never saved (an even split instead).
+ * `defaults` is null for a brand-new team that made no choices.
+ */
+export function teamValuesToSave(values, defaults, team) {
+  const chosen = defaults ?? (team ? teamGameDefaults(team) : { rotationMinutes: ROTATION_MINUTES, rotationExtraSeconds: 0, carryRotationOrder: true, carryBenchTime: true });
+  const formation = chosen.formation && fitsTeam(chosen.formation, values.playersPerSide) ? chosen.formation : team ? evenSplit(values.playersPerSide) : firstFormationFor(values.playersPerSide);
+  return {
+    ...values,
+    rotationMinutes: chosen.rotationMinutes,
+    rotationExtraSeconds: chosen.rotationExtraSeconds,
+    carryRotationOrder: chosen.carryRotationOrder !== false,
+    carryBenchTime: chosen.carryBenchTime !== false,
+    formation,
+  };
+}
+
+/** The team form's starting values: the typed fields as text, and the default game settings. `team` is null for Add team. */
+export function teamFormValues(team) {
+  const defaults = team ? teamGameDefaults(team) : { rotationMinutes: ROTATION_MINUTES, rotationExtraSeconds: 0, carryRotationOrder: true, carryBenchTime: true, formation: firstFormationFor(9) };
+  return team
+    ? { name: team.name, size: String(team.playersPerSide), minutes: String(team.halfMinutes), defaults }
+    : { name: "", size: "9", minutes: "25", defaults };
 }

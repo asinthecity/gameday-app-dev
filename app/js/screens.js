@@ -12,7 +12,7 @@ import { checkFormation, formatFormationDigits, formationOf, pitchRows } from ".
 import { archiveWarning, canDeleteGame, setupCodeOf, sheetStatus } from "./sheet-rules.js";
 import { canSaveName, initialsFor } from "./squad-rules.js";
 import { RESTORE_ASK } from "./backup-rules.js";
-import { MIN_SIDE, MAX_SIDE, canSwitchTeams, deleteRefusal, deleteSummary, IN_PROGRESS_REFUSAL, LAST_TEAM_MESSAGE, LOCKED_MESSAGE, plural, UPGRADE_FAILED_MESSAGE } from "./team-rules.js";
+import { MIN_SIDE, MAX_SIDE, formationAfterSizeChange, canSwitchTeams, deleteRefusal, deleteSummary, IN_PROGRESS_REFUSAL, LAST_TEAM_MESSAGE, LOCKED_MESSAGE, plural, UPGRADE_FAILED_MESSAGE } from "./team-rules.js";
 
 /** One small inline SVG icon (24px, 2.2 stroke, round ends, takes the text colour). GDA-74. */
 const ICONS = {
@@ -22,6 +22,8 @@ const ICONS = {
   back: ["M15 5l-7 7 7 7"],
   next: ["M9 5l7 7-7 7"],
   close: ["M6 6l12 12", "M18 6L6 18"], // GDA-149: Close game on a finished game's Full Time page
+  // GDA-166: stopwatch with a tick inside the face (Full time).
+  stopwatch: ["M12 6a8 8 0 1 0 0 16a8 8 0 1 0 0-16", "M10 2.5h4", "M12 2.5V6", "M18.5 7l1.5-1.5", "M8.5 14.3l2.4 2.4 4.6-5"],
   flag: ["M6 21V4", "M6 5h11l-2.5 4 2.5 4H6"],
   // Start triangle and Stop square on the head bar chip (GDA-120). "F " paths are filled.
   play: ["F M8 5l11 7-11 7z"],
@@ -115,21 +117,23 @@ function isLiveViewOf(state, game) {
 }
 
 /** An arrow-only button. `onClick` null makes it greyed out and inert (aria-disabled), not removed. */
-function arrowButton(kind, onClick) {
-  const props = { class: onClick ? "arrow" : "arrow off", id: kind === "back" ? "navBack" : "navNext", "aria-label": kind === "back" ? "Back" : "Next" };
+function arrowButton(kind, onClick, { iconName = kind, label = kind === "back" ? "Back" : "Next" } = {}) {
+  const props = { class: onClick ? "arrow" : "arrow off", id: kind === "back" ? "navBack" : "navNext", "aria-label": label };
   if (onClick) {
     props.onclick = onClick;
   } else {
     props["aria-disabled"] = "true";
   }
-  return h("button", props, icon(kind));
+  return h("button", props, icon(iconName));
 }
 
 /** The arrows for a game screen: Back always works; Next works where the rules say there is a screen to go to. */
 function navArrows(state, actions, nextGo = false) {
   const game = openGame(state);
   const hasNext = state.screen === "createGame" ? true : !!game && nextScreen(game, state.screen) !== null;
-  let next = arrowButton("next", hasNext ? actions.goNext : null);
+  // GDA-166: on the 2nd Half the Next arrow is the Full time stopwatch (same button, same action and availability).
+  const toFullTime = state.screen === "half2";
+  let next = arrowButton("next", hasNext ? actions.goNext : null, toFullTime ? { iconName: "stopwatch", label: "Full time" } : {});
   if (state.screen === "fullTime" && state.viewId) {
     // GDA-149: a finished game looked at from Home: the inactive next arrow becomes Close game (same 44px slot).
     next = h("button", { class: "arrow", id: "closeGameTop", "aria-label": "Close game", onclick: actions.closeGame }, icon("close"));
@@ -348,6 +352,7 @@ function logoBlock(state, actions) {
 function teamFormScreen(state, actions) {
   const form = state.teamForm;
   const adding = form.mode === "add";
+  const defaults = form.values.defaults; // GDA-167: the default game settings, edited in place and saved with Save
   const field = (id, label, value, error) => {
     const input = h("input", { id, type: "text", autocomplete: "off", spellcheck: "false", class: error ? "bad" : "" });
     input.value = value;
@@ -368,6 +373,15 @@ function teamFormScreen(state, actions) {
         text,
         onStep: (change) => {
           form.values[key] = String(Math.min(max, Math.max(min, (Number(form.values[key]) || min) + change)));
+          if (key === "size") {
+            // GDA-167: correcting Players per side resets the default Formation to a split that fits (back to the team's own if undone).
+            form.values.defaults.formation = formationAfterSizeChange(adding ? null : state.teams.find((t) => t.id === state.currentTeamId), Number(form.values.size));
+            const box = document.getElementById("formation");
+            if (box) {
+              box.value = form.values.defaults.formation;
+              box.classList.remove("bad");
+            }
+          }
         },
       })
     );
@@ -389,7 +403,22 @@ function teamFormScreen(state, actions) {
           numberRow("Players per side", "size", { less: "teamSizeLess", more: "teamSizeMore", value: "teamSize" }, MIN_SIDE, MAX_SIDE, (n) => String(n)),
           numberRow("Half length", "minutes", { less: "teamMinutesLess", more: "teamMinutesMore", value: "teamMinutes" }, 1, 90, (n) => `${n} min`)
         ),
-        adding ? null : h("p", { class: "hint" }, "Size and half length apply to new games only. Existing games keep theirs."),
+        // GDA-167: the usual settings a new game starts from; each can still be changed on the New game form.
+        h("div", { class: "swhead" }, "Default game settings"),
+        setCard(
+          h(
+            "div",
+            { class: "f" },
+            h("span", {}, "Rotation"),
+            rotationPicker(defaults.rotationMinutes, defaults.rotationExtraSeconds ?? 0, MAX_ROTATION, (minutes, seconds) => {
+              defaults.rotationMinutes = minutes;
+              defaults.rotationExtraSeconds = snappedSeconds(seconds, minutes, MAX_ROTATION);
+            })
+          ),
+          formationBox({ size: () => Number(form.values.size), shown: defaults.formation, disabled: false, onValid: (formation) => { defaults.formation = formation; } })
+        ),
+        carryOverSwitches(defaults, false, { toggleCarryOver: (which) => { defaults[which] = !defaults[which]; } }),
+        adding ? null : h("p", { class: "hint" }, "Size, half length and default game settings apply to new games only. Existing games keep theirs."),
         problemLine(state.problem),
         h("button", { class: "btn pri big", id: "saveTeam", onclick: actions.saveTeam }, "Save"),
         deleteArea ? h("div", { class: "gapbig" }, deleteArea) : null
@@ -879,7 +908,7 @@ function playerSlot(player, state, canMove, isKeeper = false, benchTimer = false
   // GDA-116: the 1st half's bench circles are drawn as it ended and do not tick (no data-plan-bench, so drawBenchTimers leaves them).
   const rotation = rotationSecondsOf(openGame(state));
   // A planned swap: OFF and ON tags on the circles (GDA-75), and a dotted line between them (GDA-80, drawPairLines).
-  const planTag = plannedOff ? h("span", { class: "pt" }, "OFF") : plannedOn ? h("span", { class: "pt on" }, "ON") : null;
+  const planTag = plannedOff ? h("span", { class: "pt" }, "OFF") : null; // GDA-165: no ON tag; the dotted line pairs the players
   // The keeper is shown by a glove dot under the circle (GDA-99: no "GK" text after the name).
   const nameLine = h("div", { class: "nm" }, player.name);
   return h(
@@ -1041,10 +1070,11 @@ function bottomBar(state, actions) {
 
 /** The pitch, bench and ABSENT row of a half that is Not started. `editable` false shows them for looking only. */
 function planBody(game, view, state, actions, { editable, firstHalf, note, overlay = null }) {
+  // GDA-165: only the 1st half's line-up before kick-off keeps the "setup" look (name plates). The 2nd half plan uses the live game's name layout.
   const crowded = view.bench.length > 6 || view.absent.length > 6;
   return h(
     "div",
-    { class: "lu setup" },
+    { class: firstHalf ? "lu setup" : "lu" },
     ...pitchAndBench(view, state, editable, crowded, false, editable && firstHalf, overlay, actions),
     // GDA-62: always there, below the bench, even when empty (then slim). Only the 1st half's line-up can change who is absent.
     // 2nd half: no Absent row; leavers are marked through Who is here in Game details (GDA-99).
@@ -1127,7 +1157,7 @@ function formationBox({ size, shown, disabled, onValid }) {
     if (input.value !== typed) {
       input.value = typed;
     }
-    const result = checkFormation(input.value, size);
+    const result = checkFormation(input.value, typeof size === "function" ? size() : size); // a function when the size can change under the box (team form)
     input.classList.toggle("bad", !result.ok);
     if (result.ok && result.formation !== saved) {
       saved = result.formation;
@@ -1671,7 +1701,7 @@ function drawSwapPill(game, squad, now, timeUp) {
     lines = [["TIME", "lg"]];
     look = "timeup";
   } else if (message.phase === "next" || message.phase === "warn") {
-    lines = [["IN", "sm"], [mmss(message.countdown), "md"]]; // GDA-164: round 64px button, short words
+    lines = [["SWAP", "sm"], [mmss(message.countdown), "md"]]; // GDA-164: round 64px button, short words
     look = message.phase;
     ring = 1 - message.countdown / rotationSecondsOf(game);
     fade = ring;
@@ -1738,6 +1768,12 @@ function fullTimeSheet(actions) {
   );
 }
 
+/** GDA-166: the score panel: our logo above our name (left), the score (middle), their logo above their name (right). */
+function scorePanel(ourName, ourLogo, theirName, score) {
+  const side = (name, logo) => h("div", { class: "pt2" }, teamLogo(name, logo), h("div", { class: "ptn" }, name));
+  return h("div", { class: "card pb", id: "scorePanel" }, side(ourName, ourLogo), h("div", { class: "pm", id: "finalScore" }, `${score.us} - ${score.them}`), side(theirName, null));
+}
+
 /**
  * The Summary page (GDA-108, GDA-82): score, goal timeline, coach's notes and Player of the day, in that order.
  * Empty sections are hidden, except the Player of the day row while it can still be chosen (it is the way in).
@@ -1745,7 +1781,8 @@ function fullTimeSheet(actions) {
  * Used by the mid-game Summary, the Full Time screen and a finished game opened from Home.
  */
 function summaryBody(state, game, actions, { canChoose, soFar }) {
-  const ourName = (state.teams.find((t) => t.id === (game.teamId ?? state.currentTeamId))?.name) ?? "Our team";
+  const team = state.teams.find((t) => t.id === (game.teamId ?? state.currentTeamId));
+  const ourName = team?.name ?? "Our team";
   const summary = summaryOf(game, state.players);
   const potdPlayer = potdOf(game) === null ? null : state.players.find((p) => p.id === potdOf(game)) ?? null;
   const potdRow = canChoose
@@ -1754,8 +1791,8 @@ function summaryBody(state, game, actions, { canChoose, soFar }) {
       ? h("div", { class: "setrow card", id: "potdRow" }, h("span", {}, "Player of the day"), h("span", { class: "ro", id: "potdValue" }, potdPlayer ? h("span", { class: "mini" }, avatar(potdPlayer)) : null, h("b", {}, summary.potd)))
       : null;
   return [
-    h("div", { class: "lbl", id: "fullTimeTitle" }, `${ourName} v ${game.opposition}${soFar ? " \u00b7 so far" : ""}`),
-    h("div", { class: "bigscore", id: "finalScore" }, `${summary.score.us} - ${summary.score.them}`),
+    soFar ? h("div", { class: "lbl", id: "fullTimeTitle" }, "Score so far") : null,
+    scorePanel(ourName, currentLogos[team?.id], game.opposition, summary.score),
     summary.goals.length > 0
       ? h("div", { class: "card", id: "timeline" }, ...summary.goals.map((g) => h(canChoose ? "button" : "div", { class: g.side === US ? "tl" : "tl them", ...(canChoose ? { type: "button", "data-goal": g.id, onclick: () => actions.openGoalFix(g.id) } : {}) }, h("span", { class: "t" }, g.when), h("span", { class: "ball" }, icon("ball")), h("span", { class: g.side === US ? "" : "ro" }, g.who))))
       : null,
@@ -1834,6 +1871,13 @@ function summaryScreen(state, actions) {
   };
 }
 
+/** GDA-166: the Full Time header: Back at the left, one centred title with the stopwatch before it, the Close game X (if any) at the right. */
+function fullTimeHead(state, actions) {
+  const [back, next] = navArrows(state, actions);
+  const right = state.viewId ? next : h("div", { class: "hslot" }); // an empty slot keeps the title centred
+  return h("div", { class: "clk bar hb ft" }, back, h("h1", { class: "ftt" }, icon("stopwatch"), "Full Time"), right);
+}
+
 /**
  * Full Time (GDA-50, GDA-95, GDA-108): reached with \u203a once the 2nd half has ended. It IS the Summary page, plus
  * End game and save, which stores the record and closes the game for good. \u2039 only goes back to the 2nd Half (Ended),
@@ -1844,7 +1888,7 @@ function fullTimeScreen(state, actions) {
   const open = !state.viewId;
   return {
     nodes: [
-      ...gameHead(state, actions, { label: "Full Time", clock: "FT", tapScore: false, showScore: false }),
+      fullTimeHead(state, actions),
       h(
         "div",
         { class: "body" },

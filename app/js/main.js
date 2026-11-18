@@ -8,7 +8,6 @@ import { sortAfterTap } from "./interchange-rules.js";
 import { NO_SWIPE_START, POPUP_OPEN, swipeOf } from "./swipe-rules.js";
 import {
   afterTap,
-  blankGameForm,
   canCreateGame,
   canDrag,
   canReorderBench,
@@ -25,7 +24,6 @@ import {
   goalScorerChanged,
   THEM,
   US,
-  clampRotation,
   liveAction,
   movedOnto,
   lineUpMoved,
@@ -65,9 +63,8 @@ import { loadLogos, removeLogo, saveLogo } from "./logo-store.js";
 import { csvFileName, recordToCsv } from "./record-rules.js";
 import { cleanName } from "./squad-rules.js";
 import { addPlayer, loadSquad, removePlayer, renamePlayer } from "./squad-store.js";
-import { fitsTeam, startingFormation } from "./formation-rules.js";
 import { addTeam, deleteTeam, loadTeams, switchTeam, updateTeam } from "./team-store.js";
-import { rememberFirstTeamId, canSwitchTeams, cleanTeamForm, deleteRefusal, firstTeamIdOf, sheetOf } from "./team-rules.js";
+import { rememberFirstTeamId, canSwitchTeams, cleanTeamForm, deleteRefusal, firstTeamIdOf, sheetOf, newGameFormFor, teamFormValues, teamValuesToSave } from "./team-rules.js";
 import { applyUpdate, currentUpdateNotice, startUpdates } from "./updates.js";
 
 const SAVE_PROBLEM = "That did not save. Please try again.";
@@ -192,7 +189,7 @@ async function saveTeamThenHome(save) {
     if (logoProblem) {
       // The team is saved; stay on its settings so the coach sees why the logo is not there.
       const team = currentTeam();
-      state.teamForm = { mode: "edit", values: { name: team.name, size: String(team.playersPerSide), minutes: String(team.halfMinutes) }, errors: {} };
+      state.teamForm = { mode: "edit", values: teamFormValues(team), errors: {} };
       state.problem = logoProblem;
       draw();
       return;
@@ -366,13 +363,6 @@ async function saveGameThenShowLineUp() {
     return;
   }
   try {
-    // GDA-127: a different shape typed on the form becomes the team's last-used shape.
-    const team = currentTeam();
-    const chosen = state.form.formation;
-    if (chosen && chosen !== team.formation && fitsTeam(chosen, team.playersPerSide)) {
-      await updateTeam(db, team.id, { formation: chosen });
-      state.teams = state.teams.map((t) => (t.id === team.id ? { ...t, formation: chosen } : t));
-    }
     state.games = await gamesNow();
     saving = false;
     state.form = null;
@@ -641,16 +631,9 @@ const actions = {
   removePhoto: tap(() => changePhoto("remove")),
   confirmRemove: tap(() => saveThenShowSquad(() => removePlayer(db, state.editId))),
   openCreateGame: tap(() => {
-    // GDA-22: the game takes the team's half length. A rotation longer than it is lowered, with a note.
-    const half = currentTeam().halfMinutes;
-    state.form = blankGameForm();
-    state.form.halfMinutes = half;
-    state.form.playersPerSide = currentTeam().playersPerSide;
-    state.form.formation = startingFormation(currentTeam()); // GDA-127
-    if (state.form.rotationMinutes > half) {
-      state.form.rotationNote = `Rotation lowered to ${half} min to fit the half.`;
-      state.form.rotationMinutes = clampRotation(state.form.rotationMinutes, half);
-    }
+    // GDA-22: the game takes the team's half length. GDA-167: and starts from the team's default settings
+    // (rotation, Formation, the two carry-overs). A rotation longer than the half is lowered, with a note.
+    state.form = newGameFormFor(currentTeam());
     goTo("createGame");
   }),
   leaveCreateGame: tap(() => {
@@ -737,24 +720,14 @@ const actions = {
       .catch((error) => console.warn("Could not save the venue", error));
   },
   // GDA-22, GDA-127: a valid typed shape for the next half to be played (see formationRowHalf). Same places, so
-  // nobody moves. It is also the team's last-used shape. A stale screen (row now read-only) changes nothing.
+  // nobody moves. GDA-167: it no longer changes the team's default Formation. A stale screen (row now read-only) changes nothing.
   setFormation: (formation) => {
     const game = openGame();
     if (!game || formationRowHalf(game) === null) {
       return;
     }
     state.games = state.games.map((g) => (g.id === game.id ? withFormation(g, formation) : g));
-    let applied = false;
-    changeGame(db, game.id, (g) => {
-      applied = formationRowHalf(g) !== null;
-      return withFormation(g, formation);
-    })
-      .then(() => (applied ? updateTeam(db, state.currentTeamId, { formation }) : null))
-      .then(() => {
-        if (applied) {
-          state.teams = state.teams.map((team) => (team.id === state.currentTeamId ? { ...team, formation } : team));
-        }
-      })
+    changeGame(db, game.id, (g) => (formationRowHalf(g) !== null ? withFormation(g, formation) : g))
       .catch((error) => console.warn("Could not save the formation", error));
   },
   // GDA-98: Undo kick-off asks first; Keep playing changes nothing.
@@ -1033,12 +1006,11 @@ const actions = {
     if (!canSwitchTeams(state.games)) {
       return;
     }
-    state.teamForm = { mode: "add", values: { name: "", size: "9", minutes: "25" }, errors: {} };
+    state.teamForm = { mode: "add", values: teamFormValues(null), errors: {} };
     goTo("teamForm");
   }),
   openTeamSettings: tap(() => {
-    const team = currentTeam();
-    state.teamForm = { mode: "edit", values: { name: team.name, size: String(team.playersPerSide), minutes: String(team.halfMinutes) }, errors: {} };
+    state.teamForm = { mode: "edit", values: teamFormValues(currentTeam()), errors: {} };
     goTo("teamForm");
   }),
   // Logo (GDA-126): the picture is held in the form and saved with the team when Save is tapped.
@@ -1061,7 +1033,7 @@ const actions = {
   }),
   saveTeam: tap(() => {
     // Size and half length are steppers, so their values are already in the form (name is the only text box).
-    const typed = { name: document.getElementById("teamName").value, size: state.teamForm.values.size, minutes: state.teamForm.values.minutes };
+    const typed = { ...state.teamForm.values, name: document.getElementById("teamName").value }; // GDA-167: keeps the default game settings too
     const cleaned = cleanTeamForm(typed.name, typed.size, typed.minutes);
     if (!cleaned.ok) {
       state.teamForm = { ...state.teamForm, values: typed, errors: cleaned.errors };
@@ -1070,10 +1042,11 @@ const actions = {
     }
     const logo = state.teamForm.logo; // undefined = unchanged, a picture, or null = remove
     if (state.teamForm.mode === "add") {
-      saveTeamThenHome(async () => applyLogo(await addTeam(db, cleaned.values), logo));
+      const toSave = teamValuesToSave(cleaned.values, typed.defaults, null);
+      saveTeamThenHome(async () => applyLogo(await addTeam(db, toSave), logo));
     } else {
       saveTeamThenHome(async () => {
-        await updateTeam(db, state.currentTeamId, cleaned.values);
+        await updateTeam(db, state.currentTeamId, teamValuesToSave(cleaned.values, typed.defaults, currentTeam()));
         return applyLogo(state.currentTeamId, logo);
       });
     }

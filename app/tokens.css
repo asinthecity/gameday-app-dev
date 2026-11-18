@@ -70,6 +70,9 @@
 
   /* Type: four sizes, plus the clock and the Full Time score. Two weights. */
   --fs-small: 12px;
+  --fs-pill-word: 10px;       /* the small word on the round swap button (GDA-165) */
+  --fs-pill-time: 17px;       /* its time (GDA-165) */
+  --fs-chev: 40px;            /* Home team-switch arrow (GDA-165) */
   --fs-body: 16px;
   --fs-title: 20px;
   --fs-initial-large: 28px;   /* initials on the 80px pitch circles (GDA-162) */

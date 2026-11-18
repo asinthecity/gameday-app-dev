@@ -507,6 +507,7 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .hint[hidden] { display: none; }
 /* Team logo (GDA-126): a picture or initials disc, always a circle. Home header size, and the team form's big size. */
 .logo.pic { width: var(--s26); border-radius: 50%; object-fit: cover; }
+.side .logo.pic { width: var(--s26); height: var(--s26); max-width: none; border-radius: 0; object-fit: contain; } /* live score bar: a real crest whole, never cropped to a circle (Ben, 2026-11-18) */
 .logo.homeLogo { width: var(--s56); height: var(--s56); max-width: none; font-size: var(--fs-title); }
 .logo.bigLogo { width: 100%; height: 100%; max-width: none; font-size: var(--fs-big); }
 .score small { max-width: var(--s64); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

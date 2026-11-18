@@ -9,7 +9,7 @@ import { trimmedLine } from "./drag.js";
 import { FINISHED, FIRST_HALF, SECOND_HALF, canPlan, IN_PROGRESS_PHASE, NOT_STARTED_PHASE, phaseOf, canStartHalf, canResumeHalf, halfLineUpView, nextScreen, lineupKey, canChangeWhoIsHere, startedAtOf, endedAtOf, canUndoKickOff, formationRowHalf, shownFormation, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, planFigures, planFiguresFor, firstHalfFigures, firstHalfCopyOf, dotsFor, dotsLabel, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationSecondsOf, rotationText, ROTATION_EXTRA_SECONDS, snappedSeconds, clampRotation, halfOf, carriesRotationOrder, carriesBenchTime, canChangeCarryOver, MIN_ROTATION, MAX_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, canEditNotes, noteOf, potdOf, summaryOf, goalFixOf } from "./game-rules.js";
 import { TALLY_COLUMNS, interchangeRows, sortTally, tallyRows } from "./interchange-rules.js";
 import { checkFormation, formatFormationDigits, formationOf, pitchRows } from "./formation-rules.js";
-import { archiveWarning, canDeleteGame, setupCodeOf, sheetStatus } from "./sheet-rules.js";
+import { TEMPLATE_COPY_URL, archiveWarningFor, canDeleteGame, setupCodeOf, sheetConnected, sheetStatus } from "./sheet-rules.js";
 import { canSaveName, initialsFor } from "./squad-rules.js";
 import { RESTORE_ASK } from "./backup-rules.js";
 import { MIN_SIDE, MAX_SIDE, formationAfterSizeChange, canSwitchTeams, deleteRefusal, deleteSummary, IN_PROGRESS_REFUSAL, LAST_TEAM_MESSAGE, LOCKED_MESSAGE, plural, UPGRADE_FAILED_MESSAGE } from "./team-rules.js";
@@ -220,6 +220,9 @@ const FILE_PROBLEM = "Could not make the file. The game itself is saved. Try Sav
 
 /** The Sheet line on a finished game (GDA-47): Sent / Sending / Not sent yet + Send now / Sheet not set up. */
 function sheetLine(game, state, actions) {
+  if (!sheetConnected(state.sheetSettings)) {
+    return []; // GDA-170: no Sheet connected, so no Sheet line and no button on Home.
+  }
   const status = sheetStatus(game, state.sheetSettings, state.sendingId, state.sheetProblem[game.id]);
   if (!status) {
     return [];
@@ -278,7 +281,8 @@ function archiveSheet(state, actions) {
   if (!game) {
     return null;
   }
-  const warning = archiveWarning(game);
+  const warning = archiveWarningFor(game, state.sheetSettings);
+  const connected = sheetConnected(state.sheetSettings);
   return h(
     "div",
     { class: "scrim", id: "archiveConfirm" },
@@ -286,7 +290,7 @@ function archiveSheet(state, actions) {
       "div",
       { class: "sheet" },
       h("h2", {}, `Archive v ${game.opposition} from the list?`),
-      h("p", { class: "archiveNote" }, warning === null ? "It stays saved on this phone and in the Sheet." : "It stays saved on this phone."),
+      h("p", { class: "archiveNote" }, warning === null && connected ? "It stays saved on this phone and in the Sheet." : "It stays saved on this phone."),
       warning ? h("p", { class: "archiveWarn", role: "alert" }, ARCHIVE_WARNINGS[warning]) : null,
       h("button", { class: "btn del", id: "confirmArchive", onclick: actions.confirmArchive }, "Archive"),
       h("button", { class: "btn", id: "cancelArchive", onclick: actions.cancelArchive }, "Cancel")
@@ -442,8 +446,8 @@ function deleteTeamSheet(state, actions, refusal) {
       "div",
       { class: "sheet" },
       h("h2", {}, `Delete team ${team.name}?`),
-      h("p", { id: "deleteTeamCounts" }, `This erases ${plural(counts.players, "player")}, ${plural(counts.games, "game")} (archived games included), their events and the Sheet settings for this team. It can't be undone.`),
-      counts.notInSheet > 0 ? h("p", { class: "problem", id: "deleteTeamWarn" }, `${counts.notInSheet} of these games are not in the Sheet. Tap Cancel and Save file or Send now first.`) : null,
+      h("p", { id: "deleteTeamCounts" }, `This erases ${plural(counts.players, "player")}, ${plural(counts.games, "game")} (archived games included), and their events. It can't be undone.`),
+      counts.notInSheet > 0 && sheetConnected(state.sheetSettings) ? h("p", { class: "problem", id: "deleteTeamWarn" }, `${counts.notInSheet} of these games are not in the Sheet. Tap Cancel and Save file or Send now first.`) : null,
       h("button", { class: "btn del", id: "confirmDeleteTeam", onclick: actions.confirmDeleteTeam }, "Delete team"),
       h("button", { class: "btn", id: "cancelDeleteTeam", onclick: actions.cancelDeleteTeam }, "Cancel")
     )
@@ -468,6 +472,8 @@ function sheetSettingsScreen(state, actions) {
         { class: "body" },
         setCard(field("sheetCode", "Setup code", shown, "password")),
         h("p", { class: "hint" }, "In the Sheet: Game Day > Set up. Copy the code it shows and paste it here."),
+        h("p", { class: "hint" }, "New to this? Send yourself the template link"),
+        h("button", { class: "btn", id: "sendTemplateLink", onclick: actions.sendTemplateLink }, "Send template link to myself"),
         problemLine(state.problem),
         state.sheetResult ? h("p", { id: "sheetResult", class: state.sheetResult.ok ? "" : "problem", role: "status" }, state.sheetResult.text) : null,
         h("button", { class: "btn pri big", id: "saveSheet", onclick: actions.saveSheetSettings }, "Save")

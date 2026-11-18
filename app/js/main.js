@@ -50,7 +50,7 @@ import {
   hereDifferences,
 } from "./game-rules.js";
 import { loadGameEvents, archiveGame, deleteGame, markSentToSheet, addGame, addGoal, removeGoal, changeGame, endHalf, fullTime, loadGames, moveFieldPlayer, movePlan, movePlayer, planPair, prePlaceGame, reopenHalf, reorderBench, reorderPlanBench, startFirstHalf, startSecondHalf, undoKickOff, swapPlayers, toggleHere, undoSwap, unplanPair } from "./game-store.js";
-import { canSend, checkMessage, firstSheetSetup, parseSetupCode, SETTINGS_KEY, sheetTabName } from "./sheet-rules.js";
+import { canSend, checkMessage, firstSheetSetup, parseSetupCode, SETTINGS_KEY, sheetTabName, TEMPLATE_COPY_URL } from "./sheet-rules.js";
 import { checkSheetConnection, sendGameToSheet } from "./sheet-send.js";
 import { shareCsv, shareFile } from "./share-file.js";
 import { backupFileName, BACKUP_FAILED, makeBackup, parseBackup, RESTORE_BUSY, RESTORE_FAILED } from "./backup-rules.js";
@@ -965,6 +965,25 @@ const actions = {
     }
   }),
   sendNow: tap((gameId) => sendToSheet(gameId)),
+  // GDA-170: the phone's own share menu where there is one, else copy the link and say so.
+  sendTemplateLink: tap(async () => {
+    try {
+      if (navigator.share) {
+        await navigator.share({ url: TEMPLATE_COPY_URL });
+        return;
+      }
+      await navigator.clipboard.writeText(TEMPLATE_COPY_URL);
+      state.sheetResult = { ok: true, text: "Link copied" };
+      draw();
+    } catch (error) {
+      // Cancelling the share menu is not an error. Only a failed copy is worth saying.
+      if (error && error.name === "AbortError") {
+        return;
+      }
+      state.sheetResult = { ok: false, text: "Could not copy the link." };
+      draw();
+    }
+  }),
   openSheetSettings: tap(() => goTo("sheetSettings")),
   // ---- Back up and restore (GDA-153) ----
   backUpData: tap(async () => {

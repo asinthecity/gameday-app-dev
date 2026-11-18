@@ -7,6 +7,10 @@
 
 export const SETTINGS_KEY = "sheetSettings";
 
+// The template spreadsheet's Make-a-copy link (GDA-170). One place, shared by the test and real
+// copies. The Delivery Lead swaps in the real ID. Not in config.js (the real copy keeps its own).
+export const TEMPLATE_COPY_URL = "https://docs.google.com/spreadsheets/d/1UqUggF022Y6U-c3zUHpjN6NxGMP2aFEmRFSfylw_rvY/copy";
+
 /** True if both the web address and the secret have been entered. */
 export function settingsComplete(settings) {
   return Boolean(settings && settings.url && settings.secret);
@@ -201,4 +205,14 @@ export function archiveWarning(game) {
     return "noStatus";
   }
   return game.sentToSheet ? null : "notInSheet";
+}
+
+/** "Connected" (GDA-170): both address and secret saved. Anything less counts as no Sheet. Only then does the app mention the Sheet on Home, Archive or Delete team. */
+export function sheetConnected(settings) {
+  return settingsComplete(settings);
+}
+
+/** The Archive warning for this game, or null. With no Sheet connected there is nothing to warn about. */
+export function archiveWarningFor(game, settings) {
+  return sheetConnected(settings) ? archiveWarning(game) : null;
 }

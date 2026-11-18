@@ -1,12 +1,12 @@
 // The one network call in the app (GDA-47): post one finished game to Ben's Apps Script
 // web app and read its reply. Nothing is retried here. Sent only if Google says so.
 
-import { checkBody, readCheckReply, readSheetReply, sheetBody, sheetTabOf } from "./sheet-rules.js";
+import { checkBody, readCheckReply, readSheetReply, sheetBody } from "./sheet-rules.js";
 
 const SEND_TIMEOUT_MS = 30000;
 
-/** Gives { ok: true } or { ok: false, reason: "secret" | "failed" }. Never throws. */
-export async function sendGameToSheet(settings, game, fetchFn = fetch) {
+/** `tab` is the team's tab name (sheetTabName). Gives { ok: true } or { ok: false, reason: "secret" | "failed" }. Never throws. */
+export async function sendGameToSheet(settings, game, tab, fetchFn = fetch) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), SEND_TIMEOUT_MS);
   try {
@@ -14,7 +14,7 @@ export async function sendGameToSheet(settings, game, fetchFn = fetch) {
     const response = await fetchFn(settings.url, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: sheetBody(settings, game, sheetTabOf(self.GAMEDAY_CONFIG)),
+      body: sheetBody(settings, game, tab),
       redirect: "follow",
       cache: "no-store",
       signal: controller.signal,
@@ -44,7 +44,7 @@ export async function checkSheetConnection(settings, fetchFn = fetch, online = n
     const response = await fetchFn(settings.url, {
       method: "POST",
       headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: checkBody(settings, sheetTabOf(self.GAMEDAY_CONFIG)),
+      body: checkBody(settings),
       redirect: "follow",
       cache: "no-store",
       signal: controller.signal,

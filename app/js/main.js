@@ -2,7 +2,7 @@
 // save it, read the saved data back, then draw. So the screen only ever shows
 // what is really stored.
 
-import { DB_VERSION, getMeta, openDatabase, readAllStores, replaceAllStores } from "./db.js";
+import { DB_VERSION, getMeta, openDatabase, setMeta, readAllStores, replaceAllStores } from "./db.js";
 import { watchLineUpPresses } from "./drag.js";
 import { sortAfterTap } from "./interchange-rules.js";
 import { NO_SWIPE_START, POPUP_OPEN, swipeOf } from "./swipe-rules.js";
@@ -50,7 +50,7 @@ import {
   hereDifferences,
 } from "./game-rules.js";
 import { loadGameEvents, archiveGame, deleteGame, markSentToSheet, addGame, addGoal, removeGoal, changeGame, endHalf, fullTime, loadGames, moveFieldPlayer, movePlan, movePlayer, planPair, prePlaceGame, reopenHalf, reorderBench, reorderPlanBench, startFirstHalf, startSecondHalf, undoKickOff, swapPlayers, toggleHere, undoSwap, unplanPair } from "./game-store.js";
-import { canSend, checkMessage, parseSetupCode, SETTINGS_KEY, sheetTabOf } from "./sheet-rules.js";
+import { canSend, checkMessage, firstSheetSetup, parseSetupCode, SETTINGS_KEY, sheetTabName } from "./sheet-rules.js";
 import { checkSheetConnection, sendGameToSheet } from "./sheet-send.js";
 import { shareCsv, shareFile } from "./share-file.js";
 import { backupFileName, BACKUP_FAILED, makeBackup, parseBackup, RESTORE_BUSY, RESTORE_FAILED } from "./backup-rules.js";
@@ -64,7 +64,7 @@ import { csvFileName, recordToCsv } from "./record-rules.js";
 import { cleanName } from "./squad-rules.js";
 import { addPlayer, loadSquad, removePlayer, renamePlayer } from "./squad-store.js";
 import { addTeam, deleteTeam, loadTeams, switchTeam, updateTeam } from "./team-store.js";
-import { rememberFirstTeamId, canSwitchTeams, cleanTeamForm, deleteRefusal, firstTeamIdOf, sheetOf, newGameFormFor, teamFormValues, teamValuesToSave } from "./team-rules.js";
+import { rememberFirstTeamId, canSwitchTeams, cleanTeamForm, deleteRefusal, firstTeamIdOf, newGameFormFor, teamFormValues, teamValuesToSave } from "./team-rules.js";
 import { applyUpdate, currentUpdateNotice, startUpdates } from "./updates.js";
 
 const SAVE_PROBLEM = "That did not save. Please try again.";
@@ -110,10 +110,9 @@ const state = {
   teams: [], // Every team, oldest first (GDA-68).
   currentTeamId: null, // The team Home, Squad and Sheet settings show.
   firstTeamId: null, // What a record with no team ID belongs to.
-  legacySheet: null, // The old shared Sheet setting, read only for the first team if it has none.
   teamForm: null, // The Add / Team settings form: { mode, values, errors }. Never saved until Save.
   deleteTeamOpen: false, // The "Delete team?" confirm. Never saved.
-  sheetSettings: null, // { url, secret, setup: 2 } of the CURRENT team. Stored only on this phone.
+  sheetSettings: null, // { url, secret, setup: 2 } for the whole app (GDA-163). Stored only on this phone.
   sheetDraft: null, // What is typed on Sheet settings when a message is shown. Never saved.
   sheetResult: null, // { ok, text }: the connection message on the Sheet settings screen. Never saved.
   sendingId: null, // The game being sent to the Sheet right now. Never saved.
@@ -150,7 +149,25 @@ async function loadEverything() {
   state.logos = await loadLogos(db);
   setLogos(state.logos);
   state.games = await gamesNow();
-  state.sheetSettings = sheetOf(currentTeam(), state.legacySheet, state.firstTeamId);
+  state.sheetSettings = await loadSheetSetting(teams);
+}
+
+/**
+ * The one app-wide Sheet setting (GDA-163), kept in meta. First time after the upgrade it is missing,
+ * so the first setup found (the old shared one, else the first team's own) is copied there. The
+ * teams' own copies stay as they are but are never read again. Nothing is sent or changed in the Sheet.
+ */
+async function loadSheetSetting(teams) {
+  const stored = (await getMeta(db, SETTINGS_KEY)) ?? null;
+  const found = firstSheetSetup(stored, teams);
+  if (found && found !== stored) {
+    try {
+      await setMeta(db, SETTINGS_KEY, found);
+    } catch (error) {
+      console.warn("Could not move the Sheet setting", error); // Still used now; tried again next time.
+    }
+  }
+  return found;
 }
 
 const LOGO_PROBLEM = "Couldn't save the logo";
@@ -1082,7 +1099,7 @@ const actions = {
     }
     const settings = { ...parsed.settings, setup: 2 }; // setup 2 = saved from a GDA-89 setup code.
     try {
-      await updateTeam(db, state.currentTeamId, { sheet: settings }); // Each team has its own.
+      await setMeta(db, SETTINGS_KEY, settings); // One setting for the whole app.
     } catch (error) {
       console.warn("Could not save the Sheet settings", error);
       state.problem = SAVE_PROBLEM;
@@ -1090,7 +1107,6 @@ const actions = {
       return;
     }
     state.sheetSettings = settings;
-    state.teams = state.teams.map((team) => (team.id === state.currentTeamId ? { ...team, sheet: settings } : team));
     state.sheetProblem = {};
     state.problem = "";
     state.sheetDraft = null;
@@ -1099,7 +1115,7 @@ const actions = {
     // The check writes no row. Whatever it says, the code stays saved.
     const kind = await checkSheetConnection(settings);
     if (state.screen === "sheetSettings") {
-      state.sheetResult = { ok: kind === "connected", text: checkMessage(kind, sheetTabOf(self.GAMEDAY_CONFIG)) };
+      state.sheetResult = { ok: kind === "connected", text: checkMessage(kind, sheetTabName(currentTeam()?.name, self.GAMEDAY_CONFIG)) };
       draw();
     }
   }),
@@ -1301,15 +1317,16 @@ async function saveThenGoTo(saveChange, screen, problem = SAVE_PROBLEM) {
  */
 async function sendToSheet(gameId) {
   const game = state.games.find((g) => g.id === gameId);
-  // A game is sent with its own team's address and secret.
-  const sheet = sheetOf(state.teams.find((team) => team.id === (game?.teamId ?? state.firstTeamId)), state.legacySheet, state.firstTeamId);
+  const sheet = state.sheetSettings; // One setting for every team.
   if (!game || state.sendingId || !canSend(game, sheet)) {
     return;
   }
   state.sendingId = gameId;
   delete state.sheetProblem[gameId];
   draw();
-  const result = await sendGameToSheet(sheet, game);
+  // The tab is the name of the team the game was played for (not the current team), as it is now.
+  const team = state.teams.find((t) => t.id === (game.teamId ?? state.firstTeamId));
+  const result = await sendGameToSheet(sheet, game, sheetTabName(team?.name, self.GAMEDAY_CONFIG));
   state.sendingId = null;
   if (result.ok) {
     try {
@@ -1395,7 +1412,6 @@ async function start() {
   document.documentElement.dataset.version = self.GAMEDAY_VERSION;
   try {
     db = await openDatabase(self.GAMEDAY_CONFIG.storageName);
-    state.legacySheet = (await getMeta(db, SETTINGS_KEY)) ?? null;
     await loadEverything();
     resumeGameIfAny();
     draw();

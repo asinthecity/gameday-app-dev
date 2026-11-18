@@ -89,11 +89,6 @@ export function cleanTeamForm(name, size, minutes) {
   return { ok: true, values: { name: cleanedName, playersPerSide: side, halfMinutes: half } };
 }
 
-/** The Sheet address and secret to use for a team. The old shared setting is read only for the first team, and only if it has none. */
-export function sheetOf(team, legacySettings, firstTeamId) {
-  return team?.sheet ?? (team && team.id === firstTeamId ? legacySettings ?? null : null);
-}
-
 /** Switching team and Add team are allowed only when no game is in progress. */
 export function canSwitchTeams(games) {
   return !anyInProgress(games);

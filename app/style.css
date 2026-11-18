@@ -160,6 +160,7 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .src .av { opacity: .4; }
 /* Planned swap: OFF and ON tags (GDA-75) and the dotted pair line (GDA-80). No outline (GDA-85). */
 .pt { position: absolute; top: calc(-1 * var(--s8)); right: calc(-1 * var(--s14)); z-index: 3; padding: var(--s2) var(--s7); border-radius: var(--r-tag); background: var(--tag-off); color: var(--ink); font-size: var(--fs-small); font-weight: var(--bold); letter-spacing: .04em; }
+.pt:not(.on) { color: var(--card); } /* OFF tag: white words on strong pink, as on the swap button (Ben, 2026-11-18) */
 .pt.on { background: var(--tag-on); }
 .acts .problem { margin-bottom: var(--s6); }
 
@@ -377,6 +378,7 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .pb { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: var(--s4); padding: var(--s16) var(--s12); }
 .pt2 { display: flex; flex-direction: column; align-items: center; gap: var(--s6); min-width: 0; }
 .pt2 .logo { width: var(--s48); height: var(--s48); max-width: none; border-radius: 50%; object-fit: cover; font-size: var(--fs-body); }
+.pt2 .logo.pic { width: var(--s48); height: var(--s48); border-radius: 0; object-fit: contain; } /* a real crest is shown whole, never cropped to a circle (Ben, 2026-11-18) */
 .ptn { width: 100%; text-align: center; font-size: var(--fs-body); overflow: hidden; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .pm { font-size: var(--fs-big); font-weight: var(--bold); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .clk.bar.hb.ft { grid-template-columns: var(--s44) 1fr var(--s44); }

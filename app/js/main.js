@@ -49,7 +49,7 @@ import {
   withVenue,
   hereDifferences,
 } from "./game-rules.js";
-import { loadGameEvents, archiveGame, deleteGame, markSentToSheet, addGame, addGoal, removeGoal, changeGame, endHalf, fullTime, loadGames, moveFieldPlayer, movePlan, movePlayer, planPair, prePlaceGame, reopenHalf, reorderBench, reorderPlanBench, startFirstHalf, startSecondHalf, undoKickOff, swapPlayers, toggleHere, undoSwap, unplanPair } from "./game-store.js";
+import { loadSeasonEvents, loadGameEvents, archiveGame, deleteGame, markSentToSheet, addGame, addGoal, removeGoal, changeGame, endHalf, fullTime, loadGames, moveFieldPlayer, movePlan, movePlayer, planPair, prePlaceGame, reopenHalf, reorderBench, reorderPlanBench, startFirstHalf, startSecondHalf, undoKickOff, swapPlayers, toggleHere, undoSwap, unplanPair } from "./game-store.js";
 import { canSend, checkMessage, firstSheetSetup, parseSetupCode, SETTINGS_KEY, sheetTabName, TEMPLATE_COPY_URL } from "./sheet-rules.js";
 import { checkSheetConnection, sendGameToSheet } from "./sheet-send.js";
 import { shareCsv, shareFile } from "./share-file.js";
@@ -100,6 +100,10 @@ const state = {
   interchange: null, // GDA-121: { events } read when Interchange history opens. Never saved.
   interchangeBack: null, // The screen Interchange history returns to. Never saved.
   tallySort: { column: "name", descending: false }, // The bench time table's sort. Not remembered.
+  listView: false, // GDA-48: the line-up / game shows the List instead of the Pitch. Never saved; every screen opens on the Pitch.
+  seasonMode: "halves", // GDA-176: the season List shows halves or minutes; always opens on halves
+  seasonEvents: {}, // GDA-176: saved events by game, read when the List opens (for minutes)
+  seasonSort: { column: "name", descending: false }, // GDA-48: the season List's sort. Not remembered.
   summaryBack: null, // The game screen the mid-game Summary returns to (GDA-108). Never saved.
   noteFor: null, // The player whose hold sheet is open (GDA-81), or null. Never saved.
   noteDraft: null, // What is typed in the note box, until Done (null = not typed yet). Never saved.
@@ -228,6 +232,7 @@ function draw() {
 
 function goTo(screen) {
   state.screen = screen;
+  state.listView = false; // GDA-48: a screen always opens on the Pitch
   if (screen === "home") {
     state.viewId = null; // Leaving a finished game's view.
   }
@@ -418,6 +423,17 @@ async function openLineUp(gameId) {
   }
 }
 
+/** GDA-48: in a running game's List view, re-reads the saved swaps so the history shows a swap, Undo or move just made. */
+async function refreshHistory() {
+  if (state.listView && state.interchange) {
+    try {
+      state.interchange = { events: await loadGameEvents(db, state.viewId ?? state.gameId) };
+    } catch (error) {
+      console.warn("Could not re-read the swaps", error); // The list stays as it was; the next switch reads it again.
+    }
+  }
+}
+
 /** Saves a change to the line-up. The screen changes only after it is safely stored. */
 async function saveThenShowLineUp(saveChange) {
   saving = true;
@@ -432,6 +448,7 @@ async function saveThenShowLineUp(saveChange) {
   }
   try {
     state.games = await gamesNow();
+    await refreshHistory();
     saving = false;
     state.selectedId = null;
     state.problem = "";
@@ -473,6 +490,7 @@ async function saveSwap() {
   try {
     const done = await swapPlayers(db, state.gameId, Date.now());
     state.games = await gamesNow();
+    await refreshHistory();
     state.undo = { before: done.before, eventId: done.eventId, until: Date.now() + UNDO_MS };
   } catch (error) {
     console.warn("Swap did not save", error);
@@ -504,6 +522,7 @@ async function saveUndo() {
   try {
     await undoSwap(db, state.gameId, undo.before, undo.eventId);
     state.games = await gamesNow();
+    await refreshHistory();
   } catch (error) {
     console.warn("Undo did not save", error);
     saving = false;
@@ -893,6 +912,39 @@ const actions = {
     }
   }),
   closeInterchange: tap(() => goTo(state.interchangeBack ?? "half1")),
+  // GDA-48: the Pitch / List switch. Before kick-off the List is the season positions; in a started game it is the Interchange
+  // history (its swaps are read once here, then again after each swap). Nothing is saved, and the app never switches by itself.
+  toggleView: tap(async () => {
+    if (state.listView) {
+      state.listView = false;
+      draw();
+      return;
+    }
+    const game = openGame();
+    try {
+      if (game && typeof game.firstHalfStartedAt === "number") {
+        state.interchange = { events: await loadGameEvents(db, state.viewId ?? state.gameId) };
+        state.tallySort = { column: "name", descending: false };
+      } else {
+        state.seasonSort = { column: "name", descending: false };
+        state.seasonMode = "halves"; // GDA-176: the List always opens on Halves
+        state.seasonEvents = await loadSeasonEvents(db); // the minutes are worked out from these
+      }
+      state.listView = true;
+    } catch (error) {
+      console.warn("Could not open the list", error);
+      state.problem = "Could not open the list. Try again.";
+    }
+    draw();
+  }),
+  setSeasonMode: (mode) => {
+    state.seasonMode = mode === "minutes" ? "minutes" : "halves";
+    draw();
+  },
+  sortSeason: tap((column) => {
+    state.seasonSort = sortAfterTap(state.seasonSort, column);
+    draw();
+  }),
   sortTally: tap((column) => {
     state.tallySort = sortAfterTap(state.tallySort, column);
     draw();

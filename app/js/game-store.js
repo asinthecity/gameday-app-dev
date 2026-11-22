@@ -408,3 +408,16 @@ export function loadGameEvents(db, gameId) {
     tx.objectStore("events").index("gameId").getAll(gameId).onsuccess = (found) => answer(found.target.result);
   });
 }
+
+/** GDA-176: every saved event, grouped by game (gameId -> events), so the season List can work out minutes. Read only. */
+export function loadSeasonEvents(db) {
+  return read(db, ["events"], (tx, answer) => {
+    tx.objectStore("events").getAll().onsuccess = (found) => {
+      const byGame = {};
+      for (const event of found.target.result) {
+        (byGame[event.gameId] ??= []).push(event);
+      }
+      answer(byGame);
+    };
+  });
+}

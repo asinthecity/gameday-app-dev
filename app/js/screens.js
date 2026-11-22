@@ -8,6 +8,8 @@ import { hasRecord } from "./record-rules.js";
 import { trimmedLine } from "./drag.js";
 import { FINISHED, FIRST_HALF, SECOND_HALF, canPlan, IN_PROGRESS_PHASE, NOT_STARTED_PHASE, phaseOf, canStartHalf, canResumeHalf, halfLineUpView, nextScreen, lineupKey, canChangeWhoIsHere, startedAtOf, endedAtOf, canUndoKickOff, formationRowHalf, shownFormation, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, planFigures, planFiguresFor, firstHalfFigures, firstHalfCopyOf, dotsFor, dotsLabel, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationSecondsOf, rotationText, ROTATION_EXTRA_SECONDS, snappedSeconds, clampRotation, halfOf, carriesRotationOrder, carriesBenchTime, canChangeCarryOver, MIN_ROTATION, MAX_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, canEditNotes, noteOf, potdOf, summaryOf, goalFixOf } from "./game-rules.js";
 import { TALLY_COLUMNS, interchangeRows, sortTally, tallyRows } from "./interchange-rules.js";
+import { LIST_COLUMNS, listBasedOn, listMeasure, listRows } from "./season-list-rules.js";
+import { AREAS, seasonTotals } from "./season-rules.js";
 import { checkFormation, formatFormationDigits, formationOf, pitchRows } from "./formation-rules.js";
 import { TEMPLATE_COPY_URL, archiveWarningFor, canDeleteGame, setupCodeOf, sheetConnected, sheetStatus } from "./sheet-rules.js";
 import { canSaveName, initialsFor } from "./squad-rules.js";
@@ -37,6 +39,9 @@ const ICONS = {
   // GDA-121: the Interchange history arrows (down = off, up = on).
   arrowDown: ["M12 4v16", "M6 14l6 6 6-6"],
   arrowUp: ["M12 20V4", "M6 10l6-6 6 6"],
+  // GDA-48: the Pitch / List switch shows the view it switches TO (list lines, or a small pitch).
+  list: ["M5 7h.01", "M5 12h.01", "M5 17h.01", "M9 7h11", "M9 12h11", "M9 17h11"],
+  pitch: ["M5.5 4h13A2.5 2.5 0 0 1 21 6.5v11a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5v-11A2.5 2.5 0 0 1 5.5 4z", "M12 4v16", "M12 9a3 3 0 1 0 0 6a3 3 0 1 0 0-6"],
   glove: ["M9 13V6.5a1.5 1.5 0 0 1 3 0V11", "M12 11V5a1.5 1.5 0 0 1 3 0v6", "M15 11V6.5a1.5 1.5 0 0 1 3 0V15c0 3-2 5-5 5h-1.5c-2 0-3-1-4-2.5l-3-4.5a1.5 1.5 0 0 1 2.4-1.8L9 13", "M8.5 22h8"],
 };
 function icon(name) {
@@ -891,6 +896,14 @@ function newGameScreen(state, actions) {
  * here: drag.js reads data-player and data-place, so a tap and a drag take one
  * path. Slots without them, on the before-kick-off screen, do nothing.
  */
+/** GDA-57: season levels (id -> {Goal, Defence, ...}) for the circles of the 1st half's line-up before kick-off; null everywhere else. Set by planBody. */
+let chartLevels = null;
+
+/** GDA-57: the small season chart on a circle: four columns (Goal, Defence, Midfield, Attack), height by level 0 to 3. Only worked out by seasonTotals (GDA-173). */
+function seasonChart(levels) {
+  return h("span", { class: "sch", "aria-hidden": "true" }, ...AREAS.map((area) => h("i", { class: "l" + levels[area] })));
+}
+
 function playerSlot(player, state, canMove, isKeeper = false, benchTimer = false, onPitch = false, dims = { size: 48, weight: 4 }) {
   const game = isLiveView(state) ? openGame(state) : null;
   const plannedOff = !!game && pairsOf(game).some((pair) => pair.fieldId === player.id);
@@ -927,7 +940,7 @@ function playerSlot(player, state, canMove, isKeeper = false, benchTimer = false
       ...(planBench && !afterHalf ? { "data-plan-bench": player.id } : {}), // GDA-107: the plan's bench circles move with the 1st half
       ...(benchTimer ? { "data-bench": player.id } : {}), // Marks a timer circle; it is not draggable.
     },
-    h("div", { class: dots ? "ci dotted" : "ci" }, avatar(player), isKeeper && !started ? h("span", { class: "gkb", "aria-hidden": "true" }, icon("glove")) : null, benchTimer && !afterHalf ? ring(dims, 0) : planBench || (afterHalf && benchTimer) ? ring(dims, !shown || shown.seconds === null ? 0 : ringFraction(shown.seconds, rotation)) : null, dots, planTag, benchTimer && !afterHalf ? h("div", { class: "tm" }) : planBench && shown.seconds !== null ? h("div", { class: "tm" }, benchTimerText(shown.seconds)) : null), // Bench time: a small tag at the circle's bottom-right; drawBenchTimers fills it.
+    h("div", { class: dots ? "ci dotted" : "ci" }, avatar(player), isKeeper && !started ? h("span", { class: "gkb", "aria-hidden": "true" }, icon("glove")) : null, chartLevels && !started && chartLevels.has(player.id) ? seasonChart(chartLevels.get(player.id)) : null, benchTimer && !afterHalf ? ring(dims, 0) : planBench || (afterHalf && benchTimer) ? ring(dims, !shown || shown.seconds === null ? 0 : ringFraction(shown.seconds, rotation)) : null, dots, planTag, benchTimer && !afterHalf ? h("div", { class: "tm" }) : planBench && shown.seconds !== null ? h("div", { class: "tm" }, benchTimerText(shown.seconds)) : null), // Bench time: a small tag at the circle's bottom-right; drawBenchTimers fills it.
     nameLine
   );
 }
@@ -1023,7 +1036,7 @@ function lineUpRow(title, rowClass, players, state, canMove, benchTimers = false
 function openRowsTight(shape) {
   return pitchRows(shape).length >= 5;
 }
-function pitchAndBench(view, state, canMove, crowded, live = false, benchZone = false, overlay = null, actions = null) {
+function pitchAndBench(view, state, canMove, crowded, live = false, benchZone = false, overlay = null, actions = null, switchBtn = null) {
   const game = openGame(state);
   // GDA-127: the pitch draws the Formation of the half the screen shows.
   const shape = formationOf(game, screenHalf(state.screen) || 1);
@@ -1045,10 +1058,12 @@ function pitchAndBench(view, state, canMove, crowded, live = false, benchZone = 
   const pitch = h(
     "div",
     // Five or more rows need the smaller circles to fit.
-    { class: (tight ? "pitch tight" : roomy ? "pitch roomy" : "pitch") + (overlay ? " pilled" : "") + (actions ? " cogged" : ""), style: `grid-template-rows: repeat(${rows.length}, minmax(0, 1fr))` },
+    // GDA-48: a top row of 3 or more would run under the corner switch, so the rows start lower (padding only; the pitch keeps its height).
+    { class: (tight ? "pitch tight" : roomy ? "pitch roomy" : "pitch") + (overlay ? " pilled" : "") + (actions ? " cogged" : "") + (switchBtn && rows[0].length >= 3 ? " push" : ""), style: `grid-template-rows: repeat(${rows.length}, minmax(0, 1fr))` },
     ...rows.map(line),
     overlay, // GDA-125: the swap pill sits inside the pitch's bottom-right corner (live half only)
-    actions ? settingsButton(actions) : null // GDA-120: Settings mirrors it in the bottom-left corner
+    actions ? settingsButton(actions) : null, // GDA-120: Settings mirrors it in the bottom-left corner
+    switchBtn // GDA-48: the Pitch / List switch, top right
   );
   if (live) {
     // Game under way: bench circles carry timers. The row stays when nobody is on the bench, so nothing moves (Ben, 2026-11-14).
@@ -1078,10 +1093,24 @@ function bottomBar(state, actions) {
 function planBody(game, view, state, actions, { editable, firstHalf, note, overlay = null }) {
   // GDA-165: only the 1st half's line-up before kick-off keeps the "setup" look (name plates). The 2nd half plan uses the live game's name layout.
   const crowded = view.bench.length > 6 || view.absent.length > 6;
+  // GDA-48: the 1st half's line-up can show the season List in place of the pitch, bench and Absent row (the Pitch is always how it opens).
+  if (firstHalf && state.listView) {
+    return h("div", { class: "lu setup" }, seasonList(state, game, actions));
+  }
+  // GDA-48 (Ben, after Gate R): the 2nd half plan has the switch too; its List is this game's Interchange history, with the plan's bench under it.
+  if (!firstHalf && state.listView) {
+    const [, bench] = pitchAndBench(view, state, editable, crowded, false, false, null, null);
+    return h("div", { class: "lu" }, historyList(state, game, actions, overlay), bench);
+  }
+  // GDA-57: before kick-off the circles of players who are here carry the season chart (Absent circles do not: their row is built without it).
+  const totals = firstHalf && editable ? seasonTotals({ games: state.games, players: state.players, eventsByGame: {} }).players : null;
+  chartLevels = totals ? new Map([...totals].map(([id, season]) => [id, season.level])) : null;
+  const rows = pitchAndBench(view, state, editable, crowded, false, editable && firstHalf, overlay, actions, viewSwitch(state, actions));
+  chartLevels = null; // the ABSENT row below has no chart
   return h(
     "div",
     { class: firstHalf ? "lu setup" : "lu" },
-    ...pitchAndBench(view, state, editable, crowded, false, editable && firstHalf, overlay, actions),
+    ...rows,
     // GDA-62: always there, below the bench, even when empty (then slim). Only the 1st half's line-up can change who is absent.
     // 2nd half: no Absent row; leavers are marked through Who is here in Game details (GDA-99).
     firstHalf ? lineUpRow("ABSENT", view.absent.length > 0 ? "row ab" : "row ab empty", view.absent, state, editable, false, editable ? "absent" : null) : null
@@ -1459,7 +1488,7 @@ function runningHalf(state, actions, half) {
     nodes: [
       ...gameHead(state, actions, { label, clock, over: isTimeUp(startedAt, live ? Date.now() : endedAt, halfOf(game)), chip, nextGo: atHalfTime }),
       // GDA-125: no strip. The swap pill lives on the pitch and only while the half is running.
-      h("div", { class: "lu" }, ...pitchAndBench(view, state, live, view.bench.length > 6, true, false, live ? swapPill(game, state, actions) : null, actions)),
+      h("div", { class: "lu" }, ...gameBody(view, state, game, actions, live)),
       bottomBar(state, actions), // empty unless there is an error message
       gameDetailsSheet(state, game, actions),
       goalDialog(state, game, actions),
@@ -1470,6 +1499,19 @@ function runningHalf(state, actions, half) {
       drawPairLines(state);
     },
   };
+}
+
+/**
+ * GDA-48: the pitch and bench of a running half, or (List view) the Interchange history in the pitch's place with the same bench under it.
+ * The swap pill and Settings stay in their corners in both views, so Swap works in either; the view never changes by itself.
+ */
+function gameBody(view, state, game, actions, live) {
+  const pill = live ? swapPill(game, state, actions) : null;
+  if (!state.listView) {
+    return pitchAndBench(view, state, live, view.bench.length > 6, true, false, pill, actions, viewSwitch(state, actions));
+  }
+  const [, bench] = pitchAndBench(view, state, live, view.bench.length > 6, true, false, null, null);
+  return [historyList(state, game, actions, pill), bench];
 }
 
 /** The 1st Half and 2nd Half screens: Not started, In progress or Ended, whichever the saved game says. */
@@ -1599,8 +1641,8 @@ export function drawPairLines(state, actions = lastActions) {
   const area = document.querySelector(".lu");
   const game = openGame(state);
   area?.querySelectorAll(".pl, .px").forEach((old) => old.remove());
-  if (!area || !game || !isLiveView(state) || pairsOf(game).length === 0) {
-    return;
+  if (!area || !game || !isLiveView(state) || pairsOf(game).length === 0 || state.listView) {
+    return; // GDA-48: in List view there is no pitch to draw lines on
   }
   const box = area.getBoundingClientRect();
   const centre = (slot) => {
@@ -1676,10 +1718,12 @@ export function drawClock(state) {
     // GDA-150: the pill is drawn first and each part on its own, so a problem in one can never leave the pill without its time.
     try { drawSwapPill(game, state.players, now, timeUp); } catch (error) { console.error("swap pill", error); }
     try { drawBenchTimers(game, now); } catch (error) { console.error("bench timers", error); }
+    if (state.listView) { try { drawTally(state); } catch (error) { console.error("tally", error); } } // GDA-48: bench time keeps counting in List view
     // The pill never changes size, so the pair lines never need redrawing here.
   } else if (screenHalf(state.screen) === 2 && game && game.state === FIRST_HALF && typeof game.firstHalfStartedAt === "number" && typeof game.firstHalfEndedAt !== "number") {
     // GDA-107: the 2nd Half plan while the 1st half runs: only the bench rings and tags move (text and ring length, no redraw). (GDA-120: this screen now shows a 0:00 clock on the band, so this no longer depends on there being no clock.)
     drawBenchTimers(game, Date.now());
+    if (state.listView) { try { drawTally(state); } catch (error) { console.error("tally", error); } }
   }
 }
 
@@ -1923,11 +1967,10 @@ function benchPill(seconds) {
 const TALLY_HEADINGS = { name: "Name", rotations: "Rotations", seconds: "Bench time" };
 
 /**
- * Interchange history (GDA-121): the bench time tally (a table that sorts by heading), then every swap, oldest first.
- * Read only: it reads the saved swaps and the game and changes nothing. Opened from the Game details sheet or the Summary page.
+ * The bench time table (it sorts by heading) and the swaps, oldest first: the two parts of Interchange history (GDA-121).
+ * Shared by that screen and by the game's List view (GDA-48). Read only: it reads the saved swaps and changes nothing.
  */
-function interchangeScreen(state, actions) {
-  const game = openGame(state);
+function tallyAndSwaps(state, game, actions) {
   const events = state.interchange?.events ?? [];
   const nameOf = (id) => state.players.find((p) => p.id === id)?.name ?? "Player";
   const sort = state.tallySort;
@@ -1957,12 +2000,90 @@ function interchangeScreen(state, actions) {
           h("div", { class: "tl swapRow" }, h("span", { class: "t" }, row.when), h("span", { class: "pairs" }, ...row.pairs.map((pair) => h("span", { class: "pair" }, pair.off !== null ? moveBit("off", nameOf(pair.off)) : null, pair.off !== null && pair.on !== null ? " \u203a " : null, pair.on !== null ? moveBit("on", nameOf(pair.on)) : null))))
         )
       );
+  return [table, list];
+}
+
+/** Interchange history (GDA-121): opened from the Game details sheet or the Summary page. */
+function interchangeScreen(state, actions) {
+  const game = openGame(state);
+  const [table, list] = tallyAndSwaps(state, game, actions);
   return {
     nodes: [
       centredHeader(header("Interchange history", actions.closeInterchange)),
       h("div", { class: "body" }, h("div", { class: "card" }, h("div", { class: "hd" }, "Bench time"), table), h("div", { class: "card" }, h("div", { class: "hd" }, "Swaps"), list)),
     ],
   };
+}
+
+/**
+ * GDA-48: the Pitch / List switch, a 44px round icon button in the top right corner of the pitch (and of the List, so it stays put).
+ * The icon shows the view it switches to. Switching only changes what is drawn; nothing is saved or moved.
+ */
+function viewSwitch(state, actions) {
+  const toList = !state.listView;
+  return h("button", { type: "button", class: "vsw", id: "viewSwitch", "aria-label": toList ? "Show the list" : "Show the pitch", onclick: actions.toggleView }, icon(toList ? "list" : "pitch"));
+}
+
+/**
+ * The box that takes the pitch's place in List view: a header line (caption on the left, the switch on the right), then a
+ * scrolling area. Settings (and in a running game the swap pill) stay in their corners, so the screen's other parts do not move.
+ */
+function listBox(state, actions, caption, content, pill = null) {
+  return h(
+    "div",
+    { class: "listbox" + (pill ? " pilled" : "") },
+    h("div", { class: "lvhead" }, h("span", { class: "lvcap", id: "listCaption" }, ...[].concat(caption)), viewSwitch(state, actions)),
+    h("div", { class: "lvscroll", id: "listScroll" }, ...[].concat(content)),
+    pill,
+    settingsButton(actions)
+  );
+}
+
+/** List view in a running game: the existing Interchange history (GDA-121) in the pitch's place. */
+function historyList(state, game, actions, pill) {
+  const [table, list] = tallyAndSwaps(state, game, actions);
+  return listBox(state, actions, "Interchange history", [table, h("div", { class: "lvsub" }, "Swaps"), list], pill);
+}
+
+const AREA_HEADINGS = { name: "Name", Goal: "Goal", Defence: "Defence", Midfield: "Midfield", Attack: "Attack" };
+
+/**
+ * List view before kick-off (GDA-48): every player with the share of halves they played in each area (GDA-173 works the
+ * numbers out), A to Z until a heading is tapped. A dash and an empty bar for no halves played; nobody coloured or ranked.
+ */
+function seasonList(state, game, actions) {
+  const totals = seasonTotals({ games: state.games, players: state.players, eventsByGame: state.seasonEvents ?? {} });
+  const sort = state.seasonSort;
+  const mode = state.seasonMode === "minutes" ? "minutes" : "halves"; // GDA-176: opens on Halves
+  const { here, absent } = listRows(state.players, totals.players, game.absent ?? [], sort, mode);
+  // The phone's own select (GDA-176) names the measure; the "based on" text follows it.
+  const option = (value) => h("option", { value, selected: value === mode }, listMeasure(value));
+  const caption = [
+    h("select", { class: "lmode", id: "seasonMode", "aria-label": "Measure", onchange: (e) => actions.setSeasonMode(e.target.value) }, option("halves"), option("minutes")),
+    totals.gamesCounted === 0 ? null : h("span", { id: "listBasedOn" }, ` \u00b7 ${listBasedOn(totals.gamesCounted, mode, totals.gamesWithMinutes)}`),
+  ];
+  if (totals.gamesCounted === 0) {
+    return listBox(state, actions, caption, h("div", { class: "empty", id: "noSeason" }, "No saved games yet.", h("br"), "This fills in when a game is saved at Full Time."));
+  }
+  const heading = (column) => {
+    const sorted = sort.column === column;
+    return h(
+      "th",
+      { scope: "col", ...(sorted ? { "aria-sort": sort.descending ? "descending" : "ascending" } : {}) },
+      h("button", { type: "button", class: "sorter", "data-col": column, onclick: () => actions.sortSeason(column) }, AREA_HEADINGS[column], h("span", { class: "so", "aria-hidden": "true" }, sorted ? (sort.descending ? "\u25bc" : "\u25b2") : ""))
+    );
+  };
+  const cell = (percent) =>
+    h("td", {}, h("span", { class: "pp" }, percent === null ? "\u2013" : `${percent}%`), h("span", { class: "tr" }, percent === null ? null : h("b", { style: `width: ${percent}%` })));
+  const row = (r) => h("tr", { "data-id": String(r.id) }, h("td", { class: "who" }, r.name), ...LIST_COLUMNS.slice(1).map((area) => cell(r.percent[area])));
+  const table = h(
+    "table",
+    { class: "season", id: "seasonTable" },
+    h("thead", {}, h("tr", {}, ...LIST_COLUMNS.map(heading))),
+    h("tbody", {}, ...here.map(row)),
+    absent.length > 0 ? h("tbody", {}, h("tr", { class: "sep" }, h("td", { colspan: "5" }, "ABSENT")), ...absent.map(row)) : null
+  );
+  return listBox(state, actions, caption, table);
 }
 
 /** GDA-121: while the game runs the tally keeps counting: the bench time cells change their text only, nothing is redrawn or re-sorted. */

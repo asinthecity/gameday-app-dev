@@ -40,6 +40,8 @@ const APP_FILES = [
   "./js/photo-store.js",
   "./js/formation-rules.js",
   "./js/record-rules.js",
+  "./js/season-rules.js",
+  "./js/season-list-rules.js",
   "./js/share-file.js",
   "./js/sheet-rules.js",
   "./js/sheet-send.js",

@@ -24,7 +24,7 @@ export function positionName(place, formation = OLD_FORMATION) {
  * Only changes made while the half was running count: Half Time changes before the
  * 2nd half starts are already part of its start line-up.
  */
-function timeInPositions(finalPositions, playerIds, events, half, startedAt, endedAt, formation) {
+export function timeInPositions(finalPositions, playerIds, events, half, startedAt, endedAt, formation) {
   const where = new Map(playerIds.map((id) => [id, finalPositions.includes(id) ? finalPositions.indexOf(id) : BENCH]));
   const used = new Map(playerIds.map((id) => [id, {}]));
   const credit = (from, to) => {
@@ -102,6 +102,7 @@ export function buildRecord(game, squad, events) {
     goals: goals.map((g) => ({ side: g.side, scorer: g.side === US && g.scorerId !== null ? nameOf(g.scorerId) : null, half: g.half, ...(typeof g.minute === "number" ? { minute: g.minute } : {}) })),
     // Everyone in the squad, once. Absent players keep their row (0 goals as they never played).
     players: squad.map((p) => ({
+      id: p.id, // GDA-178: season totals match by ID, so a rename or a twin name cannot mix players up.
       name: p.name,
       firstHalf: isAbsent(p) && !played(first, p) ? ABSENT_NAME : halfPosition(first.get(p.id), formationOf(game, 1)),
       secondHalf: isAbsent(p) && !played(second, p) ? ABSENT_NAME : halfPosition(second.get(p.id), formationOf(game, 2)),

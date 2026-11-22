@@ -62,6 +62,17 @@
   /* Player circles (GDA-118): the picture's width. A bench circle's ring box is 8px wider (2px border/halo, 2px ring each side).
      screens.js reads these to draw the rings, so there is one source. Taller phones get bigger circles; see the two
      @media blocks at the bottom of this file. Small-phone values are the ones before GDA-118 except the 4-row pitch. */
+  /* GDA-57: season chart on the line-up circles before kick-off (docs/discovery/12-fpl-style.md, option D "Shade") */
+  --chart-l1: #9B7BFF;         /* level 1, up to a third of halves: 3.15:1 on white (level is also told by height) */
+  --chart-l2: #6A4BE0;         /* level 2: 5.7:1 */
+  --chart-l3: var(--ink);      /* level 3: 17.1:1 */
+  --chart-l0: var(--muted);    /* level 0: the 1 px baseline only */
+  --chart-col: 5px;            /* column width */
+  --chart-gap: 2px;            /* gap between columns */
+  --chart-step: 4px;           /* height per level */
+  --chart-base: 1px;           /* baseline height */
+  --chart-bottom: 3px;         /* distance from the circle's bottom edge */
+  --chart-lift: -2px;          /* bench initials move up so they clear the chart */
   --circle-pitch: 58px;        /* on the pitch, 4 rows or fewer */
   --circle-pitch-tight: 52px;  /* on the pitch, 5 rows or more */
   --circle-large: 80px;        /* on the pitch, 3 rows or fewer (GDA-162) */

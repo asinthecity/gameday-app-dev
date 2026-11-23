@@ -179,6 +179,10 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .clk .ck { flex: none; width: var(--clock-w); text-align: center; }
 .clk b, .clk .clockBtn { font-size: var(--fs-clock); font-weight: var(--bold); line-height: 1.05; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .clk .ck #clock { display: block; width: 100%; }
+/* GDA-182 (Ben): when time is up the clock numbers pulse from dark purple to the app's pink and back, eased. Colour only: no size or weight change, so nothing moves. */
+@keyframes clockPulse { 50% { color: var(--tag-off); } }
+.clk #clock.pulse { animation: clockPulse var(--clock-pulse) ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .clk #clock.pulse { animation: none; color: var(--tag-off); } } /* a steady pink instead of a pulse */
 /* GDA-154 (Ben, 2026-11-15): the head bar no longer turns pink over the half length; it stays white. The "over" class still marks time up (tests use it). */
 .logo { flex: none; height: var(--s26); width: auto; max-width: var(--s34); display: block; }
 .logo.disc { width: var(--s26); border-radius: 50%; background: var(--btn); display: flex; align-items: center; justify-content: center; font-size: var(--fs-small); font-weight: var(--bold); }

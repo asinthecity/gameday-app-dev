@@ -1714,6 +1714,7 @@ export function drawClock(state) {
     clock.textContent = clockText(startedAtOf(game), now, halfOf(game));
     const timeUp = isTimeUp(startedAtOf(game), now, halfOf(game));
     clock.closest(".clk")?.classList.toggle("over", timeUp); // marks time up; no look of its own (GDA-154: the pink head bar was removed)
+    clock.classList.toggle("pulse", timeUp); // GDA-182: only the clock numbers pulse pink, and only while the half is running (drawClock runs only on a live half)
     document.getElementById("endHalf")?.classList.toggle("go", timeUp); // time up: the Stop chip goes solid dark
     // GDA-150: the pill is drawn first and each part on its own, so a problem in one can never leave the pill without its time.
     try { drawSwapPill(game, state.players, now, timeUp); } catch (error) { console.error("swap pill", error); }

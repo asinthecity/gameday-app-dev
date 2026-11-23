@@ -234,7 +234,7 @@ export function watchLineUpPresses(rules) {
       type,
       (event) => {
         // GDA-179: a touch that starts in the scrolling List must be left alone, or the phone cannot scroll it.
-        if (type === "touchmove" && event.target.closest?.(".lvscroll")) {
+        if (type === "touchmove" && (event.target.closest?.(".lvscroll") || event.target.closest?.(".sheet.profile .psb"))) {
           return;
         }
         if (guarded() || event.target.closest?.(".slot")) {

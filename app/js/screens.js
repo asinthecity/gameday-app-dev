@@ -1103,7 +1103,8 @@ function planBody(game, view, state, actions, { editable, firstHalf, note, overl
     return h("div", { class: "lu" }, historyList(state, game, actions, overlay), bench);
   }
   // GDA-57: before kick-off the circles of players who are here carry the season chart (Absent circles do not: their row is built without it).
-  const totals = firstHalf && editable ? seasonTotals({ games: state.games, players: state.players, eventsByGame: {} }).players : null;
+  // Before kick-off the 2nd half plan shows it too (GDA-109); once the game has kicked off the half time plan has none.
+  const totals = (firstHalf ? editable : !gameHasKickedOff(game)) ? seasonTotals({ games: state.games, players: state.players, eventsByGame: {} }).players : null;
   chartLevels = totals ? new Map([...totals].map(([id, season]) => [id, season.level])) : null;
   const rows = pitchAndBench(view, state, editable, crowded, false, editable && firstHalf, overlay, actions, viewSwitch(state, actions));
   chartLevels = null; // the ABSENT row below has no chart
@@ -2124,11 +2125,11 @@ function potdPicker(state, game, actions) {
 /** GDA-109: "Goal" is stored in games and the Sheet; on screen the position is called Keeper (S8). */
 const AREA_LABELS = { Goal: "Keeper", Defence: "Defence", Midfield: "Midfield", Attack: "Attack", Bench: "Bench", Absent: "Absent" };
 
-/** One game line on the profile. Halves: "1st Keeper \u00b7 2nd Bench". Minutes: "Keeper 20 \u00b7 Bench 20" (whole minutes, none left out of order). */
+/** One game line on the profile. Halves: "1st Keeper \u00b7 2nd Bench". Minutes: "Keeper 20 min \u00b7 Bench 20 min" (whole minutes, none left out of order). */
 function profileGameText(line, mode) {
   if (mode === "minutes") {
     const parts = [...AREAS, "Bench"].map((area) => [area, Math.round(line.minutes[area])]).filter(([, minutes]) => minutes > 0);
-    return parts.length === 0 ? "\u2013" : parts.map(([area, minutes]) => `${AREA_LABELS[area]} ${minutes}`).join(" \u00b7 ");
+    return parts.length === 0 ? "\u2013" : parts.map(([area, minutes]) => `${AREA_LABELS[area]} ${minutes} min`).join(" \u00b7 ");
   }
   return `1st ${AREA_LABELS[line.halves[0]] ?? line.halves[0]} \u00b7 2nd ${AREA_LABELS[line.halves[1]] ?? line.halves[1]}`;
 }

@@ -67,8 +67,8 @@
   --chart-l2: #6A4BE0;         /* level 2: 5.7:1 */
   --chart-l3: var(--ink);      /* level 3: 17.1:1 */
   --chart-l0: var(--muted);    /* level 0: the 1 px baseline only */
-  --chart-col: 5px;            /* column width */
-  --chart-gap: 2px;            /* gap between columns */
+  --chart-col: 7px;            /* column width */
+  --chart-gap: 0;              /* gap between columns */
   --chart-step: 4px;           /* height per level */
   --chart-base: 1px;           /* baseline height */
   --chart-edge: 1px solid var(--card); /* thin white edge round each column (GDA-179) */

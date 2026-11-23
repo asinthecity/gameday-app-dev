@@ -675,6 +675,8 @@ button.tl.them { text-align: right; }
 
 /* GDA-57: the season chart on a line-up circle before kick-off, under the circle where a game's turn dots go (GDA-179). Four columns stand on a baseline; height and shade show the level. */
 .sch { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(-1 * var(--dots-hang)); z-index: 1; display: flex; align-items: flex-end; gap: var(--chart-gap); pointer-events: none; }
+/* no gap: neighbours share one 1px white edge instead of doubling to 2px (GDA-179) */
+.sch i + i { margin-left: -1px; }
 .sch i { display: block; width: var(--chart-col); height: var(--chart-base); background: var(--chart-l0); border: var(--chart-edge); box-sizing: content-box; }
 .sch i.l1 { height: calc(var(--chart-base) + var(--chart-step)); background: var(--chart-l1); }
 .sch i.l2 { height: calc(var(--chart-base) + 2 * var(--chart-step)); background: var(--chart-l2); }

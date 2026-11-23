@@ -20,6 +20,8 @@ body {
 body.lock { position: fixed; left: 0; right: 0; top: 0; bottom: 0; overflow: hidden; overscroll-behavior: none; }
 /* The line-up: no scrolling or zooming by touch, and no text selection on a long press. */
 body.nomove, body.nomove * { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+/* GDA-179: the Interchange history / season List scrolls with a finger even on the no-move screens. */
+body.nomove .lvscroll, body.nomove .lvscroll * { touch-action: pan-y; }
 button { -webkit-appearance: none; appearance: none; font: inherit; color: inherit; margin: 0; cursor: pointer; }
 
 #frame { background: var(--page); width: 100%; }
@@ -68,8 +70,8 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .c0 { background: var(--av0); } .c1 { background: var(--av1); } .c2 { background: var(--av2); } .c3 { background: var(--av3); }
 /* GDA-75: on the pitch and bench a player with no photo is a white disc with dark initials. */
 .lu .av.c0, .lu .av.c1, .lu .av.c2, .lu .av.c3, .lu .av.c4, .lu .av.c5, .lu .av.c6, .lu .av.c7 { background: var(--av-disc, var(--card)); }
-/* GDA-161: in the live game the initials sit on the same light grey as a photo's backing, centred. */
-.lu:not(.setup) { --av-disc: var(--av-photo); }
+/* GDA-161 / GDA-179: in the game and the line-up the initials sit on the same light grey as a photo's backing, centred. */
+.lu { --av-disc: var(--av-photo); }
 .c4 { background: var(--av4); } .c5 { background: var(--av5); } .c6 { background: var(--av6); } .c7 { background: var(--av7); }
 
 /* Update notice and game cards on Home */
@@ -267,13 +269,13 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 /* GDA-161: the live game draws the name ABOVE each circle and the turn dots BELOW it (the dots hang --dots-hang under the circle's edge,
    so nothing sits on a face or the initials, which stay centred on the grey disc). The slot is a reversed column, so the name (first in the
    markup) shows on top; --dots-hang is also the room kept under the circle, so a row's dots never reach the next row's name. */
-.lu:not(.setup) { --dots-hang: var(--s14); }
-.lu:not(.setup) .slot { flex-direction: column-reverse; }
-.lu:not(.setup) .row.live .slot { justify-content: flex-end; } /* (reversed column: the name and circle start at the top of the bench row) */
-.lu:not(.setup) .slot .nm { margin: 0 0 var(--s2); }
-.lu:not(.setup) .slot .ci { margin: 0 0 var(--dots-hang); }
-.lu:not(.setup) .ci .in { display: block; }
-.lu:not(.setup) .av { line-height: 1; }
+.lu { --dots-hang: var(--s14); }
+.lu .slot { flex-direction: column-reverse; }
+.lu .row.live .slot { justify-content: flex-end; } /* (reversed column: the name and circle start at the top of the bench row) */
+.lu .slot .nm { margin: 0 0 var(--s2); }
+.lu .slot .ci { margin: 0 0 var(--dots-hang); }
+.lu .ci .in { display: block; }
+.lu .av { line-height: 1; }
 /* GDA-160: a bench player's ring and time tag are the pill's colour for that player's own wait (white to strong pink); the ring never goes paler than --ring-floor.
    White words on the tag from the same point as on the pill (class wh). No red anywhere on the bench. */
 .row.live .slot { --wait-fade: 0; --wait-colour: color-mix(in srgb, var(--tag-off) calc(var(--wait-fade) * 100%), var(--card)); --ring-colour: color-mix(in srgb, var(--tag-off) calc(max(var(--wait-fade), var(--ring-floor)) * 100%), var(--card)); }
@@ -281,13 +283,13 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .row.live .tm { background: var(--wait-colour); }
 .row.live .slot.wh .tm { color: var(--card); }
 @supports not (background: color-mix(in srgb, red 50%, white)) { .row.live .slot { --wait-colour: var(--tag-off); --ring-colour: var(--tag-off); } } /* so the initials' box is as tall as the letters and centres exactly */
-.lu:not(.setup) .row.live .tm { top: 0; }
-.lu:not(.setup) .row.live.many .tm { top: auto; } /* the bench time tag starts at the ring box's top edge, so it stays clear of the centred initials (7 or more subs: see .many below) */
-.lu:not(.setup) .dots { bottom: calc(-1 * var(--dots-hang)); }
-.lu:not(.setup) .slot .pt { top: 0; } /* the OFF/ON tag starts at the circle's top edge, so it never covers the name above */
+.lu .row.live .tm { top: 0; }
+.lu .row.live.many .tm { top: auto; } /* the bench time tag starts at the ring box's top edge, so it stays clear of the centred initials (7 or more subs: see .many below) */
+.lu .dots { bottom: calc(-1 * var(--dots-hang)); }
+.lu .slot .pt { top: 0; } /* the OFF/ON tag starts at the circle's top edge, so it never covers the name above */
 /* GDA-162: 3 rows or fewer on the pitch (keeper row counts): bigger circles. Only the photo and initials grow; names and dots keep their size. */
-.lu:not(.setup) .pitch.roomy .ci { width: var(--circle-large); height: var(--circle-large); }
-.lu:not(.setup) .pitch.roomy .av { font-size: var(--fs-initial-large); }
+.lu .pitch.roomy .ci { width: var(--circle-large); height: var(--circle-large); }
+.lu .pitch.roomy .av { font-size: var(--fs-initial-large); }
 /* 5 or more subs: the slot is narrow, so smaller letters */
 .row.live.snug .ci.dotted .av { font-size: var(--fs-small); }
 /* 7 or more subs: the time tag sits centred over the circle's bottom edge, so the dots go below it. */
@@ -608,11 +610,9 @@ button.tl.them { text-align: right; }
 
 /* GDA-134: line-up screens before kick-off (.lu.setup). Name plates on the pitch, tinted bench discs, spaced captions, bottom row.
    Plate height equals the old name line (16px), so the pitch does not change height. */
-.lu.setup .pitch .nm { width: auto; max-width: 100%; margin-top: var(--s2); padding: 0 var(--s6); background: var(--card); border-radius: var(--r-tag); font-size: var(--fs-small); }
-.lu.setup .row:not(.ab):not(.live) .c0 { background: var(--av0); } .lu.setup .row:not(.ab):not(.live) .c1 { background: var(--av1); }
-.lu.setup .row:not(.ab):not(.live) .c2 { background: var(--av2); } .lu.setup .row:not(.ab):not(.live) .c3 { background: var(--av3); }
-.lu.setup .row:not(.ab):not(.live) .c4 { background: var(--av4); } .lu.setup .row:not(.ab):not(.live) .c5 { background: var(--av5); }
-.lu.setup .row:not(.ab):not(.live) .c6 { background: var(--av6); } .lu.setup .row:not(.ab):not(.live) .c7 { background: var(--av7); }
+/* GDA-179: the line-up circles look like the live game (name above, initials on the light grey disc, GDA-161): no name plates or tinted discs. */
+.lu.setup .row { padding-bottom: 0; }
+.lu.setup .row .slot .nm { margin-bottom: 0; } /* these three give back the 14px the chart's room under each circle takes, so the pitch keeps its height */
 .lu.setup .row .t, .swhead { letter-spacing: var(--tracking-caps); }
 .acts.setup .gr .btn, .acts.setup .gr .btn.main { height: var(--s56); min-height: var(--s56); }
 /* 7 or more subs: one row, the discs stay 44px and the names are cut with "..." (GDA-134). */
@@ -673,11 +673,9 @@ button.tl.them { text-align: right; }
 .season .tr b { display: block; height: 100%; background: var(--brand-bright); }
 .season tr.sep td { height: var(--s30); border-top: 0; padding-top: var(--s8); font-size: var(--fs-small); letter-spacing: var(--tracking-caps); color: var(--muted); }
 
-/* GDA-57: the season chart on a line-up circle before kick-off. Four columns stand on a baseline; height and shade show the level. */
-.sch { position: absolute; left: 50%; transform: translateX(-50%); bottom: var(--chart-bottom); z-index: 1; display: flex; align-items: flex-end; gap: var(--chart-gap); pointer-events: none; }
-.sch i { display: block; width: var(--chart-col); height: var(--chart-base); background: var(--chart-l0); }
+/* GDA-57: the season chart on a line-up circle before kick-off, under the circle where a game's turn dots go (GDA-179). Four columns stand on a baseline; height and shade show the level. */
+.sch { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(-1 * var(--dots-hang)); z-index: 1; display: flex; align-items: flex-end; gap: var(--chart-gap); pointer-events: none; }
+.sch i { display: block; width: var(--chart-col); height: var(--chart-base); background: var(--chart-l0); border: var(--chart-edge); box-sizing: content-box; }
 .sch i.l1 { height: calc(var(--chart-base) + var(--chart-step)); background: var(--chart-l1); }
 .sch i.l2 { height: calc(var(--chart-base) + 2 * var(--chart-step)); background: var(--chart-l2); }
 .sch i.l3 { height: calc(var(--chart-base) + 3 * var(--chart-step)); background: var(--chart-l3); }
-/* Bench circles (smaller): the initials sit a little higher so they clear the chart. */
-.lu.setup .row:not(.ab) .av .in { position: relative; top: var(--chart-lift); }

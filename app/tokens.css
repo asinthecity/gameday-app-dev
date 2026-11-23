@@ -71,8 +71,7 @@
   --chart-gap: 2px;            /* gap between columns */
   --chart-step: 4px;           /* height per level */
   --chart-base: 1px;           /* baseline height */
-  --chart-bottom: 3px;         /* distance from the circle's bottom edge */
-  --chart-lift: -2px;          /* bench initials move up so they clear the chart */
+  --chart-edge: 1px solid var(--card); /* thin white edge round each column (GDA-179) */
   --circle-pitch: 58px;        /* on the pitch, 4 rows or fewer */
   --circle-pitch-tight: 52px;  /* on the pitch, 5 rows or more */
   --circle-large: 80px;        /* on the pitch, 3 rows or fewer (GDA-162) */

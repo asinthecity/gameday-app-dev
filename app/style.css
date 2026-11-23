@@ -575,6 +575,28 @@ button.tl.them { text-align: right; }
 .nt b { font-size: var(--fs-body); }
 #noteSheet textarea { width: 100%; min-height: var(--s96); box-sizing: border-box; font-family: inherit; font-size: var(--fs-body); color: var(--ink); background: var(--page); border: var(--bw-signal) solid var(--edge); border-radius: var(--r-control); padding: var(--s9) var(--s11); resize: none; }
 #noteSheet textarea:focus, #noteSheet textarea:focus-visible { outline: var(--bw-signal) solid var(--focus); outline-offset: var(--bw); }
+/* GDA-109: the player profile (the old hold sheet, now with the season figures). The name and Done stay put; the middle scrolls. */
+.sheet.profile { gap: 0; padding-bottom: calc(var(--s8) + env(safe-area-inset-bottom)); max-height: calc(100% - var(--profile-top, var(--s112))); overflow: hidden; }
+.sheet.profile .phd { display: flex; align-items: center; gap: var(--s12); flex: none; min-height: var(--s56); }
+.sheet.profile .phd h2 { margin: 0; flex: 1; }
+.sheet.profile .phd .av { flex: none; width: var(--s44); height: var(--s44); }
+.sheet.profile .psb > * { flex: none; }
+.sheet.profile .psb { flex: 1 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: var(--s6); padding-bottom: var(--s8); }
+.sheet.profile > .btn { flex: none; margin-top: var(--s8); }
+.sheet.profile .psb > .btn { flex: none; margin: var(--s4) 0; }
+.pcap { font-size: var(--fs-small); letter-spacing: var(--tracking-caps); color: var(--muted); padding-top: var(--s6); }
+.phead { display: flex; align-items: center; justify-content: space-between; min-height: var(--s52); border-top: var(--bw) solid var(--line); margin-top: var(--s6); }
+.pbar { display: grid; grid-template-columns: var(--s84) 1fr var(--s56); align-items: center; column-gap: var(--s8); height: var(--s34); white-space: nowrap; }
+.pbar .tr { display: block; height: var(--s4); border-radius: var(--r-tag); background: var(--line); overflow: hidden; }
+.pbar .tr b { display: block; height: 100%; background: var(--brand-bright); }
+.pbar .pp { text-align: right; font-variant-numeric: tabular-nums; }
+.pcount { display: flex; gap: var(--s24); min-height: var(--s40); align-items: center; }
+.pcount b { font-weight: var(--bold); }
+.pnone { color: var(--muted); padding: var(--s8) 0; line-height: 1.5; }
+.pgame { display: flex; align-items: center; justify-content: space-between; gap: var(--s8); min-height: var(--s46); border-top: var(--bw) solid var(--line); font-size: var(--fs-small); }
+.pgame .po { color: var(--muted); }
+.pgame .po small { display: block; }
+.pgame .pr { text-align: right; }
 /* Press and hold on a circle must not select text or show the iPhone magnifier or menu. */
 .slot, .slot * { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
 

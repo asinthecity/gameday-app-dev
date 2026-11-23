@@ -936,7 +936,7 @@ function playerSlot(player, state, canMove, isKeeper = false, benchTimer = false
       class: ["slot", player.id === state.selectedId ? "sel" : "", planned ? "plan" : "", isKeeper ? "keeper" : "", planBench && shown.seconds !== null && ringFraction(shown.seconds, rotation) >= PILL_WHITE_FROM ? "wh" : ""].join(" ").trim(),
       ...(planBench && shown.seconds !== null ? { style: `--wait-fade: ${ringFraction(shown.seconds, rotation).toFixed(3)}` } : {}), // GDA-160: ring and tag colour for a frozen plan circle
       ...(canMove ? { "data-player": player.id } : {}),
-      ...(canEditNotes(openGame(state)) && !state.viewId ? { "data-note": player.id } : {}), // GDA-81: can be held for a note
+      ...(!state.viewId && (canEditNotes(openGame(state)) || (openGame(state).state === NOT_STARTED && !openGame(state).absent.includes(player.id))) ? { "data-note": player.id } : {}), // GDA-81/109: can be held for the profile (not an Absent circle, not a saved game)
       ...(planBench && !afterHalf ? { "data-plan-bench": player.id } : {}), // GDA-107: the plan's bench circles move with the 1st half
       ...(benchTimer ? { "data-bench": player.id } : {}), // Marks a timer circle; it is not draggable.
     },
@@ -1150,6 +1150,7 @@ function notStartedHalf(state, actions, half) {
       bottomBar(state, actions), // empty unless there is an error message
       gameDetailsSheet(state, game, actions),
       half === 2 && firstHalfRunning(game) ? goalDialog(state, game, actions) : null,
+      noteSheet(state, game, actions), // GDA-109: the player profile (before kick-off: figures only)
     ],
   };
 }
@@ -2046,7 +2047,7 @@ function historyList(state, game, actions, pill) {
   return listBox(state, actions, "Interchange history", [table, h("div", { class: "lvsub" }, "Swaps"), list], pill);
 }
 
-const AREA_HEADINGS = { name: "Name", Goal: "Goal", Defence: "Defence", Midfield: "Midfield", Attack: "Attack" };
+const AREA_HEADINGS = { name: "Name", Goal: "Keeper", Defence: "Defence", Midfield: "Midfield", Attack: "Attack" };
 
 /**
  * List view before kick-off (GDA-48): every player with the share of halves they played in each area (GDA-173 works the
@@ -2120,31 +2121,82 @@ function potdPicker(state, game, actions) {
   });
 }
 
+/** GDA-109: "Goal" is stored in games and the Sheet; on screen the position is called Keeper (S8). */
+const AREA_LABELS = { Goal: "Keeper", Defence: "Defence", Midfield: "Midfield", Attack: "Attack", Bench: "Bench", Absent: "Absent" };
+
+/** One game line on the profile. Halves: "1st Keeper \u00b7 2nd Bench". Minutes: "Keeper 20 \u00b7 Bench 20" (whole minutes, none left out of order). */
+function profileGameText(line, mode) {
+  if (mode === "minutes") {
+    const parts = [...AREAS, "Bench"].map((area) => [area, Math.round(line.minutes[area])]).filter(([, minutes]) => minutes > 0);
+    return parts.length === 0 ? "\u2013" : parts.map(([area, minutes]) => `${AREA_LABELS[area]} ${minutes}`).join(" \u00b7 ");
+  }
+  return `1st ${AREA_LABELS[line.halves[0]] ?? line.halves[0]} \u00b7 2nd ${AREA_LABELS[line.halves[1]] ?? line.halves[1]}`;
+}
+
+/** The season part of the profile (GDA-109): positions as bars, the two counts, the last 3 games. Only shows numbers (S3, S4). */
+function profileSeason(state, player, actions) {
+  const season = seasonTotals({ games: state.games, players: state.players, eventsByGame: state.seasonEvents ?? {} }).players.get(player.id);
+  const mode = state.seasonMode === "minutes" ? "minutes" : "halves"; // one shared choice with the season List
+  const counts = h("div", { class: "pcount", id: "profileCounts" }, h("span", {}, "Goals ", h("b", { id: "profileGoals" }, String(season.goals))), h("span", {}, "Player of the Day ", h("b", { id: "profilePotd" }, String(season.potdCount))));
+  if (season.halvesPlayed === 0) {
+    return [
+      h("div", { class: "pcap" }, "SEASON"),
+      h("div", { class: "pnone", id: "profileNone" }, `Nothing played yet. Positions and games appear once ${player.name} has played.`),
+      counts,
+    ];
+  }
+  const percent = mode === "minutes" ? season.minutesPercent : season.percent;
+  const option = (value, text) => h("option", { value, selected: value === mode }, text);
+  const bar = (area) =>
+    h("div", { class: "pbar", "data-area": area }, h("span", {}, AREA_LABELS[area]), h("span", { class: "tr" }, percent[area] === null ? null : h("b", { style: `width: ${percent[area]}%` })), h("span", { class: "pp" }, percent[area] === null ? "\u2013" : `${percent[area]}%`));
+  // On Minutes a game saved without events has no minutes and is left out (it still counts in halves).
+  const games = season.lastGames.filter((line) => mode === "halves" || line.minutes !== null);
+  return [
+    h("div", { class: "phead" }, h("span", { class: "pcap" }, "SEASON POSITIONS"), h("select", { class: "lmode", id: "profileMode", "aria-label": "Show as", onchange: (e) => actions.setSeasonMode(e.target.value) }, option("halves", "Halves"), option("minutes", "Minutes"))),
+    ...AREAS.map(bar),
+    counts,
+    h("div", { class: "pcap" }, "LAST 3 GAMES"),
+    h("div", { id: "profileGames" }, ...games.map((line) => h("div", { class: "pgame" }, h("span", { class: "po" }, `v ${line.opposition}`, h("small", {}, formatGameDate(line.date))), h("span", { class: "pr" }, profileGameText(line, mode))))),
+  ];
+}
+
 /**
- * The press-and-hold sheet (GDA-81, GDA-110): one player's name, a note box (the phone's own text box) and the
- * Player of the day switch (the phone's own). The note is saved when Done is tapped; the switch saves at once.
- * The typed text is kept in state.noteDraft so a redraw behind the sheet never loses it.
+ * The player profile (GDA-109, replaces the GDA-81 hold sheet): opened by press and hold on a circle. Always: name, picture,
+ * the season figures. In a running game also today's note (the phone's own text box, saved when Done is tapped) and the
+ * Player of the day switch (the phone's own, saved at once). Closes only with Done. The typed text is kept in state.noteDraft.
  */
 function noteSheet(state, game, actions) {
   const player = state.players.find((p) => p.id === state.noteFor);
-  if (state.noteFor === null || !player || !canEditNotes(game)) {
+  if (state.noteFor === null || !player) {
     return null;
   }
-  const box = h("textarea", { id: "noteText", rows: "4", "aria-label": `Note about ${player.name}`, oninput: () => actions.noteTyped(box.value) });
+  const inGame = canEditNotes(game);
+  const done = h("button", { class: "btn pri big", id: "noteDone", onclick: actions.closeNote }, "Done");
+  const head = h("div", { class: "phd" }, avatar(player), h("h2", {}, player.name));
+  if (!inGame) {
+    return h("div", { class: "scrim", id: "noteSheet" }, h("div", { class: "sheet profile" }, head, h("div", { class: "psb" }, ...profileSeason(state, player, actions)), done));
+  }
+  const box = h("textarea", { id: "noteText", rows: "3", "aria-label": `Note about ${player.name}`, oninput: () => actions.noteTyped(box.value) });
   box.value = state.noteDraft ?? noteOf(game, player.id);
   return h(
     "div",
     { class: "scrim", id: "noteSheet" },
     h(
       "div",
-      { class: "sheet" },
-      h("h2", {}, player.name),
-      box,
-      setCard(
-        h("label", { class: "swrow", id: "potdSwitchRow" }, h("span", {}, "Player of the day"), h("input", { type: "checkbox", switch: "", id: "potdSwitch", checked: potdOf(game) === player.id, onchange: () => actions.setPotd(player.id, document.getElementById("potdSwitch").checked) }))
-      ),
-      problemLine(state.problem),
-      h("button", { class: "btn pri big", id: "noteDone", onclick: actions.closeNote }, "Done")
+      { class: "sheet profile" },
+      head,
+      h(
+        "div",
+        { class: "psb" },
+        h("div", { class: "pcap" }, "TODAY"),
+        box,
+        setCard(
+          h("label", { class: "swrow", id: "potdSwitchRow" }, h("span", {}, "Player of the day"), h("input", { type: "checkbox", switch: "", id: "potdSwitch", checked: potdOf(game) === player.id, onchange: () => actions.setPotd(player.id, document.getElementById("potdSwitch").checked) }))
+        ),
+        problemLine(state.problem),
+        done,
+        ...profileSeason(state, player, actions)
+      )
     )
   );
 }
@@ -2210,6 +2262,12 @@ export function drawScreen(state, actions) {
   document.body.classList.toggle("lock", Boolean(view.fixed));
   document.body.classList.toggle("nomove", Boolean(view.noMove));
   view.after?.(); // The game screen shows TIME at once if the half is already over time.
+  // GDA-109: the player profile starts where the pitch starts, so the header, clock and scoreboard stay clear above it.
+  const profile = document.querySelector(".sheet.profile");
+  const pitchArea = document.querySelector(".lu");
+  if (profile && pitchArea) {
+    profile.style.setProperty("--profile-top", `${Math.round(pitchArea.getBoundingClientRect().top)}px`);
+  }
 }
 
 /**

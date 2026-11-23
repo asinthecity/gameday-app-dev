@@ -964,6 +964,7 @@ const actions = {
     state.noteFor = null;
     state.noteDraft = null;
     state.problem = "";
+    ignoreTapsUntil = Date.now() + TAP_PAUSE_MS; // A double tap on the background or X must not land on what is underneath.
     draw();
   }),
   // GDA-110: the switch in the hold sheet and the tiles in the picker. Each change is saved at once.
@@ -1560,6 +1561,32 @@ document.addEventListener("touchend", (event) => {
     screen.classList.remove("slideFromRight", "slideFromLeft");
     void screen.offsetWidth;
     screen.classList.add(way === "next" ? "slideFromRight" : "slideFromLeft");
+  }
+}, { passive: true });
+
+// GDA-109: a clear swipe down closes the player profile (saving the note like Done). It must start on the header, or on the
+// content when that is scrolled to the top (so it never fights scrolling), and not in the note box.
+let profileSwipe = null;
+document.addEventListener("touchstart", (event) => {
+  const sheet = event.target.closest?.(".sheet.profile");
+  const body = event.target.closest?.(".psb");
+  profileSwipe = sheet && event.touches.length === 1 && !event.target.closest("textarea, select, input, button") && (!body || body.scrollTop === 0) ? { x: event.touches[0].clientX, y: event.touches[0].clientY } : null;
+}, { passive: true });
+document.addEventListener("touchmove", (event) => {
+  if (event.touches.length > 1) {
+    profileSwipe = null;
+  }
+}, { passive: true });
+document.addEventListener("touchend", (event) => {
+  const from = profileSwipe;
+  profileSwipe = null;
+  if (!from || state.noteFor === null) {
+    return;
+  }
+  const dy = event.changedTouches[0].clientY - from.y;
+  const dx = event.changedTouches[0].clientX - from.x;
+  if (dy >= 80 && dy > 2 * Math.abs(dx)) {
+    actions.closeNote();
   }
 }, { passive: true });
 

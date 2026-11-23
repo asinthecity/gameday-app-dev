@@ -2164,7 +2164,7 @@ function profileSeason(state, player, actions) {
 /**
  * The player profile (GDA-109, replaces the GDA-81 hold sheet): opened by press and hold on a circle. Always: name, picture,
  * the season figures. In a running game also today's note (the phone's own text box, saved when Done is tapped) and the
- * Player of the day switch (the phone's own, saved at once). Closes only with Done. The typed text is kept in state.noteDraft.
+ * Player of the day switch (the phone's own, saved at once). Closes with Done, the X, a tap on the background or a swipe down; all save the note. The typed text is kept in state.noteDraft.
  */
 function noteSheet(state, game, actions) {
   const player = state.players.find((p) => p.id === state.noteFor);
@@ -2173,15 +2173,21 @@ function noteSheet(state, game, actions) {
   }
   const inGame = canEditNotes(game);
   const done = h("button", { class: "btn pri big", id: "noteDone", onclick: actions.closeNote }, "Done");
-  const head = h("div", { class: "phd" }, avatar(player), h("h2", {}, player.name));
+  // GDA-109: three more ways to close, all saving exactly as Done does: this X, a tap on the grey background, a swipe down (main.js).
+  const head = h("div", { class: "phd" }, avatar(player), h("h2", {}, player.name), h("button", { class: "arrow", id: "noteClose", "aria-label": "Close", onclick: actions.closeNote }, icon("close")));
+  const onScrim = (event) => {
+    if (event.target === event.currentTarget) {
+      actions.closeNote(); // only the grey background itself, never the sheet
+    }
+  };
   if (!inGame) {
-    return h("div", { class: "scrim", id: "noteSheet" }, h("div", { class: "sheet profile" }, head, h("div", { class: "psb" }, ...profileSeason(state, player, actions)), done));
+    return h("div", { class: "scrim", id: "noteSheet", onclick: onScrim }, h("div", { class: "sheet profile" }, head, h("div", { class: "psb" }, ...profileSeason(state, player, actions)), done));
   }
   const box = h("textarea", { id: "noteText", rows: "3", "aria-label": `Note about ${player.name}`, oninput: () => actions.noteTyped(box.value) });
   box.value = state.noteDraft ?? noteOf(game, player.id);
   return h(
     "div",
-    { class: "scrim", id: "noteSheet" },
+    { class: "scrim", id: "noteSheet", onclick: onScrim },
     h(
       "div",
       { class: "sheet profile" },
@@ -2215,8 +2221,8 @@ function savedScreen(state, actions) {
         h("div", { class: "bigscore", id: "finalScore" }, record ? `${record.us} - ${record.them}` : ""),
         h("p", {}, "Your game is safe on this phone. No swap, goal or Undo can be reached now. You can save the file later from Home."),
         state.fileProblemFor === game?.id ? h("p", { class: "problem", role: "alert" }, FILE_PROBLEM) : null,
-        h("button", { class: "btn pri big saveFile", onclick: () => actions.saveFile(game.id) }, state.fileProblemFor === game?.id ? "Save file again" : "Save file"),
-        h("button", { class: "btn big", id: "done", onclick: actions.goHome }, "Done")
+        h("button", { class: "btn big saveFile", onclick: () => actions.saveFile(game.id) }, state.fileProblemFor === game?.id ? "Save file again" : "Save file"),
+        h("button", { class: "btn pri big", id: "done", onclick: actions.goHome }, "Done")
       ),
     ],
   };

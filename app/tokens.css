@@ -56,6 +56,7 @@
   --r-sheet: 24px;
   --r-round: 50%;
   --tap: 44px;
+  --sheet-top-gap: var(--s32); /* GDA-109: gap above the profile and Player of the day sheets */
   --bw: 1px;                   /* the one border width, whole pixels */
   --bw-signal: 2px;            /* selected, error and focus signals (never the only signal: a tick, fill or words go with it) */
 

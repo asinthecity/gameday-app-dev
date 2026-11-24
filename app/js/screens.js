@@ -2311,12 +2311,6 @@ export function drawScreen(state, actions) {
   document.body.classList.toggle("lock", Boolean(view.fixed));
   document.body.classList.toggle("nomove", Boolean(view.noMove));
   view.after?.(); // The game screen shows TIME at once if the half is already over time.
-  // GDA-109: the player profile starts where the pitch starts, so the header, clock and scoreboard stay clear above it.
-  const profile = document.querySelector(".sheet.profile");
-  const pitchArea = document.querySelector(".lu");
-  if (profile && pitchArea) {
-    profile.style.setProperty("--profile-top", `${Math.round(pitchArea.getBoundingClientRect().top)}px`);
-  }
 }
 
 /**

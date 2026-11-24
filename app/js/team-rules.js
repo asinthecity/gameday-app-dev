@@ -129,6 +129,8 @@ export function teamGameDefaults(team) {
     formation: startingFormation(team),
     carryRotationOrder: team.carryRotationOrder !== false,
     carryBenchTime: team.carryBenchTime !== false,
+    showSeasonChart: team.showSeasonChart !== false, // GDA-177: missing counts as ON
+    showRotationCounts: team.showRotationCounts !== false,
   };
 }
 
@@ -141,6 +143,8 @@ export function newGameFormFor(team) {
   form.formation = defaults.formation;
   form.carryRotationOrder = defaults.carryRotationOrder;
   form.carryBenchTime = defaults.carryBenchTime;
+  form.showSeasonChart = defaults.showSeasonChart; // GDA-177: the new game copies the team's defaults (no row on the form)
+  form.showRotationCounts = defaults.showRotationCounts;
   form.rotationMinutes = defaults.rotationMinutes;
   form.rotationExtraSeconds = defaults.rotationExtraSeconds;
   if (form.rotationMinutes > team.halfMinutes) {
@@ -165,7 +169,7 @@ export function formationAfterSizeChange(team, size) {
  * `defaults` is null for a brand-new team that made no choices.
  */
 export function teamValuesToSave(values, defaults, team) {
-  const chosen = defaults ?? (team ? teamGameDefaults(team) : { rotationMinutes: ROTATION_MINUTES, rotationExtraSeconds: 0, carryRotationOrder: true, carryBenchTime: true });
+  const chosen = defaults ?? (team ? teamGameDefaults(team) : { rotationMinutes: ROTATION_MINUTES, rotationExtraSeconds: 0, carryRotationOrder: true, carryBenchTime: true, showSeasonChart: true, showRotationCounts: true });
   const formation = chosen.formation && fitsTeam(chosen.formation, values.playersPerSide) ? chosen.formation : team ? evenSplit(values.playersPerSide) : firstFormationFor(values.playersPerSide);
   return {
     ...values,
@@ -173,13 +177,15 @@ export function teamValuesToSave(values, defaults, team) {
     rotationExtraSeconds: chosen.rotationExtraSeconds,
     carryRotationOrder: chosen.carryRotationOrder !== false,
     carryBenchTime: chosen.carryBenchTime !== false,
+    showSeasonChart: chosen.showSeasonChart !== false,
+    showRotationCounts: chosen.showRotationCounts !== false,
     formation,
   };
 }
 
 /** The team form's starting values: the typed fields as text, and the default game settings. `team` is null for Add team. */
 export function teamFormValues(team) {
-  const defaults = team ? teamGameDefaults(team) : { rotationMinutes: ROTATION_MINUTES, rotationExtraSeconds: 0, carryRotationOrder: true, carryBenchTime: true, formation: firstFormationFor(9) };
+  const defaults = team ? teamGameDefaults(team) : { rotationMinutes: ROTATION_MINUTES, rotationExtraSeconds: 0, carryRotationOrder: true, carryBenchTime: true, showSeasonChart: true, showRotationCounts: true, formation: firstFormationFor(9) };
   return team
     ? { name: team.name, size: String(team.playersPerSide), minutes: String(team.halfMinutes), defaults }
     : { name: "", size: "9", minutes: "25", defaults };

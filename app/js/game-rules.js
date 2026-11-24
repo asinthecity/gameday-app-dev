@@ -47,7 +47,7 @@ export function isBlank(text) {
 
 /** What the New game screen holds before anything is typed. `marked` lists fields showing Needed. */
 export function blankGameForm() {
-  return { date: "", kickOff: "", opposition: "", venueTag: "", venue: "", rotationMinutes: ROTATION_MINUTES, rotationExtraSeconds: 0, carryRotationOrder: true, carryBenchTime: true, marked: {} };
+  return { date: "", kickOff: "", opposition: "", venueTag: "", venue: "", rotationMinutes: ROTATION_MINUTES, rotationExtraSeconds: 0, carryRotationOrder: true, carryBenchTime: true, showSeasonChart: true, showRotationCounts: true, marked: {} };
 }
 
 /**
@@ -123,6 +123,8 @@ export function newGame(form, id, createdOrder, squad, team = null) {
     rotationExtraSeconds: snappedSeconds(form.rotationExtraSeconds, clampRotation(form.rotationMinutes, halfMinutes), halfMinutes),
     carryRotationOrder: form.carryRotationOrder !== false, // GDA-86: default ON (today's behaviour)
     carryBenchTime: form.carryBenchTime !== false, // GDA-105: a new game starts ON (games already saved keep their own value)
+    showSeasonChart: form.showSeasonChart !== false, // GDA-177: copied from the team default when the form is made; this game keeps its own choice
+    showRotationCounts: form.showRotationCounts !== false, // GDA-177: same
     absent: [],
     lineups: { firstHalf: emptyLineUp(placeCount(formation)), secondHalf: emptyLineUp(placeCount(formation)) },
   };
@@ -627,6 +629,25 @@ export function canChangeCarryOver(game) {
 /** Copies a game with one switch changed (`which` is "carryRotationOrder" or "carryBenchTime"). Locked games come back unchanged. */
 export function withCarryOver(game, which, value) {
   if (!canChangeCarryOver(game) || (which !== "carryRotationOrder" && which !== "carryBenchTime")) {
+    return game;
+  }
+  return { ...game, [which]: Boolean(value) };
+}
+
+/**
+ * GDA-177: the two "what is drawn" switches. A game keeps its own choice; a game saved before this story has none and
+ * follows the team's default; a team with no saved default counts as ON. Only what is drawn changes, never what is counted.
+ */
+export function showsSeasonChart(game, team) {
+  return (game.showSeasonChart ?? team?.showSeasonChart) !== false;
+}
+export function showsRotationCounts(game, team) {
+  return (game.showRotationCounts ?? team?.showRotationCounts) !== false;
+}
+
+/** Copies a game with one of the two display choices set (`which` is "showSeasonChart" or "showRotationCounts"). */
+export function withDisplayChoice(game, which, value) {
+  if (which !== "showSeasonChart" && which !== "showRotationCounts") {
     return game;
   }
   return { ...game, [which]: Boolean(value) };

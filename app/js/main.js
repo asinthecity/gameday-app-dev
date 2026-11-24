@@ -42,6 +42,9 @@ import {
   withRotation,
   withCarryOver,
   carriesRotationOrder,
+  showsSeasonChart,
+  showsRotationCounts,
+  withDisplayChoice,
   carriesBenchTime,
   withVenue,
   hereDifferences,
@@ -740,6 +743,17 @@ const actions = {
     state.games = state.games.map((g) => (g.id === game.id ? withCarryOver(g, which, !carryValue(g, which)) : g));
     draw();
     changeGame(db, game.id, (g) => withCarryOver(g, which, !carryValue(game, which))).catch((error) => console.warn("Could not save the choice", error));
+  },
+  // GDA-177: a per-game display switch, saved at once; never touches the team default.
+  setDisplayChoice: (which) => {
+    const game = openGame();
+    if (!game) {
+      return;
+    }
+    const value = !(which === "showSeasonChart" ? showsSeasonChart(game, currentTeam()) : showsRotationCounts(game, currentTeam()));
+    state.games = state.games.map((g) => (g.id === game.id ? withDisplayChoice(g, which, value) : g));
+    draw();
+    changeGame(db, game.id, (g) => withDisplayChoice(g, which, value)).catch((error) => console.warn("Could not save the choice", error));
   },
   // GDA-88: the Home / Away / Other tag or the Field text, saved at once from the Game details sheet.
   changeVenue: (change) => {

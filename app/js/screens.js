@@ -1152,6 +1152,7 @@ function notStartedHalf(state, actions, half) {
       gameDetailsSheet(state, game, actions),
       half === 2 && firstHalfRunning(game) ? goalDialog(state, game, actions) : null,
       noteSheet(state, game, actions), // GDA-109: the player profile (before kick-off: figures only)
+      potdPicker(state, game, actions), // GDA-175: the 2nd half plan (1st half running, or half time) has the row too
     ],
   };
 }
@@ -2117,23 +2118,30 @@ function drawTally(state) {
 
 /**
  * The Player of the Day list (GDA-174, GDA-175): a sheet like the player profile (same close options: X, swipe down, grey background).
- * One row per player here: picture, name, tick on today's pick, season count at the right. Tap a name to pick (replaces any
+ * One row per player here: picture, name, season count just after the name, tick on today's pick. Tap a heading to sort (GDA-174). Tap a name to pick (replaces any
  * earlier pick) and close; tap the ticked name to clear. The count is saved games only, so today never adds to it.
  */
+function potdHeadings(state, actions) {
+  const sort = state.potdSort;
+  const heading = (column, text) =>
+    h("button", { type: "button", class: "sorter" + (sort.column === column ? " on" : ""), "data-col": column, ...(sort.column === column ? { "aria-sort": sort.descending ? "descending" : "ascending" } : {}), onclick: () => actions.sortPotd(column) }, text, h("span", { class: "so", "aria-hidden": "true" }, sort.column === column ? (sort.descending ? "\u25bc" : "\u25b2") : ""));
+  return h("div", { class: "potdhead", id: "potdHead" }, h("span", { class: "hp" }), heading("name", "Player"), heading("count", "This season"));
+}
+
 function potdPicker(state, game, actions) {
   if (!state.potdOpen || !canEditNotes(game)) {
     return null;
   }
   const totals = seasonTotals({ games: state.games, players: state.players, eventsByGame: {} });
   const picked = potdOf(game);
-  const rows = potdListRows(state.players, totals, game.absent ?? []).map(({ player, count }) =>
+  const rows = potdListRows(state.players, totals, game.absent ?? [], state.potdSort).map(({ player, count }) =>
     h(
       "button",
       { type: "button", class: "potdrow" + (player.id === picked ? " on" : ""), "data-id": String(player.id), "aria-pressed": player.id === picked ? "true" : "false", onclick: () => actions.pickPotd(player.id) },
       avatar(player),
       h("span", { class: "pn" }, player.name),
-      h("span", { class: "pt tickMark" }, player.id === picked ? "\u2713" : ""),
-      h("span", { class: "pc" }, String(count))
+      h("span", { class: "pc" }, String(count)),
+      h("span", { class: "pt tickMark" }, player.id === picked ? "\u2713" : "")
     )
   );
   const onScrim = (event) => {
@@ -2148,7 +2156,7 @@ function potdPicker(state, game, actions) {
       "div",
       { class: "sheet profile potd" },
       h("div", { class: "phd" }, h("h2", {}, "Player of the day"), h("button", { class: "arrow", id: "potdClose", "aria-label": "Close", onclick: actions.closePotdPicker }, icon("close"))),
-      h("div", { class: "pcap potdcap" }, "This season"),
+      potdHeadings(state, actions),
       h("div", { class: "psb potdlist", id: "potdList" }, ...rows)
     )
   );
@@ -2166,28 +2174,33 @@ function profileGameText(line, mode) {
   return `1st ${AREA_LABELS[line.halves[0]] ?? line.halves[0]} \u00b7 2nd ${AREA_LABELS[line.halves[1]] ?? line.halves[1]}`;
 }
 
-/** The season part of the profile (GDA-109): positions as bars, the two counts, the last 3 games. Only shows numbers (S3, S4). */
-function profileSeason(state, player, actions) {
+/**
+ * The season part of the profile (GDA-109, final layout GDA-174): SEASON heading with the Halves/Minutes select, the column chart
+ * (four positions, Goals as a 5th element), ONE "Player of the day" line (the switch is passed in only during a game, so the
+ * line is in the same place before kick-off), then the last 3 games. Only shows numbers (S3, S4).
+ */
+function profileSeason(state, player, actions, potdSwitch) {
   const season = seasonTotals({ games: state.games, players: state.players, eventsByGame: state.seasonEvents ?? {} }).players.get(player.id);
   const mode = state.seasonMode === "minutes" ? "minutes" : "halves"; // one shared choice with the season List
-  const counts = h("div", { class: "pcount", id: "profileCounts" }, h("span", {}, "Goals ", h("b", { id: "profileGoals" }, String(season.goals))), h("span", {}, "Player of the Day ", h("b", { id: "profilePotd" }, String(season.potdCount))));
+  const potdLine = h("div", { class: "ppod", id: "profileCounts" }, h("span", {}, "Player of the day"), h("span", { class: "pmuted" }, "\u00b7 ", h("b", { id: "profilePotd" }, String(season.potdCount)), " this season"), potdSwitch ?? null);
   if (season.halvesPlayed === 0) {
     return [
       h("div", { class: "pcap" }, "SEASON"),
       h("div", { class: "pnone", id: "profileNone" }, `Nothing played yet. Positions and games appear once ${player.name} has played.`),
-      counts,
+      h("div", { class: "pgoal", id: "profileGoalsLine" }, "Goals ", h("b", { id: "profileGoals" }, String(season.goals))),
+      potdLine,
     ];
   }
   const percent = mode === "minutes" ? season.minutesPercent : season.percent;
   const option = (value, text) => h("option", { value, selected: value === mode }, text);
-  const bar = (area) =>
-    h("div", { class: "pbar", "data-area": area }, h("span", {}, AREA_LABELS[area]), h("span", { class: "tr" }, percent[area] === null ? null : h("b", { style: `width: ${percent[area]}%` })), h("span", { class: "pp" }, percent[area] === null ? "\u2013" : `${percent[area]}%`));
+  const column = (area) =>
+    h("div", { class: "pcol", "data-area": area }, h("b", { class: "pp" }, percent[area] === null ? "\u2013" : `${percent[area]}%`), h("span", { class: "well" }, percent[area] === null ? null : h("i", { style: `height: ${percent[area]}%` })), h("span", { class: "plab" }, AREA_LABELS[area]));
   // On Minutes a game saved without events has no minutes and is left out (it still counts in halves).
   const games = season.lastGames.filter((line) => mode === "halves" || line.minutes !== null);
   return [
-    h("div", { class: "phead" }, h("span", { class: "pcap" }, "SEASON POSITIONS"), h("select", { class: "lmode", id: "profileMode", "aria-label": "Show as", onchange: (e) => actions.setSeasonMode(e.target.value) }, option("halves", "Halves"), option("minutes", "Minutes"))),
-    ...AREAS.map(bar),
-    counts,
+    h("div", { class: "phead" }, h("span", { class: "pcap" }, "SEASON"), h("select", { class: "lmode", id: "profileMode", "aria-label": "Show as", onchange: (e) => actions.setSeasonMode(e.target.value) }, option("halves", "Halves"), option("minutes", "Minutes"))),
+    h("div", { class: "pchart" }, ...AREAS.map(column), h("div", { class: "pcol pgoals" }, h("b", { class: "pp" }, "\u00a0"), h("span", { class: "well" }, h("b", { id: "profileGoals" }, String(season.goals))), h("span", { class: "plab" }, "Goals"))),
+    potdLine,
     h("div", { class: "pcap" }, "LAST 3 GAMES"),
     h("div", { id: "profileGames" }, ...games.map((line) => h("div", { class: "pgame" }, h("span", { class: "po" }, `v ${line.opposition}`, h("small", {}, formatGameDate(line.date))), h("span", { class: "pr" }, profileGameText(line, mode))))),
   ];
@@ -2213,8 +2226,9 @@ function noteSheet(state, game, actions) {
     }
   };
   if (!inGame) {
-    return h("div", { class: "scrim", id: "noteSheet", onclick: onScrim }, h("div", { class: "sheet profile" }, head, h("div", { class: "psb" }, ...profileSeason(state, player, actions)), done));
+    return h("div", { class: "scrim", id: "noteSheet", onclick: onScrim }, h("div", { class: "sheet profile" }, head, h("div", { class: "psb" }, ...profileSeason(state, player, actions, null)), done));
   }
+  const potdSwitch = h("input", { type: "checkbox", switch: "", id: "potdSwitch", "aria-label": "Player of the day", checked: potdOf(game) === player.id, onchange: () => actions.setPotd(player.id, document.getElementById("potdSwitch").checked) });
   const box = h("textarea", { id: "noteText", rows: "3", "aria-label": `Note about ${player.name}`, oninput: () => actions.noteTyped(box.value) });
   box.value = state.noteDraft ?? noteOf(game, player.id);
   return h(
@@ -2227,15 +2241,12 @@ function noteSheet(state, game, actions) {
       h(
         "div",
         { class: "psb" },
-        h("div", { class: "pcap" }, "TODAY"),
+        h("div", { class: "pcap" }, "TODAY'S NOTE"),
         box,
-        setCard(
-          h("label", { class: "swrow", id: "potdSwitchRow" }, h("span", {}, "Player of the day"), h("input", { type: "checkbox", switch: "", id: "potdSwitch", checked: potdOf(game) === player.id, onchange: () => actions.setPotd(player.id, document.getElementById("potdSwitch").checked) }))
-        ),
         problemLine(state.problem),
-        done,
-        ...profileSeason(state, player, actions)
-      )
+        ...profileSeason(state, player, actions, potdSwitch)
+      ),
+      done
     )
   );
 }

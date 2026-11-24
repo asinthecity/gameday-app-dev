@@ -585,7 +585,6 @@ button.tl.them { text-align: right; }
 .sheet.profile > .btn { flex: none; margin-top: var(--s8); }
 .sheet.profile .psb > .btn { flex: none; margin: var(--s4) 0; }
 /* GDA-174: the Player of the Day list: rows in the profile's sheet; the pick has a tick and the here-bg highlight. */
-.potdcap { text-align: right; padding-bottom: var(--s4); }
 .potdlist { gap: 0; }
 .potdrow { display: flex; align-items: center; gap: var(--s12); min-height: var(--s60); padding: var(--s8) var(--s16); margin: 0 calc(-1 * var(--s16)); border: 0; border-top: var(--bw) solid var(--line); background: transparent; color: var(--ink); font: inherit; text-align: left; width: calc(100% + var(--s32)); }
 .potdrow.on { background: var(--here-bg); }
@@ -717,3 +716,29 @@ button.tl.them { text-align: right; }
 .sch i.l1 { height: calc(var(--chart-base) + var(--chart-step)); background: var(--chart-l1); }
 .sch i.l2 { height: calc(var(--chart-base) + 2 * var(--chart-step)); background: var(--chart-l2); }
 .sch i.l3 { height: calc(var(--chart-base) + 3 * var(--chart-step)); background: var(--chart-l3); }
+
+/* GDA-109 / GDA-174 final layout: the profile's column chart, one Player of the day line, and the sortable Player of the day list. */
+.pchart { display: flex; align-items: flex-end; gap: var(--s14); min-height: var(--s110); }
+.pcol { display: flex; flex-direction: column; align-items: center; width: var(--s52); font-size: var(--fs-small); }
+.pcol .pp { font-size: var(--fs-body); font-weight: var(--bold); font-variant-numeric: tabular-nums; }
+.pcol .well { position: relative; overflow: hidden; width: var(--s20); height: var(--s70); margin-bottom: var(--s4); border-radius: var(--r-tag); background: var(--line); }
+.pcol .well i { position: absolute; left: 0; right: 0; bottom: 0; background: var(--brand-bright); }
+.pcol.pgoals { width: auto; min-width: var(--s52); padding-left: var(--s14); margin-left: var(--s2); border-left: var(--bw) solid var(--edge); }
+.pcol.pgoals .well { display: flex; align-items: center; justify-content: center; width: auto; background: none; font-size: var(--fs-big); }
+.pcol.pgoals .well b { font-weight: var(--bold); }
+.pgoal { min-height: var(--s40); display: flex; align-items: center; gap: var(--s8); }
+.ppod { display: flex; align-items: center; gap: var(--s8); min-height: var(--s44); border-top: var(--bw) solid var(--line); border-bottom: var(--bw) solid var(--line); }
+.ppod .pmuted { color: var(--muted); }
+.ppod input[switch] { margin-left: auto; flex: none; }
+.potdhead { display: flex; align-items: center; gap: var(--s12); min-height: var(--tap); border-bottom: var(--bw) solid var(--edge); flex: none; }
+.potdhead .hp { flex: none; width: var(--s44); }
+.potdhead .sorter { display: inline-flex; align-items: center; gap: var(--s2); min-height: var(--tap); padding: 0; border: 0; background: none; color: var(--muted); font: inherit; font-size: var(--fs-small); }
+.potdhead .sorter.on { color: var(--ink); font-weight: var(--bold); }
+.potdhead .so { display: inline-block; width: 1em; text-align: left; }
+.potdhead .sorter[data-col="name"] { width: var(--s140); }
+/* The count column sits right after a capped name column, not at the far edge (Ben, 2026-11-24). */
+.potdrow .pn { flex: none; width: var(--s140); }
+.potdrow .pc { flex: none; width: var(--s84); text-align: left; }
+.potdrow.on .pc { font-weight: var(--bold); }
+.potdrow .pt { flex: none; width: var(--s24); }
+.sheet.profile .phead { padding: 0; border-top: 0; }

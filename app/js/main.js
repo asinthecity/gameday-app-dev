@@ -103,6 +103,7 @@ const state = {
   summaryBack: null, // The game screen the mid-game Summary returns to (GDA-108). Never saved.
   noteFor: null, // The player whose hold sheet is open (GDA-81), or null. Never saved.
   noteDraft: null, // What is typed in the note box, until Done (null = not typed yet). Never saved.
+  potdSort: { column: "count", descending: false }, // GDA-174: the Player of the day list's sort; opens fewest first, never saved.
   potdOpen: false, // The Player of the day picker (GDA-110). Never saved.
   undo: null, // After Swap, for about 5 seconds: { before, eventId, until }. Never saved.
   problem: "",
@@ -939,6 +940,10 @@ const actions = {
     state.seasonSort = sortAfterTap(state.seasonSort, column);
     draw();
   }),
+  sortPotd: tap((column) => {
+    state.potdSort = sortAfterTap(state.potdSort, column);
+    draw();
+  }),
   sortTally: tap((column) => {
     state.tallySort = sortAfterTap(state.tallySort, column);
     draw();
@@ -966,11 +971,13 @@ const actions = {
     }
   },
   openPotdPicker: tap(() => {
+    state.potdSort = { column: "count", descending: false };
     state.potdOpen = true;
     draw();
   }),
   // GDA-175: from Game settings; the settings sheet closes so a pick returns straight to the game.
   openPotdFromSettings: tap(() => {
+    state.potdSort = { column: "count", descending: false };
     state.rotationOpen = false;
     state.potdOpen = true;
     draw();

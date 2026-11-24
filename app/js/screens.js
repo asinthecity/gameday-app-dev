@@ -2176,8 +2176,7 @@ function profileGameText(line, mode) {
 
 /**
  * The season part of the profile (GDA-109, final layout GDA-174): SEASON heading with the Halves/Minutes select, the column chart
- * (four positions, Goals as a 5th element), ONE "Player of the day" line (the switch is passed in only during a game, so the
- * line is in the same place before kick-off), then the last 3 games. Only shows numbers (S3, S4).
+ * (four positions, Goals as a 5th element), ONE "Player of the day" line FIRST (under the note box in a game, under the name before kick-off; the switch is passed in only during a game), then the last 3 games. Only shows numbers (S3, S4).
  */
 function profileSeason(state, player, actions, potdSwitch) {
   const season = seasonTotals({ games: state.games, players: state.players, eventsByGame: state.seasonEvents ?? {} }).players.get(player.id);
@@ -2185,10 +2184,10 @@ function profileSeason(state, player, actions, potdSwitch) {
   const potdLine = h("div", { class: "ppod", id: "profileCounts" }, h("span", {}, "Player of the day"), h("span", { class: "pmuted" }, "\u00b7 ", h("b", { id: "profilePotd" }, String(season.potdCount)), " this season"), potdSwitch ?? null);
   if (season.halvesPlayed === 0) {
     return [
+      potdLine,
       h("div", { class: "pcap" }, "SEASON"),
       h("div", { class: "pnone", id: "profileNone" }, `Nothing played yet. Positions and games appear once ${player.name} has played.`),
       h("div", { class: "pgoal", id: "profileGoalsLine" }, "Goals ", h("b", { id: "profileGoals" }, String(season.goals))),
-      potdLine,
     ];
   }
   const percent = mode === "minutes" ? season.minutesPercent : season.percent;
@@ -2198,9 +2197,9 @@ function profileSeason(state, player, actions, potdSwitch) {
   // On Minutes a game saved without events has no minutes and is left out (it still counts in halves).
   const games = season.lastGames.filter((line) => mode === "halves" || line.minutes !== null);
   return [
+    potdLine,
     h("div", { class: "phead" }, h("span", { class: "pcap" }, "SEASON"), h("select", { class: "lmode", id: "profileMode", "aria-label": "Show as", onchange: (e) => actions.setSeasonMode(e.target.value) }, option("halves", "Halves"), option("minutes", "Minutes"))),
     h("div", { class: "pchart" }, ...AREAS.map(column), h("div", { class: "pcol pgoals" }, h("b", { class: "pp" }, "\u00a0"), h("span", { class: "well" }, h("b", { id: "profileGoals" }, String(season.goals))), h("span", { class: "plab" }, "Goals"))),
-    potdLine,
     h("div", { class: "pcap" }, "LAST 3 GAMES"),
     h("div", { id: "profileGames" }, ...games.map((line) => h("div", { class: "pgame" }, h("span", { class: "po" }, `v ${line.opposition}`, h("small", {}, formatGameDate(line.date))), h("span", { class: "pr" }, profileGameText(line, mode))))),
   ];

@@ -585,8 +585,8 @@ button.tl.them { text-align: right; }
 .sheet.profile > .btn { flex: none; margin-top: var(--s8); }
 .sheet.profile .psb > .btn { flex: none; margin: var(--s4) 0; }
 /* GDA-174: the Player of the Day list: rows in the profile's sheet; the pick has a tick and the here-bg highlight. */
-.potdlist { gap: 0; }
-.potdrow { display: flex; align-items: center; gap: var(--s12); min-height: var(--s60); padding: var(--s8) var(--s16); margin: 0 calc(-1 * var(--s16)); border: 0; border-top: var(--bw) solid var(--line); background: transparent; color: var(--ink); font: inherit; text-align: left; width: calc(100% + var(--s32)); }
+.potdlist { gap: 0; overflow-x: hidden; }
+.potdrow { display: flex; align-items: center; gap: var(--s12); min-height: var(--s60); padding: var(--s8) var(--s4); margin: 0; box-sizing: border-box; border: 0; border-top: var(--bw) solid var(--line); background: transparent; color: var(--ink); font: inherit; text-align: left; width: 100%; }
 .potdrow.on { background: var(--here-bg); }
 .potdrow .av { flex: none; width: var(--s44); height: var(--s44); }
 .potdrow .pn { flex: 1; min-width: 0; overflow-wrap: anywhere; }
@@ -730,7 +730,7 @@ button.tl.them { text-align: right; }
 .ppod { display: flex; align-items: center; gap: var(--s8); min-height: var(--s44); border-top: var(--bw) solid var(--line); border-bottom: var(--bw) solid var(--line); }
 .ppod .pmuted { color: var(--muted); }
 .ppod input[switch] { margin-left: auto; flex: none; }
-.potdhead { display: flex; align-items: center; gap: var(--s12); min-height: var(--tap); border-bottom: var(--bw) solid var(--edge); flex: none; }
+.potdhead { padding: 0 var(--s4); box-sizing: border-box; display: flex; align-items: center; gap: var(--s12); min-height: var(--tap); border-bottom: var(--bw) solid var(--edge); flex: none; }
 .potdhead .hp { flex: none; width: var(--s44); }
 .potdhead .sorter { display: inline-flex; align-items: center; gap: var(--s2); min-height: var(--tap); padding: 0; border: 0; background: none; color: var(--muted); font: inherit; font-size: var(--fs-small); }
 .potdhead .sorter.on { color: var(--ink); font-weight: var(--bold); }

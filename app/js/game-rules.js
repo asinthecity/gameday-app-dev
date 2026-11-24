@@ -1044,6 +1044,21 @@ export function gamesInOrder(games) {
   });
 }
 
+/**
+ * Finished games for Home (GDA-184): newest first (latest date and kick-off first;
+ * same time: the one created last first). Does not change gamesInOrder or the stored order.
+ */
+export function finishedNewestFirst(games) {
+  return [...games].sort((a, b) => {
+    const first = a.date + " " + a.kickOff;
+    const second = b.date + " " + b.kickOff;
+    if (first === second) {
+      return b.createdOrder - a.createdOrder;
+    }
+    return first < second ? 1 : -1;
+  });
+}
+
 /** "2026-11-14" becomes "Sat 14 Nov". Worked out in UTC only so no time zone can move the day. */
 export function formatGameDate(date) {
   const [year, month, day] = date.split("-").map(Number);

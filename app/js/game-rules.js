@@ -441,27 +441,6 @@ export function canDrag(game, spot) {
 }
 
 /**
- * What a tap on a spot does: gives the player selected afterwards, and whether the
- * selected player moves onto the spot. A second tap on a player cancels. A tap on
- * another player in the same row moves the selection. A tap that cannot be a move
- * changes nothing, so the first player stays selected.
- */
-export function afterTap(game, selectedId, spot, canMoveOnto = (g, id, s) => movedOnto(g, id, s) !== null) {
-  const tappedId = playerIn(game, spot);
-  if (selectedId === null) {
-    return { selectedId: tappedId, move: false };
-  }
-  if (selectedId === tappedId) {
-    return { selectedId: null, move: false };
-  }
-  if (canMoveOnto(game, selectedId, spot)) {
-    return { selectedId, move: true };
-  }
-  const sameRow = tappedId !== null && whereIs(game, tappedId) === whereIs(game, selectedId);
-  return { selectedId: sameRow ? tappedId : selectedId, move: false };
-}
-
-/**
  * One record in the event log. Every event has `gameId`, `type` and `at`, the real
  * time in milliseconds. The game clock is worked out from `at` and the half's real
  * start time, so position time needs nothing more once the clock exists (GDA-24).
@@ -1089,12 +1068,6 @@ export function liveAction(game, playerId, spot) {
   return from === BENCH || to === BENCH ? "plan" : "move";
 }
 
-/** True for the actions that have a tap version. Bench re-ordering is drag only (Ben, GDA-61). */
-export function canTapLive(game, playerId, spot) {
-  const action = liveAction(game, playerId, spot);
-  return action === "plan" || action === "move";
-}
-
 /**
  * Plans a pair. A new pair replaces an old one that has the same bench player or the
  * same target, so each child and each position is in at most one pair.
@@ -1646,9 +1619,6 @@ export function lastGoal(game) {
 // ---- Coach's notes and Player of the day (GDA-81, GDA-110) ----
 // `game.notes` is { playerId: text }: at most ONE note per player per game. `game.potdId` is the one Player of
 // the day (a player id) or absent/null. Both can change from kick-off until End game and save, then never.
-
-/** Press and hold on a circle opens the note sheet after this long (GDA-81). One place to change it. */
-export const HOLD_MS = 500;
 
 /** True while notes and Player of the day may be changed: kicked off and not yet saved at Full Time. */
 export function canEditNotes(game) {

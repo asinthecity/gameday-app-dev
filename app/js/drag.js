@@ -54,7 +54,7 @@ function spotOf(slot) {
     return { zone: slot.dataset.zone }; // A whole row: "absent" or "bench" (GDA-62).
   }
   if (slot.dataset.player === undefined && slot.dataset.note !== undefined) {
-    return { playerId: Number(slot.dataset.note), holdOnly: true }; // A circle that cannot move (e.g. Half Time end) but can be held for a note.
+    return { playerId: Number(slot.dataset.note), openOnly: true }; // A circle that cannot move (e.g. Half Time end) but can be tapped for the profile.
   }
   return slot.dataset.player !== undefined ? { playerId: Number(slot.dataset.player) } : { place: Number(slot.dataset.place) };
 }
@@ -68,13 +68,12 @@ function centreOf(slot) {
  * Starts listening. `rules` holds:
  * - canPress(): whether the line-up is on screen and ready for a press.
  * - canDrag(spot) and canDrop(playerId, spot).
- * - tapped(spot): a press that did not become a drag.
+ * - tapped(spot): a press that did not become a drag, on a circle where canOpen(spot) is true.
  * - dragStarted(): must not redraw the slots. On an iPhone, removing the circle under
  *   the finger ends the drag. The screen is redrawn only after the finger lifts.
  * - dropped(playerId, spot): spot is null if the drop landed on nothing.
- * - holdMs, canHold(spot) and held(spot) (GDA-81): a finger that stays on a circle for holdMs without moving
- *   DRAG_START_DISTANCE calls held(spot). That press then ends: no tap, no drag. A tap or drag that
- *   starts first cancels the hold, so a drag is never also a hold.
+ * - canOpen(spot) (GDA-181): whether a tap on this circle may call tapped(spot) (open the profile) even when the
+ *   line-up cannot be pressed for moving. A tap never moves anything: moves and swaps are by dragging only.
  *
  * Gives { isActive }, which is true while a finger is on a player.
  */
@@ -83,12 +82,10 @@ export function watchLineUpPresses(rules) {
   const ghost = document.getElementById("ghost");
   const line = document.getElementById("ln");
   let press = null; // The press in progress, or null.
-  let holdTimer = null;
 
   function startDrag() {
     press.dragging = true;
     rules.dragStarted();
-    document.querySelector(".slot.sel")?.classList.remove("sel");
     press.slot.classList.add("src");
     // Measured after dragStarted, which can change the height of the bottom bar.
     press.targets = [...document.querySelectorAll("[data-player], [data-place], [data-zone], [data-note]")]
@@ -126,14 +123,10 @@ export function watchLineUpPresses(rules) {
   function finish(apply) {
     const ended = press;
     press = null;
-    clearTimeout(holdTimer);
-    if (ended.spot.holdOnly) {
-      return; // This press could only have become a hold, and it did not.
-    }
     if (ended.dragging) {
       layer.hidden = true;
       rules.dropped(ended.spot.playerId, apply ? (ended.hit?.spot ?? null) : null);
-    } else if (apply && !ended.moved) {
+    } else if (apply && !ended.moved && rules.canOpen(ended.spot)) {
       rules.tapped(ended.spot);
     }
   }
@@ -153,14 +146,15 @@ export function watchLineUpPresses(rules) {
     if (!slot) {
       return;
     }
-    const holdable = Boolean(rules.holdMs) && slot.dataset.zone === undefined && slot.dataset.place === undefined && rules.canHold?.(spotOf(slot)) === true;
-    if (!rules.canPress() && !holdable) {
+    // A circle can be pressed for dragging, or only tapped for the profile (not a position or a row).
+    const openable = slot.dataset.zone === undefined && slot.dataset.place === undefined && rules.canOpen(spotOf(slot)) === true;
+    if (!rules.canPress() && !openable) {
       return;
     }
     press = {
       id: event.pointerId,
       slot,
-      spot: { ...spotOf(slot), ...(rules.canPress() ? {} : { holdOnly: true }) }, // holdOnly: this press can only become a hold
+      spot: { ...spotOf(slot), ...(rules.canPress() ? {} : { openOnly: true }) }, // openOnly: this press can only become a tap
       x: event.clientX,
       y: event.clientY,
       lift: event.pointerType === "mouse" ? 0 : GHOST_LIFT,
@@ -169,17 +163,6 @@ export function watchLineUpPresses(rules) {
       targets: [],
       hit: null,
     };
-    // GDA-81: hold. Cancelled by lifting, by moving DRAG_START_DISTANCE (press.moved), or once a drag has started.
-    clearTimeout(holdTimer);
-    if (holdable) {
-      const mine = press;
-      holdTimer = setTimeout(() => {
-        if (press === mine && !mine.moved && !mine.dragging) {
-          press = null;
-          rules.held(mine.spot);
-        }
-      }, rules.holdMs);
-    }
   });
 
   document.addEventListener("pointermove", (event) => {
@@ -191,7 +174,7 @@ export function watchLineUpPresses(rules) {
         return;
       }
       press.moved = true;
-      if (press.spot.holdOnly || !rules.canDrag(press.spot)) {
+      if (press.spot.openOnly || !rules.canDrag(press.spot)) {
         return;
       }
       startDrag();
@@ -212,13 +195,12 @@ export function watchLineUpPresses(rules) {
   });
 
   // The app going to the background mid-press also loses the touch. Let go cleanly.
-  // GDA-117: the same on rotate, resize and coming back (pageshow, visible): clear any press, hold timer and
+  // GDA-117: the same on rotate, resize and coming back (pageshow, visible): clear any press and
   // drag layer, so a touch the phone lost can never leave the screen ignoring taps.
   const letGo = () => {
     if (press) {
       finish(false);
     }
-    clearTimeout(holdTimer);
     layer.hidden = true;
   };
   document.addEventListener("visibilitychange", letGo);

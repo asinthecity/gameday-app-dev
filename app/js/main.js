@@ -7,14 +7,11 @@ import { watchLineUpPresses } from "./drag.js";
 import { sortAfterTap } from "./interchange-rules.js";
 import { NO_SWIPE_START, POPUP_OPEN, swipeOf } from "./swipe-rules.js";
 import {
-  afterTap,
   canCreateGame,
   canDrag,
   canReorderBench,
-  canTapLive,
   canAddGoal,
   canEditNotes,
-  HOLD_MS,
   noteOf,
   potdOf,
   withNote,
@@ -85,7 +82,6 @@ const state = {
   form: null, // What is typed on the New game screen, until it is saved or left.
   gameId: null, // The game whose line-up is open.
   viewId: null, // GDA-100: the finished game being looked at from Home. Never saved; gameId (a game in progress) is not touched.
-  selectedId: null, // The player selected on the line-up. Never saved.
   editId: null,
   photos: {}, // playerId -> small photo, kept on this phone only (GDA-52).
   logos: {}, // teamId -> small logo, kept on this phone only (GDA-126).
@@ -243,7 +239,6 @@ function goTo(screen) {
   state.rotationOpen = false;
   state.undoKickOffAsk = false;
   state.hereDraft = null;
-  state.selectedId = null;
   state.undo = null;
   state.goalOpen = false;
   state.goalFixId = null;
@@ -452,7 +447,6 @@ async function saveThenShowLineUp(saveChange) {
     state.games = await gamesNow();
     await refreshHistory();
     saving = false;
-    state.selectedId = null;
     state.problem = "";
     draw();
   } catch (error) {
@@ -502,7 +496,6 @@ async function saveSwap() {
     return;
   }
   saving = false;
-  state.selectedId = null;
   state.problem = "";
   ignoreTapsUntil = Date.now() + TAP_PAUSE_MS; // Undo appears where Swap was: a double tap must not hit it.
   draw();
@@ -824,7 +817,6 @@ const actions = {
       }
       if (ids.length > 0) {
         state.undo = null; // A Swap's Undo would put the old line-up back over this change.
-        state.selectedId = null;
       }
       state.problem = "";
     } catch (error) {
@@ -974,6 +966,12 @@ const actions = {
     }
   },
   openPotdPicker: tap(() => {
+    state.potdOpen = true;
+    draw();
+  }),
+  // GDA-175: from Game settings; the settings sheet closes so a pick returns straight to the game.
+  openPotdFromSettings: tap(() => {
+    state.rotationOpen = false;
     state.potdOpen = true;
     draw();
   }),
@@ -1287,21 +1285,19 @@ function saveEditBench(playerId, targetId) {
   return onPlan() ? saveThenShowLineUp(() => reorderPlanBench(db, state.gameId, playerId, targetId)) : saveBenchMove(playerId, targetId);
 }
 const presses = watchLineUpPresses({
-  // GDA-81: press and hold on a circle (any game screen, from kick-off until End game and save; not a viewed game).
-  holdMs: HOLD_MS,
-  // GDA-109: the profile opens from the line-up before kick-off too (not for an Absent circle), and in a running game; never on a saved game.
-  canHold: (spot) => {
+  // GDA-181: a tap on a circle opens that player's profile (GDA-109). Moves and swaps are by dragging only.
+  // Open from the line-up before kick-off (an Absent circle too) and in a running game; never on a saved game.
+  canOpen: (spot) => {
     const game = openGame();
-    return readyForTaps() && screenHalf(state.screen) !== 0 && !state.viewId && state.noteFor === null && Boolean(game) && (canEditNotes(game) || (game.state === NOT_STARTED && !game.absent.includes(spot.playerId)));
+    return spot.playerId !== undefined && readyForTaps() && screenHalf(state.screen) !== 0 && !state.viewId && state.noteFor === null && Boolean(game) && (canEditNotes(game) || game.state === NOT_STARTED);
   },
-  async held(spot) {
+  async tapped(spot) {
     try {
       state.seasonEvents = await loadSeasonEvents(db); // the minutes are worked out from these
     } catch (error) {
       console.warn("Could not read the season's events", error);
       state.seasonEvents = {}; // halves still show; minutes show dashes
     }
-    state.selectedId = null;
     state.noteFor = spot.playerId;
     state.noteDraft = null;
     state.problem = "";
@@ -1312,19 +1308,7 @@ const presses = watchLineUpPresses({
   canDrag: (spot) => canDrag(ruleGame(), spot),
   canDrop: (playerId, spot) =>
     isLiveScreen() ? liveAction(openGame(), playerId, spot) !== null : canMoveOnLineUp(openGame(), playerId, spot) || canReorderBench(ruleGame(), playerId, spot.playerId),
-  tapped(spot) {
-    const live = isLiveScreen();
-    const outcome = live ? afterTap(openGame(), state.selectedId, spot, canTapLive) : afterTap(ruleGame(), state.selectedId, spot, canMoveOnLineUp);
-    state.problem = "";
-    if (outcome.move) {
-      live ? saveLive(state.selectedId, spot) : saveEdit(state.selectedId, spot);
-    } else {
-      state.selectedId = outcome.selectedId;
-      draw();
-    }
-  },
   dragStarted() {
-    state.selectedId = null;
     state.problem = "";
     // The live screen is not redrawn here: that would remove the circle under the finger.
     if (state.screen === "half1" && !isLiveScreen()) {
@@ -1570,7 +1554,7 @@ let profileSwipe = null;
 document.addEventListener("touchstart", (event) => {
   const sheet = event.target.closest?.(".sheet.profile");
   const body = event.target.closest?.(".psb");
-  profileSwipe = sheet && event.touches.length === 1 && !event.target.closest("textarea, select, input, button") && (!body || body.scrollTop === 0) ? { x: event.touches[0].clientX, y: event.touches[0].clientY } : null;
+  profileSwipe = sheet && event.touches.length === 1 && !event.target.closest("textarea, select, input, button:not(.potdrow)") && (!body || body.scrollTop === 0) ? { x: event.touches[0].clientX, y: event.touches[0].clientY } : null;
 }, { passive: true });
 document.addEventListener("touchmove", (event) => {
   if (event.touches.length > 1) {
@@ -1580,13 +1564,13 @@ document.addEventListener("touchmove", (event) => {
 document.addEventListener("touchend", (event) => {
   const from = profileSwipe;
   profileSwipe = null;
-  if (!from || state.noteFor === null) {
+  if (!from || (state.noteFor === null && !state.potdOpen)) {
     return;
   }
   const dy = event.changedTouches[0].clientY - from.y;
   const dx = event.changedTouches[0].clientX - from.x;
   if (dy >= 80 && dy > 2 * Math.abs(dx)) {
-    actions.closeNote();
+    (state.potdOpen ? actions.closePotdPicker : actions.closeNote)(); // GDA-174: the list closes like the profile, changing nothing
   }
 }, { passive: true });
 

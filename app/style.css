@@ -761,7 +761,7 @@ button.tl.them { text-align: right; }
 .hist th:first-child { width: 34%; text-align: left; }
 .hist th.ch, .hist td.ch { width: var(--s60); padding-right: var(--s4); }
 .hist td { height: var(--s48); border-top: var(--bw) solid var(--line); }
-.hist .sorter { display: inline-flex; align-items: center; min-height: var(--tap); padding: 0; border: 0; background: none; color: var(--muted); font: inherit; font-size: var(--fs-small); }
+.hist .sorter { white-space: nowrap; display: inline-flex; align-items: center; min-height: var(--tap); padding: 0; border: 0; background: none; color: var(--muted); font: inherit; font-size: var(--fs-small); }
 .hist th[aria-sort] .sorter { color: var(--ink); font-weight: var(--bold); }
 .hist .so { display: inline-block; width: 1em; text-align: left; }
 .hist tr.hrow { cursor: pointer; }
@@ -773,7 +773,7 @@ button.tl.them { text-align: right; }
 .hres { list-style: none; margin: 0; padding: 0; }
 .hres li { display: flex; align-items: center; gap: var(--s10); min-height: var(--s48); border-top: var(--bw) solid var(--line); }
 .hres li:first-child { border-top: 0; }
-.hres .hd { flex: none; width: var(--s68); font-size: var(--fs-small); color: var(--muted); }
+.hres .hd { flex: none; width: var(--s48); white-space: nowrap; font-size: var(--fs-small); color: var(--muted); }
 .hres .ho { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .hres .hs { flex: none; min-width: var(--s40); text-align: right; font-weight: var(--bold); font-variant-numeric: tabular-nums; }
 .hres .hr { flex: none; width: var(--s28); height: var(--s28); border-radius: var(--r-tag); display: grid; place-items: center; font-size: var(--fs-small); font-weight: var(--bold); }

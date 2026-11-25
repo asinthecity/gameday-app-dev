@@ -6,7 +6,7 @@
 
 import { hasRecord } from "./record-rules.js";
 import { trimmedLine } from "./drag.js";
-import { finishedNewestFirst, FINISHED, FIRST_HALF, SECOND_HALF, canPlan, IN_PROGRESS_PHASE, NOT_STARTED_PHASE, phaseOf, canStartHalf, canResumeHalf, halfLineUpView, nextScreen, lineupKey, canChangeWhoIsHere, startedAtOf, endedAtOf, canUndoKickOff, formationRowHalf, shownFormation, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, planFigures, planFiguresFor, firstHalfFigures, firstHalfCopyOf, dotsFor, dotsLabel, showsSeasonChart, showsRotationCounts, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationSecondsOf, rotationText, ROTATION_EXTRA_SECONDS, snappedSeconds, clampRotation, halfOf, carriesRotationOrder, carriesBenchTime, canChangeCarryOver, MIN_ROTATION, MAX_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, canEditNotes, canCorrect, canCorrectFinished, noteOf, potdOf, summaryOf, goalFixOf } from "./game-rules.js";
+import { finishedNewestFirst, FINISHED, FIRST_HALF, SECOND_HALF, canPlan, IN_PROGRESS_PHASE, NOT_STARTED_PHASE, phaseOf, canStartHalf, canResumeHalf, halfLineUpView, nextScreen, lineupKey, canChangeWhoIsHere, startedAtOf, endedAtOf, canUndoKickOff, formationRowHalf, shownFormation, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, planFigures, planFiguresFor, firstHalfFigures, firstHalfCopyOf, dotsFor, dotsLabel, showsSeasonChart, showsRotationCounts, formatGameDate, formatShortDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationSecondsOf, rotationText, ROTATION_EXTRA_SECONDS, snappedSeconds, clampRotation, halfOf, carriesRotationOrder, carriesBenchTime, canChangeCarryOver, MIN_ROTATION, MAX_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, canEditNotes, canCorrect, canCorrectFinished, noteOf, potdOf, summaryOf, goalFixOf } from "./game-rules.js";
 import { TALLY_COLUMNS, interchangeRows, sortTally, tallyRows } from "./interchange-rules.js";
 import { LIST_COLUMNS, listBasedOn, listMeasure, listRows } from "./season-list-rules.js";
 import { AREAS, seasonTotals, potdListRows } from "./season-rules.js";
@@ -2375,7 +2375,7 @@ function historyResults(state) {
       h(
         "li",
         { "data-id": String(r.id) },
-        h("span", { class: "hd" }, formatGameDate(r.date)),
+        h("span", { class: "hd" }, formatShortDate(r.date)),
         h("span", { class: "ho" }, r.opposition),
         h("span", { class: "hr " + r.letter, title: RESULT_WORDS[r.letter], "aria-label": RESULT_WORDS[r.letter] }, r.letter),
         h("span", { class: "hs" }, `${r.us}\u2013${r.them}`)

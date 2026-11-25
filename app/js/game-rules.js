@@ -1067,6 +1067,12 @@ export function formatGameDate(date) {
   return `${DAYS[calendarDay.getUTCDay()]} ${day} ${MONTHS[month - 1]}`;
 }
 
+/** GDA-187: "15 Nov", without the day name (games are always on the same day of the week; Ben, 2026-11-25). */
+export function formatShortDate(date) {
+  const [, month, day] = date.split("-").map(Number);
+  return `${day} ${MONTHS[month - 1]}`;
+}
+
 /** "08:30" becomes "8:30 am". Written out by hand so the phone's region cannot change it. */
 export function formatKickOff(kickOff) {
   const [hours, minutes] = kickOff.split(":");

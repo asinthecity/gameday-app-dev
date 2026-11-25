@@ -1,6 +1,6 @@
 // Saving and loading team logos (GDA-126). One record per team: { teamId, data }.
 // Same idea as player photos (photo-store.js): kept apart from the team and game records on
-// purpose, so the saved file and the Sheet rows (built from those records) cannot contain one.
+// purpose, so the saved file and the export rows (built from those records) cannot contain one.
 
 import { change, read } from "./db.js";
 import { isStoredPhoto } from "./photo-rules.js";

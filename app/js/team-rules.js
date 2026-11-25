@@ -1,10 +1,9 @@
 // Teams (GDA-70). Plain rules, no database: easy to test.
 //
-// A team is { id, name, playersPerSide, halfMinutes, formation, sheet }.
-// "sheet" is the Sheet address and secret (or null when none was ever saved).
+// A team is { id, name, playersPerSide, halfMinutes, formation, ... }.
 // Each player and game carries a teamId saying which team it belongs to.
 
-/** The first team, made once when saved data is upgraded. The id is added by the database. */
+/** The first team, made once when saved data is upgraded. (Its old `sheet` copy is deleted on the next start, GDA-189.) The id is added by the database. */
 export function firstTeam(sheetSettings) {
   return {
     name: "My team",
@@ -36,8 +35,6 @@ export const UPGRADE_FAILED_MESSAGE =
 
 import { anyInProgress, blankGameForm, clampRotation, ROTATION_MINUTES } from "./game-rules.js";
 import { evenSplit, firstFormationFor, fitsTeam, startingFormation } from "./formation-rules.js";
-import { archiveWarning } from "./sheet-rules.js";
-import { hasRecord } from "./record-rules.js";
 
 export const MIN_SIDE = 5;
 export const MAX_SIDE = 11;
@@ -102,12 +99,11 @@ export function deleteRefusal(teams, games) {
   return anyInProgress(games) ? "inProgress" : null;
 }
 
-/** What the delete confirm says: how many players and games go, and how many finished games are not in the Sheet. */
+/** What the delete confirm says: how many players and games go. */
 export function deleteSummary(players, games) {
   return {
     players: players.filter((player) => player.active !== false).length,
     games: games.length,
-    notInSheet: games.filter((game) => hasRecord(game) && archiveWarning(game) !== null).length,
   };
 }
 

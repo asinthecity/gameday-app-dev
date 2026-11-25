@@ -2,7 +2,7 @@
 // runs under `node --test`. GDA-48 (List) and GDA-57 (circle chart) read the answer.
 //
 // Only the current team's games that reached Full Time (they carry a saved record) count;
-// archived games count too. The Sheet is never read. Every player is compared only with
+// archived games count too. Every player is compared only with
 // themselves: this file only adds up, it never ranks or suggests.
 
 import { formationOf } from "./formation-rules.js";

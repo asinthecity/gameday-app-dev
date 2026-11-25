@@ -6,13 +6,13 @@
 
 import { hasRecord } from "./record-rules.js";
 import { trimmedLine } from "./drag.js";
-import { finishedNewestFirst, FINISHED, FIRST_HALF, SECOND_HALF, canPlan, IN_PROGRESS_PHASE, NOT_STARTED_PHASE, phaseOf, canStartHalf, canResumeHalf, halfLineUpView, nextScreen, lineupKey, canChangeWhoIsHere, startedAtOf, endedAtOf, canUndoKickOff, formationRowHalf, shownFormation, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, planFigures, planFiguresFor, firstHalfFigures, firstHalfCopyOf, dotsFor, dotsLabel, showsSeasonChart, showsRotationCounts, formatGameDate, formatShortDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationSecondsOf, rotationText, ROTATION_EXTRA_SECONDS, snappedSeconds, clampRotation, halfOf, carriesRotationOrder, carriesBenchTime, canChangeCarryOver, MIN_ROTATION, MAX_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, canEditNotes, canCorrect, canCorrectFinished, noteOf, potdOf, summaryOf, goalFixOf } from "./game-rules.js";
+import { canDeleteGame, finishedNewestFirst, FINISHED, FIRST_HALF, SECOND_HALF, canPlan, IN_PROGRESS_PHASE, NOT_STARTED_PHASE, phaseOf, canStartHalf, canResumeHalf, halfLineUpView, nextScreen, lineupKey, canChangeWhoIsHere, startedAtOf, endedAtOf, canUndoKickOff, formationRowHalf, shownFormation, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, planFigures, planFiguresFor, firstHalfFigures, firstHalfCopyOf, dotsFor, dotsLabel, showsSeasonChart, showsRotationCounts, formatGameDate, formatShortDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationSecondsOf, rotationText, ROTATION_EXTRA_SECONDS, snappedSeconds, clampRotation, halfOf, carriesRotationOrder, carriesBenchTime, canChangeCarryOver, MIN_ROTATION, MAX_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, canEditNotes, canCorrect, canCorrectFinished, noteOf, potdOf, summaryOf, goalFixOf } from "./game-rules.js";
 import { TALLY_COLUMNS, interchangeRows, sortTally, tallyRows } from "./interchange-rules.js";
 import { LIST_COLUMNS, listBasedOn, listMeasure, listRows } from "./season-list-rules.js";
 import { AREAS, seasonTotals, potdListRows } from "./season-rules.js";
 import { gamesPlayed, goalDifferenceText, historyRows, resultRows, teamRecord } from "./history-rules.js";
 import { checkFormation, formatFormationDigits, formationOf, pitchRows } from "./formation-rules.js";
-import { TEMPLATE_COPY_URL, archiveWarningFor, canDeleteGame, setupCodeOf, sheetConnected, sheetStatus } from "./sheet-rules.js";
+import { EXPORT_HINT } from "./export-rules.js";
 import { canSaveName, initialsFor } from "./squad-rules.js";
 import { RESTORE_ASK } from "./backup-rules.js";
 import { MIN_SIDE, MAX_SIDE, formationAfterSizeChange, canSwitchTeams, deleteRefusal, deleteSummary, IN_PROGRESS_REFUSAL, LAST_TEAM_MESSAGE, LOCKED_MESSAGE, plural, UPGRADE_FAILED_MESSAGE } from "./team-rules.js";
@@ -223,32 +223,7 @@ function gameCard(game, state, actions) {
 }
 
 
-/** The Sheet line on a finished game (GDA-47): Sent / Sending / Not sent yet + Send now / Sheet not set up. */
-function sheetLine(game, state, actions) {
-  if (!sheetConnected(state.sheetSettings)) {
-    return []; // GDA-170: no Sheet connected, so no Sheet line and no button on Home.
-  }
-  const status = sheetStatus(game, state.sheetSettings, state.sendingId, state.sheetProblem[game.id]);
-  if (!status) {
-    return [];
-  }
-  const line = (text) => h("div", { class: "sheetStatus", "data-status": status.kind }, h("b", {}, text));
-  if (status.kind === "sent") {
-    return [h("div", { class: "sheetStatus ok", "data-status": "sent" }, h("b", { class: "tick" }, "\u2713"), h("b", { class: "sentOk" }, " Sent to the Sheet"))];
-  }
-  if (status.kind === "sending") {
-    return [line("Sending\u2026")];
-  }
-  if (status.kind === "notSetUp") {
-    return [line("Sheet not set up"), h("button", { class: "btn", onclick: actions.openSheetSettings }, "Sheet settings")];
-  }
-  return [
-    h("div", { class: "sheetStatus err", "data-status": "notSent" }, h("b", {}, status.checkSettings ? "Not sent yet - check Sheet settings" : "Not sent yet")),
-    h("button", { class: "btn pri sendNow", onclick: () => actions.sendNow(game.id) }, "Send now"),
-  ];
-}
-
-/** A finished game on Home: the result, its Sheet status and a ⋯ menu (Archive). No history screen. */
+/** A finished game on Home: the result and a ⋯ menu (Archive). No history screen. */
 function finishedCard(game, state, actions) {
   return h(
     "div",
@@ -267,24 +242,16 @@ function finishedCard(game, state, actions) {
     ),
     cardMenu(game, state, actions, [
       h("button", { class: "mi d archiveGame", onclick: () => actions.askArchive(game.id) }, "Archive"),
-    ]),
-    ...sheetLine(game, state, actions)
+    ])
   );
 }
 
-const ARCHIVE_WARNINGS = {
-  notInSheet: "Warning: this game is not in the Sheet yet. Tap Cancel, then Send now or back up first.",
-  noStatus: "Warning: this older game has no Sheet record. Tap Cancel, then Send now or back up first.",
-};
-
-/** "Archive v Eagles from the list?" with one confirm and, if the game is not in the Sheet, a red warning (GDA-69). */
+/** "Archive v Eagles from the list?" with one confirm and. */
 function archiveSheet(state, actions) {
   const game = state.games.find((g) => g.id === state.archiveId);
   if (!game) {
     return null;
   }
-  const warning = archiveWarningFor(game, state.sheetSettings);
-  const connected = sheetConnected(state.sheetSettings);
   return h(
     "div",
     { class: "scrim", id: "archiveConfirm" },
@@ -292,8 +259,7 @@ function archiveSheet(state, actions) {
       "div",
       { class: "sheet" },
       h("h2", {}, `Archive v ${game.opposition} from the list?`),
-      h("p", { class: "archiveNote" }, warning === null && connected ? "It stays saved on this phone and in the Sheet." : "It stays saved on this phone."),
-      warning ? h("p", { class: "archiveWarn", role: "alert" }, ARCHIVE_WARNINGS[warning]) : null,
+      h("p", { class: "archiveNote" }, "It stays saved on this phone."),
       h("button", { class: "btn del", id: "confirmArchive", onclick: actions.confirmArchive }, "Archive"),
       h("button", { class: "btn", id: "cancelArchive", onclick: actions.cancelArchive }, "Cancel")
     )
@@ -454,39 +420,11 @@ function deleteTeamSheet(state, actions, refusal) {
       { class: "sheet" },
       h("h2", {}, `Delete team ${team.name}?`),
       h("p", { id: "deleteTeamCounts" }, `This erases ${plural(counts.players, "player")}, ${plural(counts.games, "game")} (archived games included), and their events. It can't be undone.`),
-      counts.notInSheet > 0 && sheetConnected(state.sheetSettings) ? h("p", { class: "problem", id: "deleteTeamWarn" }, `${counts.notInSheet} of these games are not in the Sheet. Tap Cancel, then Send now or back up first.`) : null,
+      h("p", { id: "deleteTeamWarn" }, "Back up data first if you want to keep a copy."),
       h("button", { class: "btn del", id: "confirmDeleteTeam", onclick: actions.confirmDeleteTeam }, "Delete team"),
       h("button", { class: "btn", id: "cancelDeleteTeam", onclick: actions.cancelDeleteTeam }, "Cancel")
     )
   );
-}
-
-/** Sheet settings (GDA-47): one pasted setup code (address + secret), kept only on this phone. */
-function sheetSettingsScreen(state, actions) {
-  // What was typed if a message is showing, else the saved code. Settings saved by the old
-  // two-box setup have no setup mark, so the box starts empty and Ben pastes a new code.
-  const shown = state.sheetDraft ?? (state.sheetSettings?.setup === 2 ? setupCodeOf(state.sheetSettings) : "");
-  const field = (id, label, value, type) => {
-    const input = h("input", { id, type, autocomplete: "off", autocapitalize: "off", autocorrect: "off", spellcheck: "false" });
-    input.value = value ?? "";
-    return h("div", { class: "f wide" }, h("label", { for: id }, h("span", {}, label)), input);
-  };
-  return {
-    nodes: [
-      header("Sheet settings", actions.goHome),
-      h(
-        "div",
-        { class: "body" },
-        setCard(field("sheetCode", "Setup code", shown, "password")),
-        h("p", { class: "hint" }, "In the Sheet: Game Day > Set up. Copy the code it shows and paste it here."),
-        h("p", { class: "hint" }, "New to this? Send yourself the template link"),
-        h("button", { class: "btn", id: "sendTemplateLink", onclick: actions.sendTemplateLink }, "Send template link to myself"),
-        problemLine(state.problem),
-        state.sheetResult ? h("p", { id: "sheetResult", class: state.sheetResult.ok ? "" : "problem", role: "status" }, state.sheetResult.text) : null,
-        h("button", { class: "btn pri big", id: "saveSheet", onclick: actions.saveSheetSettings }, "Save")
-      ),
-    ],
-  };
 }
 
 /** The team line in Home's band (GDA-157): crest, name, "N a side" and a bare ▾. The whole line is one tap target that opens the team list. */
@@ -558,8 +496,9 @@ function homeScreen(state, actions) {
         hasPlayers ? h("button", { class: "mi squadItem", onclick: actions.openSquad }, `Squad (${state.players.length})`) : null,
         h("button", { class: "mi historyItem", onclick: actions.openHistory }, "Season history"), // GDA-187
         h("div", { class: "mhd" }, "App"),
-        // Sheet settings is still stored per team (GDA-163 will change that).
-        h("button", { class: "mi sheetSettings", onclick: actions.openSheetSettings }, "Sheet settings"),
+        // GDA-189: one CSV of every team's finished games, with a one-line hint on what to do with it.
+        h("button", { class: "mi exportData", onclick: actions.exportData }, "Export to spreadsheet"),
+        h("div", { class: "exportHint" }, EXPORT_HINT),
         // GDA-153: one file with everything on the phone.
         h("button", { class: "mi backUpData", onclick: actions.backUpData }, "Back up data"),
         h("button", { class: "mi restoreData", onclick: actions.askRestore }, "Restore data"),
@@ -2177,7 +2116,7 @@ function potdPicker(state, game, actions) {
   );
 }
 
-/** GDA-109: "Goal" is stored in games and the Sheet; on screen the position is called Keeper (S8). */
+/** GDA-109: "Goal" is stored in games and the export; on screen the position is called Keeper (S8). */
 const AREA_LABELS = { Goal: "Keeper", Defence: "Defence", Midfield: "Midfield", Attack: "Attack", Bench: "Bench", Absent: "Absent" };
 
 /** One game line on the profile. Halves: "1st Keeper \u00b7 2nd Bench". Minutes: "Keeper 20 min \u00b7 Bench 20 min" (whole minutes, none left out of order). */
@@ -2397,7 +2336,6 @@ const SCREENS = {
   fullTime: fullTimeScreen,
   summary: summaryScreen,
   interchange: interchangeScreen,
-  sheetSettings: sheetSettingsScreen,
   teamForm: teamFormScreen,
   cannotOpen: cannotOpenScreen,
 };

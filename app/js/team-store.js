@@ -5,6 +5,7 @@ import { change, read } from "./db.js";
 import { firstFormationFor } from "./formation-rules.js";
 import { anyInProgress } from "./game-rules.js";
 import { firstTeamIdOf, ofTeam } from "./team-rules.js";
+import { OLD_SHEET_KEY, teamWithoutSheet } from "./export-rules.js";
 
 const CURRENT = "currentTeamId";
 
@@ -25,7 +26,7 @@ export function loadTeams(db) {
 /** Makes a new team and makes it current, together. Finishes with its id. */
 export function addTeam(db, values) {
   return change(db, ["teams", "meta"], (tx, answer) => {
-    const team = { formation: firstFormationFor(values.playersPerSide), ...values, sheet: null }; // GDA-167: a chosen default Formation wins
+    const team = { formation: firstFormationFor(values.playersPerSide), ...values }; // GDA-167: a chosen default Formation wins
     tx.objectStore("teams").add(team).onsuccess = (added) => {
       tx.objectStore("meta").put({ key: CURRENT, value: added.target.result });
       answer(added.target.result);
@@ -33,7 +34,7 @@ export function addTeam(db, values) {
   });
 }
 
-/** Saves changes (name, size, half length, Sheet settings) to one team. */
+/** Saves changes (name, size, half length) to one team. */
 export function updateTeam(db, id, changes) {
   return change(db, ["teams"], (tx) => {
     const teams = tx.objectStore("teams");
@@ -65,7 +66,7 @@ export function switchTeam(db, id) {
 /**
  * Deletes ONE team with its players, games and event logs, in one transaction, then makes
  * the first remaining team current. Refused (nothing changes) for the last team or a team
- * with a game in progress. Other teams' records are never touched. The Sheet is never touched.
+ * with a game in progress. Other teams' records are never touched.
  */
 export function deleteTeam(db, id) {
   return change(db, ["teams", "players", "games", "events", "meta", "photos", "logos"], (tx) => {
@@ -101,6 +102,26 @@ export function deleteTeam(db, id) {
         tx.objectStore("logos").delete(id); // Its logo goes too (GDA-126).
         tx.objectStore("meta").put({ key: CURRENT, value: remaining[0].id });
       };
+    };
+  });
+}
+
+/**
+ * GDA-189: the Google Sheet connection is gone, so its saved address and secret are deleted: the app-wide
+ * setting in meta and each team's own `sheet` copy. Runs on every start (a restored older backup may bring
+ * one back). Only a record that holds one is written; nothing else is changed.
+ */
+export function removeOldSheetSetting(db) {
+  return change(db, ["teams", "meta"], (tx) => {
+    tx.objectStore("meta").delete(OLD_SHEET_KEY);
+    const teams = tx.objectStore("teams");
+    teams.getAll().onsuccess = (found) => {
+      for (const team of found.target.result) {
+        const cleaned = teamWithoutSheet(team);
+        if (cleaned !== team) {
+          teams.put(cleaned);
+        }
+      }
     };
   });
 }

@@ -2,9 +2,8 @@
 // fully saved or not changed at all. See game-rules.js for what a game holds.
 
 import { change, read } from "./db.js";
-import { FINISHED, isInProgress, hereToggled, dotTurns, firstHalfCopyOf, lineUpMoved, SECOND_HALF, goalAdded, goalRemoved, playedToday, lineupKey, startedSecondHalf, undoneKickOff, isRemovedByUndo, endedHalf, reopenedHalf, benchReordered, planMoved, planBenchReordered, fieldMoved, pairPlanned, pairRemoved, swapEvent, swapUndone, swapped, gamesInOrder, halfEndCancelledEvent, halfEndEvent, halfStartEvent, movedOnto, newGame, nextCreatedOrder, positionChangeEvent, prePlaced, startedFirstHalf, withBenchOrder } from "./game-rules.js";
+import { canDeleteGame, gameArchived, FINISHED, isInProgress, hereToggled, dotTurns, firstHalfCopyOf, lineUpMoved, SECOND_HALF, goalAdded, goalRemoved, playedToday, lineupKey, startedSecondHalf, undoneKickOff, isRemovedByUndo, endedHalf, reopenedHalf, benchReordered, planMoved, planBenchReordered, fieldMoved, pairPlanned, pairRemoved, swapEvent, swapUndone, swapped, gamesInOrder, halfEndCancelledEvent, halfEndEvent, halfStartEvent, movedOnto, newGame, nextCreatedOrder, positionChangeEvent, prePlaced, startedFirstHalf, withBenchOrder } from "./game-rules.js";
 import { buildRecord, gameAtFullTime, withRecordCorrected } from "./record-rules.js";
-import { canDeleteGame, gameArchived } from "./sheet-rules.js";
 import { squadInOrder } from "./squad-rules.js";
 import { ofTeam, sameTeam, withTeamId } from "./team-rules.js";
 
@@ -378,14 +377,9 @@ export function removeGoal(db, gameId, goalId) {
   return changeGame(db, gameId, (game) => goalRemoved(game, goalId));
 }
 
-/** Marks a game as sent, once Google has confirmed it. Only a game marked "to send" can be marked. */
-export function markSentToSheet(db, gameId) {
-  return changeGame(db, gameId, (game) => (game.toSend ? { ...game, sentToSheet: true } : game));
-}
-
 /**
  * Deletes ONE game that has not started (GDA-66), with its event log, in one transaction.
- * A game that has started or finished is refused (nothing changes). Nothing is sent anywhere.
+ * A game that has started or finished is refused (nothing changes). 
  */
 export function deleteGame(db, gameId) {
   return change(db, ["games", "events"], (tx) => {
@@ -405,7 +399,7 @@ export function deleteGame(db, gameId) {
   });
 }
 
-/** Archives ONE finished game (GDA-69): sets a flag on it. Nothing is erased, sent or changed in the Sheet. */
+/** Archives ONE finished game (GDA-69): sets a flag on it. Nothing is erased. */
 export function archiveGame(db, gameId) {
   return changeGame(db, gameId, gameArchived);
 }

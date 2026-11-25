@@ -118,13 +118,13 @@ export function buildRecord(game, squad, events) {
 
 /**
  * The game, closed for good with its record stored on it. Full Time is final.
- * `toSend` marks it for the season Sheet (GDA-47); games finished before that have no mark.
+ * (Older games may carry `toSend` / `sentToSheet` from the removed Sheet connection; the app ignores them.)
  */
 export function gameAtFullTime(game, record) {
   const { atKickOff, ...rest } = game; // GDA-98: no Undo kick-off after Full Time.
   // GDA-116: keep only the 1st half as it ended, so the finished game's 1st Half screen can still show its rings and numbers.
   const firstHalfAtWhistle = atKickOff?.secondHalf ?? game.firstHalfAtWhistle;
-  return { ...rest, ...(firstHalfAtWhistle ? { firstHalfAtWhistle } : {}), state: FINISHED, record, toSend: true };
+  return { ...rest, ...(firstHalfAtWhistle ? { firstHalfAtWhistle } : {}), state: FINISHED, record };
 }
 
 /**
@@ -171,8 +171,7 @@ export function csvCell(value) {
 }
 
 /**
- * The CSV text: one row per player, NO heading row (the headings sit once at the top of
- * the season Sheet), fixed column order: date, opposition, us, them, player, position
+ * The CSV text: one row per player, NO heading row (the Full Time summary file), fixed column order: date, opposition, us, them, player, position
  * 1st half, position 2nd half, goals, bench order (GDA-56; blank for older games). The game fields repeat on every row.
  */
 export function recordToCsv(record) {

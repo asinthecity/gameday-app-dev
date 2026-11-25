@@ -51,9 +51,8 @@ import {
   withVenue,
   hereDifferences,
 } from "./game-rules.js";
-import { loadSeasonEvents, loadGameEvents, archiveGame, deleteGame, markSentToSheet, addGame, addGoal, removeGoal, changeGame, endHalf, fullTime, loadGames, moveFieldPlayer, movePlan, movePlayer, planPair, prePlaceGame, reopenHalf, reorderBench, reorderPlanBench, startFirstHalf, startSecondHalf, undoKickOff, swapPlayers, toggleHere, undoSwap, unplanPair } from "./game-store.js";
-import { canSend, checkMessage, firstSheetSetup, parseSetupCode, SETTINGS_KEY, sheetTabName, TEMPLATE_COPY_URL } from "./sheet-rules.js";
-import { checkSheetConnection, sendGameToSheet } from "./sheet-send.js";
+import { loadSeasonEvents, loadGameEvents, archiveGame, deleteGame, addGame, addGoal, removeGoal, changeGame, endHalf, fullTime, loadGames, moveFieldPlayer, movePlan, movePlayer, planPair, prePlaceGame, reopenHalf, reorderBench, reorderPlanBench, startFirstHalf, startSecondHalf, undoKickOff, swapPlayers, toggleHere, undoSwap, unplanPair } from "./game-store.js";
+import { exportCsv, exportFileName, exportRows, EXPORT_FAILED, NOTHING_TO_EXPORT } from "./export-rules.js";
 import { shareFile } from "./share-file.js";
 import { backupFileName, BACKUP_FAILED, makeBackup, parseBackup, RESTORE_BUSY, RESTORE_FAILED } from "./backup-rules.js";
 import { askToKeepDataOnce } from "./persistence.js";
@@ -64,7 +63,7 @@ import { loadPhotos, removePhoto, savePhoto } from "./photo-store.js";
 import { loadLogos, removeLogo, saveLogo } from "./logo-store.js";
 import { cleanName } from "./squad-rules.js";
 import { addPlayer, loadSquad, removePlayer, renamePlayer } from "./squad-store.js";
-import { addTeam, deleteTeam, loadTeams, switchTeam, updateTeam } from "./team-store.js";
+import { addTeam, deleteTeam, loadTeams, removeOldSheetSetting, switchTeam, updateTeam } from "./team-store.js";
 import { rememberFirstTeamId, canSwitchTeams, cleanTeamForm, deleteRefusal, firstTeamIdOf, newGameFormFor, teamFormValues, teamValuesToSave } from "./team-rules.js";
 import { applyUpdate, currentUpdateNotice, startUpdates } from "./updates.js";
 
@@ -115,15 +114,10 @@ const state = {
   problem: "",
   justSaved: false, // GDA-186: true only on Full Time straight after End game and save; shows the "Game saved" line.
   teams: [], // Every team, oldest first (GDA-68).
-  currentTeamId: null, // The team Home, Squad and Sheet settings show.
+  currentTeamId: null, // The team Home and Squad show.
   firstTeamId: null, // What a record with no team ID belongs to.
   teamForm: null, // The Add / Team settings form: { mode, values, errors }. Never saved until Save.
   deleteTeamOpen: false, // The "Delete team?" confirm. Never saved.
-  sheetSettings: null, // { url, secret, setup: 2 } for the whole app (GDA-163). Stored only on this phone.
-  sheetDraft: null, // What is typed on Sheet settings when a message is shown. Never saved.
-  sheetResult: null, // { ok, text }: the connection message on the Sheet settings screen. Never saved.
-  sendingId: null, // The game being sent to the Sheet right now. Never saved.
-  sheetProblem: {}, // gameId -> "secret" after the script refused the secret. Never saved.
   menuId: null, // The game whose ⋯ menu is open. Never saved.
   topMenuOpen: false, // The ☰ menu on Home. Never saved.
   teamListOpen: false, // The team list under Home's team line (GDA-157). Never saved.
@@ -144,7 +138,7 @@ function currentTeam() {
   return state.teams.find((team) => team.id === state.currentTeamId);
 }
 
-/** Reads teams, then the current team's squad, games and Sheet settings. */
+/** Reads teams, then the current team's squad and games. */
 async function loadEverything() {
   const { teams, currentTeamId } = await loadTeams(db);
   state.teams = teams;
@@ -157,26 +151,7 @@ async function loadEverything() {
   state.logos = await loadLogos(db);
   setLogos(state.logos);
   state.games = await gamesNow();
-  state.sheetSettings = await loadSheetSetting(teams);
   state.seasonMode = (await getMeta(db, SEASON_MODE_KEY)) === "minutes" ? "minutes" : "halves"; // GDA-109
-}
-
-/**
- * The one app-wide Sheet setting (GDA-163), kept in meta. First time after the upgrade it is missing,
- * so the first setup found (the old shared one, else the first team's own) is copied there. The
- * teams' own copies stay as they are but are never read again. Nothing is sent or changed in the Sheet.
- */
-async function loadSheetSetting(teams) {
-  const stored = (await getMeta(db, SETTINGS_KEY)) ?? null;
-  const found = firstSheetSetup(stored, teams);
-  if (found && found !== stored) {
-    try {
-      await setMeta(db, SETTINGS_KEY, found);
-    } catch (error) {
-      console.warn("Could not move the Sheet setting", error); // Still used now; tried again next time.
-    }
-  }
-  return found;
 }
 
 const LOGO_PROBLEM = "Couldn't save the logo";
@@ -256,8 +231,6 @@ function goTo(screen) {
   if (screen !== "fullTime") {
     state.justSaved = false; // The "Game saved" line goes once I leave Full Time.
   }
-  state.sheetResult = null;
-  state.sheetDraft = null;
   state.deleteId = null;
   state.menuId = null;
   state.topMenuOpen = false;
@@ -1074,32 +1047,26 @@ const actions = {
       state.viewId = gameId;
       state.justSaved = true;
     });
-    // One try only, after the game is safely saved. Never waits for it, never retries (GDA-47).
-    if (state.games.find((g) => g.id === gameId)?.toSend) {
-      sendToSheet(gameId);
-    }
   }),
-  sendNow: tap((gameId) => sendToSheet(gameId)),
-  // GDA-170: the phone's own share menu where there is one, else copy the link and say so.
-  sendTemplateLink: tap(async () => {
+  // ---- Export to spreadsheet (GDA-189) ----
+  // One CSV of every team's finished games. Read-only: nothing stored changes.
+  exportData: tap(async () => {
+    state.topMenuOpen = false;
+    state.problem = "";
     try {
-      if (navigator.share) {
-        await navigator.share({ url: TEMPLATE_COPY_URL });
-        return;
+      const stores = await readAllStores(db);
+      const rows = exportRows(stores.teams, stores.games);
+      if (rows.length === 0) {
+        state.problem = NOTHING_TO_EXPORT;
+      } else {
+        await shareFile(exportCsv(rows), exportFileName(), "text/csv");
       }
-      await navigator.clipboard.writeText(TEMPLATE_COPY_URL);
-      state.sheetResult = { ok: true, text: "Link copied" };
-      draw();
     } catch (error) {
-      // Cancelling the share menu is not an error. Only a failed copy is worth saying.
-      if (error && error.name === "AbortError") {
-        return;
-      }
-      state.sheetResult = { ok: false, text: "Could not copy the link." };
-      draw();
+      console.warn("Could not export", error);
+      state.problem = EXPORT_FAILED;
     }
+    draw();
   }),
-  openSheetSettings: tap(() => goTo("sheetSettings")),
   // ---- Back up and restore (GDA-153) ----
   backUpData: tap(async () => {
     state.topMenuOpen = false;
@@ -1219,39 +1186,6 @@ const actions = {
       return;
     }
     saveTeamThenHome(() => deleteTeam(db, state.currentTeamId));
-  }),
-  saveSheetSettings: tap(async () => {
-    const typed = document.getElementById("sheetCode").value;
-    const parsed = parseSetupCode(typed);
-    state.sheetResult = null;
-    if (!parsed.ok) {
-      // Keep what was typed, so a message does not wipe the box. Nothing is stored.
-      state.sheetDraft = typed;
-      state.problem = parsed.message;
-      draw();
-      return;
-    }
-    const settings = { ...parsed.settings, setup: 2 }; // setup 2 = saved from a GDA-89 setup code.
-    try {
-      await setMeta(db, SETTINGS_KEY, settings); // One setting for the whole app.
-    } catch (error) {
-      console.warn("Could not save the Sheet settings", error);
-      state.problem = SAVE_PROBLEM;
-      draw();
-      return;
-    }
-    state.sheetSettings = settings;
-    state.sheetProblem = {};
-    state.problem = "";
-    state.sheetDraft = null;
-    state.sheetResult = { ok: true, text: "Checking the connection..." };
-    draw();
-    // The check writes no row. Whatever it says, the code stays saved.
-    const kind = await checkSheetConnection(settings);
-    if (state.screen === "sheetSettings") {
-      state.sheetResult = { ok: kind === "connected", text: checkMessage(kind, sheetTabName(currentTeam()?.name, self.GAMEDAY_CONFIG)) };
-      draw();
-    }
   }),
   openMenu: tap((gameId) => {
     state.topMenuOpen = false;
@@ -1437,40 +1371,6 @@ async function saveThenGoTo(saveChange, screen, problem = SAVE_PROBLEM, afterSav
   goTo(screen);
 }
 
-/**
- * Sends one finished game to the season Sheet. It counts as sent only when Google's reply
- * says so, and only then is it marked in the saved game. A second tap while sending is
- * ignored. Sending the same game again is safe: the script knows the game ID.
- */
-async function sendToSheet(gameId) {
-  const game = state.games.find((g) => g.id === gameId);
-  const sheet = state.sheetSettings; // One setting for every team.
-  if (!game || state.sendingId || !canSend(game, sheet)) {
-    return;
-  }
-  state.sendingId = gameId;
-  delete state.sheetProblem[gameId];
-  draw();
-  // The tab is the name of the team the game was played for (not the current team), as it is now.
-  const team = state.teams.find((t) => t.id === (game.teamId ?? state.firstTeamId));
-  const result = await sendGameToSheet(sheet, game, sheetTabName(team?.name, self.GAMEDAY_CONFIG));
-  state.sendingId = null;
-  if (result.ok) {
-    try {
-      await markSentToSheet(db, gameId);
-      state.games = await gamesNow();
-    } catch (error) {
-      console.warn("Could not mark the game as sent", error);
-    }
-  } else if (result.reason === "secret") {
-    state.sheetProblem[gameId] = "secret";
-  }
-  // Only Home shows the Sheet status, so only redraw if we are there.
-  if (state.screen === "home") {
-    draw();
-  }
-}
-
 /** Reads the chosen file, checks all of it, then replaces everything in one transaction. */
 async function restoreFrom(file) {
   document.getElementById("restoreFile")?.remove();
@@ -1520,6 +1420,12 @@ async function start() {
   document.documentElement.dataset.version = self.GAMEDAY_VERSION;
   try {
     db = await openDatabase(self.GAMEDAY_CONFIG.storageName);
+    // GDA-189: delete any Sheet address and secret left from before. A failure must not stop the app.
+    try {
+      await removeOldSheetSetting(db);
+    } catch (error) {
+      console.warn("Could not remove the old Sheet setting", error);
+    }
     await loadEverything();
     resumeGameIfAny();
     draw();

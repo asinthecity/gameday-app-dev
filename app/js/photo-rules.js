@@ -1,6 +1,6 @@
 // Player photos (GDA-52). Photos are kept on this phone only, in their own database store
 // ("photos"), keyed by player id. They are never part of a player or game record, so the
-// saved file and the Sheet rows (built from those records) cannot contain one.
+// saved file and the export rows (built from those records) cannot contain one.
 
 export const PHOTO_SIZE = 256; // Pixels on each side of the stored square.
 export const PHOTO_QUALITY = 0.8; // JPEG quality: small (about 15 KB) and clear enough for a circle.

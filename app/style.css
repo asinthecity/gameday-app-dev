@@ -57,7 +57,7 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
    solid primary (dark purple, white text: Send now, Opposition goal), danger, disabled. A press makes the fill slightly darker. */
 .btn:active, .back:active, .cog:active, .ic:active { filter: brightness(.92); }
 .btn.pri { background: var(--go); background-origin: border-box; border-color: transparent; color: var(--ink); }
-.btn.pri.sendNow, .gagainst .btn { background: var(--brand); border-color: transparent; color: var(--card); }
+.gagainst .btn { background: var(--brand); border-color: transparent; color: var(--card); }
 .btn.grey { background: var(--btn); border-color: transparent; color: var(--ink); }
 .btn.big { min-height: var(--s60); }
 .btn.del { background: var(--danger); border-color: var(--danger); color: var(--card); }
@@ -399,9 +399,6 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 [data-zone].drop { outline: var(--s4) solid var(--brand-bright); outline-offset: 0; }
 
 /* Sheet status on a finished game, and Delete on a game not started (GDA-47, GDA-66) */
-.sheetStatus { margin-top: var(--s4); }
-.sheetStatus.err { color: var(--danger); }
-.btn.sheetSettings { margin-top: var(--s6); }
 
 /* Home tidy (GDA-69): card menus, top menu, Archive confirm, green Sent bar */
 .card .head { display: flex; align-items: stretch; gap: var(--s8); }
@@ -421,12 +418,7 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .mi:last-child { border-bottom: 0; }
 .mi.d { color: var(--danger); font-weight: var(--bold); }
 .hdr .menuwrap { position: relative; }
-.sheetStatus.ok { font-size: var(--fs-title); }
-.sheetStatus.ok b { font-size: var(--fs-title); }
-.sheetStatus.ok .sentOk { font-size: var(--fs-body); font-weight: var(--regular); color: var(--muted); }
-.sheetStatus.ok .tick { color: var(--ok); }
 .archiveNote { margin: 0; }
-.archiveWarn { margin: 0; color: var(--danger); font-weight: var(--bold); }
 
 /* Teams (GDA-68) */
 .team { margin: 0; display: flex; align-items: baseline; font-size: var(--fs-body); color: var(--ink); white-space: nowrap; min-width: 0; }
@@ -529,7 +521,7 @@ input:focus, input:focus-visible { outline: var(--bw-signal) solid var(--focus);
 .sheet:has(> .btn.del) { background: var(--card); }
 .sheet:has(> .btn.del) .btn { min-height: var(--s56); }
 .sheet:has(> .btn.del) > p { margin: 0; color: var(--muted); }
-.sheet:has(> .btn.del) > p.archiveWarn, .sheet:has(> .btn.del) > p.problem { color: var(--danger); }
+.sheet:has(> .btn.del) > p.problem { color: var(--danger); }
 /* GDA-99: every scrim is above the clock card (z-index 21), so a sheet's dimmed background covers it. */
 
 /* Home's band (GDA-157): a small app header (clock logo, Game Day, menu button) with the team line under it. The band stays 152px tall. */
@@ -555,6 +547,7 @@ input:focus, input:focus-visible { outline: var(--bw-signal) solid var(--focus);
 .pop.teamList { top: 100%; left: var(--s16); right: var(--s16); min-width: 0; }
 .team .tsize, .mi .tsize { color: var(--muted); }
 .mi.teamItem .tsize { font-weight: var(--regular); }
+.exportHint { padding: var(--s4) var(--s14) var(--s8); font-size: var(--fs-small); color: var(--muted); }
 .ver { padding: var(--s12) var(--s14) var(--s8); border-top: var(--bw) solid var(--line); font-size: var(--fs-small); color: var(--muted); }
 
 /* GDA-108 / GDA-81 / GDA-110: Summary page, hold sheet. Same cards, rows, tiles and switches as elsewhere; tokens only. */

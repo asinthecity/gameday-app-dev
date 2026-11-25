@@ -27,5 +27,3 @@ export async function shareFile(text, fileName, type) {
   setTimeout(() => URL.revokeObjectURL(url), 10_000);
 }
 
-/** The game record CSV. */
-export const shareCsv = (text, fileName) => shareFile(text, fileName, "text/csv");

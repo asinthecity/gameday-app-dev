@@ -54,7 +54,7 @@ import {
 import { loadSeasonEvents, loadGameEvents, archiveGame, deleteGame, markSentToSheet, addGame, addGoal, removeGoal, changeGame, endHalf, fullTime, loadGames, moveFieldPlayer, movePlan, movePlayer, planPair, prePlaceGame, reopenHalf, reorderBench, reorderPlanBench, startFirstHalf, startSecondHalf, undoKickOff, swapPlayers, toggleHere, undoSwap, unplanPair } from "./game-store.js";
 import { canSend, checkMessage, firstSheetSetup, parseSetupCode, SETTINGS_KEY, sheetTabName, TEMPLATE_COPY_URL } from "./sheet-rules.js";
 import { checkSheetConnection, sendGameToSheet } from "./sheet-send.js";
-import { shareCsv, shareFile } from "./share-file.js";
+import { shareFile } from "./share-file.js";
 import { backupFileName, BACKUP_FAILED, makeBackup, parseBackup, RESTORE_BUSY, RESTORE_FAILED } from "./backup-rules.js";
 import { askToKeepDataOnce } from "./persistence.js";
 import { drawClock, drawLineUpActions, drawPairLines, drawScreen, screenHalf, setLogos, setPhotos, startScoreFlash } from "./screens.js";
@@ -62,7 +62,6 @@ import { shrinkPhoto } from "./photo-image.js";
 import { PHOTO_PROBLEM } from "./photo-rules.js";
 import { loadPhotos, removePhoto, savePhoto } from "./photo-store.js";
 import { loadLogos, removeLogo, saveLogo } from "./logo-store.js";
-import { csvFileName, recordToCsv } from "./record-rules.js";
 import { cleanName } from "./squad-rules.js";
 import { addPlayer, loadSquad, removePlayer, renamePlayer } from "./squad-store.js";
 import { addTeam, deleteTeam, loadTeams, switchTeam, updateTeam } from "./team-store.js";
@@ -112,7 +111,7 @@ const state = {
   potdOpen: false, // The Player of the day picker (GDA-110). Never saved.
   undo: null, // After Swap, for about 5 seconds: { before, eventId, until }. Never saved.
   problem: "",
-  fileProblemFor: null, // The finished game whose Save file just failed.
+  justSaved: false, // GDA-186: true only on Full Time straight after End game and save; shows the "Game saved" line.
   teams: [], // Every team, oldest first (GDA-68).
   currentTeamId: null, // The team Home, Squad and Sheet settings show.
   firstTeamId: null, // What a record with no team ID belongs to.
@@ -252,7 +251,9 @@ function goTo(screen) {
   state.noteFor = null;
   state.noteDraft = null;
   state.potdOpen = false;
-  state.fileProblemFor = null;
+  if (screen !== "fullTime") {
+    state.justSaved = false; // The "Game saved" line goes once I leave Full Time.
+  }
   state.sheetResult = null;
   state.sheetDraft = null;
   state.deleteId = null;
@@ -1041,7 +1042,11 @@ const actions = {
   fullTime: tap(async () => {
     state.fullTimeAsk = false;
     const gameId = state.gameId;
-    await saveThenGoTo(() => fullTime(db, gameId), "saved", FULL_TIME_PROBLEM);
+    // GDA-186: on success stay on Full Time, now showing the finished game as when opened from Home, plus the "Game saved" line.
+    await saveThenGoTo(() => fullTime(db, gameId), "fullTime", FULL_TIME_PROBLEM, () => {
+      state.viewId = gameId;
+      state.justSaved = true;
+    });
     // One try only, after the game is safely saved. Never waits for it, never retries (GDA-47).
     if (state.games.find((g) => g.id === gameId)?.toSend) {
       sendToSheet(gameId);
@@ -1273,10 +1278,6 @@ const actions = {
     state.deleteId = null;
     saveThenGoTo(() => deleteGame(db, gameId), "home");
   }),
-  saveFile: tap((gameId) => {
-    state.menuId = null; // The menu closes when I choose an item.
-    saveFile(gameId);
-  }),
   applyUpdate: tap(() => applyUpdate()),
   tryAgain: tap(() => window.location.reload()),
 };
@@ -1392,7 +1393,7 @@ async function startGame() {
  * next screen. The screen changes only once the change is safely stored, so the
  * clock cannot show one thing while the saved game says another.
  */
-async function saveThenGoTo(saveChange, screen, problem = SAVE_PROBLEM) {
+async function saveThenGoTo(saveChange, screen, problem = SAVE_PROBLEM, afterSave = null) {
   saving = true;
   try {
     await saveChange();
@@ -1405,6 +1406,7 @@ async function saveThenGoTo(saveChange, screen, problem = SAVE_PROBLEM) {
     return;
   }
   saving = false;
+  afterSave?.();
   goTo(screen);
 }
 
@@ -1440,25 +1442,6 @@ async function sendToSheet(gameId) {
   if (state.screen === "home") {
     draw();
   }
-}
-
-/**
- * Save file (Saved screen and Home): the CSV for one finished game, from its stored
- * record, through the phone's share / save panel. A failure never touches the game.
- */
-async function saveFile(gameId) {
-  const game = state.games.find((g) => g.id === gameId);
-  if (!game?.record) {
-    return;
-  }
-  state.fileProblemFor = null;
-  try {
-    await shareCsv(recordToCsv(game.record), csvFileName(game.record));
-  } catch (error) {
-    console.warn("Could not save the file", error);
-    state.fileProblemFor = gameId;
-  }
-  draw();
 }
 
 /** Reads the chosen file, checks all of it, then replaces everything in one transaction. */

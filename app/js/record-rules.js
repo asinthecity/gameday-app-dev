@@ -181,15 +181,6 @@ export function recordToCsv(record) {
     .join("");
 }
 
-/** "2026-11-08-Hawks.csv": the date and the opposition, with characters files cannot hold removed. */
-export function csvFileName(record) {
-  const opposition = String(record.opposition)
-    .replace(/[\\/:*?"<>|\u0000-\u001f]/g, "")
-    .trim()
-    .replace(/\s+/g, "-");
-  return `${record.date}-${opposition || "game"}.csv`;
-}
-
 /** True for a finished game that has a record (old test games have none). */
 export function hasRecord(game) {
   return game.state === FINISHED && Boolean(game.record);

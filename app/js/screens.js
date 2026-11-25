@@ -221,7 +221,6 @@ function gameCard(game, state, actions) {
   );
 }
 
-const FILE_PROBLEM = "Could not make the file. The game itself is saved. Try Save file again.";
 
 /** The Sheet line on a finished game (GDA-47): Sent / Sending / Not sent yet + Send now / Sheet not set up. */
 function sheetLine(game, state, actions) {
@@ -248,9 +247,8 @@ function sheetLine(game, state, actions) {
   ];
 }
 
-/** A finished game on Home: the result, its Sheet status and a ⋯ menu (Save file, Archive). No history screen. */
+/** A finished game on Home: the result, its Sheet status and a ⋯ menu (Archive). No history screen. */
 function finishedCard(game, state, actions) {
-  const failed = state.fileProblemFor === game.id;
   return h(
     "div",
     { class: "card finished", "data-game": game.id, onclick: (event) => {
@@ -267,17 +265,15 @@ function finishedCard(game, state, actions) {
       h("div", { class: "menuwrap" }, menuButton(game, actions))
     ),
     cardMenu(game, state, actions, [
-      h("button", { class: "mi saveFile", onclick: () => actions.saveFile(game.id) }, "Save file"),
       h("button", { class: "mi d archiveGame", onclick: () => actions.askArchive(game.id) }, "Archive"),
     ]),
-    ...sheetLine(game, state, actions),
-    failed ? h("p", { class: "problem", role: "alert" }, FILE_PROBLEM) : null
+    ...sheetLine(game, state, actions)
   );
 }
 
 const ARCHIVE_WARNINGS = {
-  notInSheet: "Warning: this game is not in the Sheet yet. Tap Cancel, then Send now or Save file first.",
-  noStatus: "Warning: this older game has no Sheet record. Tap Cancel and Save file first.",
+  notInSheet: "Warning: this game is not in the Sheet yet. Tap Cancel, then Send now or back up first.",
+  noStatus: "Warning: this older game has no Sheet record. Tap Cancel, then Send now or back up first.",
 };
 
 /** "Archive v Eagles from the list?" with one confirm and, if the game is not in the Sheet, a red warning (GDA-69). */
@@ -457,7 +453,7 @@ function deleteTeamSheet(state, actions, refusal) {
       { class: "sheet" },
       h("h2", {}, `Delete team ${team.name}?`),
       h("p", { id: "deleteTeamCounts" }, `This erases ${plural(counts.players, "player")}, ${plural(counts.games, "game")} (archived games included), and their events. It can't be undone.`),
-      counts.notInSheet > 0 && sheetConnected(state.sheetSettings) ? h("p", { class: "problem", id: "deleteTeamWarn" }, `${counts.notInSheet} of these games are not in the Sheet. Tap Cancel and Save file or Send now first.`) : null,
+      counts.notInSheet > 0 && sheetConnected(state.sheetSettings) ? h("p", { class: "problem", id: "deleteTeamWarn" }, `${counts.notInSheet} of these games are not in the Sheet. Tap Cancel, then Send now or back up first.`) : null,
       h("button", { class: "btn del", id: "confirmDeleteTeam", onclick: actions.confirmDeleteTeam }, "Delete team"),
       h("button", { class: "btn", id: "cancelDeleteTeam", onclick: actions.cancelDeleteTeam }, "Cancel")
     )
@@ -534,7 +530,7 @@ function homeScreen(state, actions) {
     ? h("button", { class: "btn pri big", onclick: actions.openCreateGame }, "+ Create game")
     : null;
   const cards = state.games.filter((game) => game.state !== FINISHED).map((game) => gameCard(game, state, actions));
-  // Finished games with a record keep one Save file button. Old test games (no record) stay hidden.
+  // Finished games with a record keep their card. Old test games (no record) stay hidden.
   const finished = finishedNewestFirst(state.games.filter((game) => hasRecord(game) && !game.archived)).map((game) => finishedCard(game, state, actions));
   const addPlayers = hasPlayers
     ? []
@@ -1972,6 +1968,7 @@ function fullTimeScreen(state, actions) {
       h(
         "div",
         { class: "body" },
+        state.justSaved ? h("p", { class: "hint", id: "gameSaved", role: "status" }, "Game saved") : null, // GDA-186: only straight after saving
         ...summaryBody(state, game, actions, { canChoose: open ? canEditNotes(game) : corrects, soFar: false, editGoals: corrects }),
         problemLine(state.problem),
         // GDA-120: Settings sits bottom-left, End game and save takes the rest of the row.
@@ -2266,26 +2263,6 @@ function noteSheet(state, game, actions) {
   );
 }
 
-/** Saved (GDA-50): the record is stored. Save file offers the CSV; Done goes Home. */
-function savedScreen(state, actions) {
-  const game = state.games.find((g) => g.id === state.gameId);
-  const record = game?.record;
-  return {
-    nodes: [
-      header("Game saved"),
-      h(
-        "div",
-        { class: "body" },
-        h("div", { class: "bigscore", id: "finalScore" }, record ? `${record.us} - ${record.them}` : ""),
-        h("p", {}, "Your game is safe on this phone. No swap, goal or Undo can be reached now. You can save the file later from Home."),
-        state.fileProblemFor === game?.id ? h("p", { class: "problem", role: "alert" }, FILE_PROBLEM) : null,
-        h("button", { class: "btn big saveFile", onclick: () => actions.saveFile(game.id) }, state.fileProblemFor === game?.id ? "Save file again" : "Save file"),
-        h("button", { class: "btn pri big", id: "done", onclick: actions.goHome }, "Done")
-      ),
-    ],
-  };
-}
-
 function cannotOpenScreen(state, actions) {
   return {
     nodes: [
@@ -2312,7 +2289,6 @@ const SCREENS = {
   fullTime: fullTimeScreen,
   summary: summaryScreen,
   interchange: interchangeScreen,
-  saved: savedScreen,
   sheetSettings: sheetSettingsScreen,
   teamForm: teamFormScreen,
   cannotOpen: cannotOpenScreen,

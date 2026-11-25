@@ -713,11 +713,11 @@ button.tl.them { text-align: right; }
 /* GDA-57: the season chart on a line-up circle before kick-off, under the circle where a game's turn dots go (GDA-179). Four columns stand on a baseline; height and shade show the level. */
 .sch { position: absolute; left: 50%; transform: translateX(-50%); bottom: calc(-1 * var(--dots-hang)); z-index: 1; display: flex; align-items: flex-end; gap: var(--chart-gap); pointer-events: none; }
 /* no gap: neighbours share one 1px white edge instead of doubling to 2px (GDA-179) */
-.sch i + i { margin-left: -1px; }
-.sch i { display: block; width: var(--chart-col); height: var(--chart-base); background: var(--chart-l0); border: var(--chart-edge); box-sizing: content-box; }
-.sch i.l1 { height: calc(var(--chart-base) + var(--chart-step)); background: var(--chart-l1); }
-.sch i.l2 { height: calc(var(--chart-base) + 2 * var(--chart-step)); background: var(--chart-l2); }
-.sch i.l3 { height: calc(var(--chart-base) + 3 * var(--chart-step)); background: var(--chart-l3); }
+.sch i + i, .hchart i + i { margin-left: -1px; }
+.sch i, .hchart i { display: block; width: var(--chart-col); height: var(--chart-base); background: var(--chart-l0); border: var(--chart-edge); box-sizing: content-box; }
+.sch i.l1, .hchart i.l1 { height: calc(var(--chart-base) + var(--chart-step)); background: var(--chart-l1); }
+.sch i.l2, .hchart i.l2 { height: calc(var(--chart-base) + 2 * var(--chart-step)); background: var(--chart-l2); }
+.sch i.l3, .hchart i.l3 { height: calc(var(--chart-base) + 3 * var(--chart-step)); background: var(--chart-l3); }
 
 /* GDA-109 / GDA-174 final layout: the profile's column chart, one Player of the day line, and the sortable Player of the day list. */
 .pchart { display: flex; align-items: flex-end; gap: var(--s14); min-height: var(--s90); }
@@ -744,3 +744,39 @@ button.tl.them { text-align: right; }
 .potdrow.on .pc { font-weight: var(--bold); }
 .potdrow .pt { flex: none; width: var(--s24); }
 .sheet.profile .phead { padding: 0; border-top: 0; }
+
+/* GDA-187: Season history. A summary card, then one card with Players / Results tabs. Read-only, existing tokens only. */
+.hcard { gap: var(--s12); }
+.hcard h2 { margin: 0; font-size: var(--fs-body); font-weight: var(--bold); }
+.hsum { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s12) var(--s4); text-align: center; }
+.hsum.three { grid-template-columns: repeat(3, 1fr); padding-top: var(--s12); border-top: var(--bw) solid var(--line); }
+.hfig b { display: block; font-size: var(--fs-big); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.hfig span { font-size: var(--fs-small); color: var(--muted); }
+.htabs { display: flex; border-bottom: var(--bw) solid var(--line); }
+.htab { flex: 1; min-height: var(--tap); background: none; border: 0; border-bottom: var(--s3) solid transparent; margin-bottom: calc(-1 * var(--bw)); font: inherit; color: var(--muted); }
+.htab[aria-selected="true"] { color: var(--ink); font-weight: var(--bold); border-bottom-color: var(--ink); }
+.hist { width: 100%; table-layout: fixed; border-collapse: collapse; font-variant-numeric: tabular-nums; margin-top: var(--s4); }
+.hist th, .hist td { padding: 0 var(--s2); text-align: right; font-weight: var(--regular); }
+.hist th { font-size: var(--fs-small); color: var(--muted); }
+.hist th:first-child { width: 34%; text-align: left; }
+.hist th.ch, .hist td.ch { width: var(--s60); padding-right: var(--s4); }
+.hist td { height: var(--s48); border-top: var(--bw) solid var(--line); }
+.hist .sorter { display: inline-flex; align-items: center; min-height: var(--tap); padding: 0; border: 0; background: none; color: var(--muted); font: inherit; font-size: var(--fs-small); }
+.hist th[aria-sort] .sorter { color: var(--ink); font-weight: var(--bold); }
+.hist .so { display: inline-block; width: 1em; text-align: left; }
+.hist tr.hrow { cursor: pointer; }
+.hist td.who { text-align: left; white-space: nowrap; overflow: hidden; }
+.hist td.who .hname { display: inline-block; max-width: calc(100% - var(--s16)); overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+.hist td.who .chev { color: var(--muted); margin-left: var(--s4); vertical-align: middle; }
+.hchart { display: inline-flex; align-items: flex-end; vertical-align: bottom; }
+.hdash { color: var(--muted); }
+.hres { list-style: none; margin: 0; padding: 0; }
+.hres li { display: flex; align-items: center; gap: var(--s10); min-height: var(--s48); border-top: var(--bw) solid var(--line); }
+.hres li:first-child { border-top: 0; }
+.hres .hd { flex: none; width: var(--s68); font-size: var(--fs-small); color: var(--muted); }
+.hres .ho { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.hres .hs { flex: none; min-width: var(--s40); text-align: right; font-weight: var(--bold); font-variant-numeric: tabular-nums; }
+.hres .hr { flex: none; width: var(--s28); height: var(--s28); border-radius: var(--r-tag); display: grid; place-items: center; font-size: var(--fs-small); font-weight: var(--bold); }
+.hres .hr.W { background: var(--ink); color: var(--card); }
+.hres .hr.D { background: var(--btn); color: var(--ink); }
+.hres .hr.L { background: var(--card); color: var(--ink); border: var(--bw-signal) solid var(--tag-off); }

@@ -103,6 +103,8 @@ const state = {
   listView: false, // GDA-48: the line-up / game shows the List instead of the Pitch. Never saved; every screen opens on the Pitch.
   seasonMode: "halves", // GDA-176/109: halves or minutes, one choice shared by the season List and the player profile; remembered on the phone (meta "seasonMode"), halves the first time
   seasonEvents: {}, // GDA-176: saved events by game, read when the List opens (for minutes)
+  historyTab: "players", // GDA-187: Season history's tab ("players" or "results"). Not remembered.
+  historySort: { column: "name", descending: false }, // GDA-187: its player table's sort. Not remembered.
   seasonSort: { column: "name", descending: false }, // GDA-48: the season List's sort. Not remembered.
   summaryBack: null, // The game screen the mid-game Summary returns to (GDA-108). Never saved.
   noteFor: null, // The player whose hold sheet is open (GDA-81), or null. Never saved.
@@ -634,6 +636,31 @@ const actions = {
     goTo("squad");
   }),
   backToSquad: tap(() => goTo("squad")),
+  // GDA-187: Season history. Read-only: nothing here is saved. The minutes are worked out from the season's events.
+  openHistory: tap(async () => {
+    try {
+      state.seasonEvents = await loadSeasonEvents(db);
+    } catch (error) {
+      console.warn("Could not read the season's events", error);
+      state.seasonEvents = {}; // halves still show; minutes show dashes
+    }
+    state.historyTab = "players";
+    state.historySort = { column: "name", descending: false };
+    goTo("history");
+  }),
+  setHistoryTab: tap((tab) => {
+    state.historyTab = tab === "results" ? "results" : "players";
+    draw();
+  }),
+  sortHistory: tap((column) => {
+    state.historySort = sortAfterTap(state.historySort, column);
+    draw();
+  }),
+  openHistoryProfile: tap((playerId) => {
+    state.noteFor = playerId; // the existing player profile; closing it returns here
+    state.noteDraft = null;
+    draw();
+  }),
   addFromHome: tap(() => {
     listScroll = 0;
     openAdd("home");

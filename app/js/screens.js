@@ -10,6 +10,7 @@ import { finishedNewestFirst, FINISHED, FIRST_HALF, SECOND_HALF, canPlan, IN_PRO
 import { TALLY_COLUMNS, interchangeRows, sortTally, tallyRows } from "./interchange-rules.js";
 import { LIST_COLUMNS, listBasedOn, listMeasure, listRows } from "./season-list-rules.js";
 import { AREAS, seasonTotals, potdListRows } from "./season-rules.js";
+import { gamesPlayed, goalDifferenceText, historyRows, resultRows, teamRecord } from "./history-rules.js";
 import { checkFormation, formatFormationDigits, formationOf, pitchRows } from "./formation-rules.js";
 import { TEMPLATE_COPY_URL, archiveWarningFor, canDeleteGame, setupCodeOf, sheetConnected, sheetStatus } from "./sheet-rules.js";
 import { canSaveName, initialsFor } from "./squad-rules.js";
@@ -555,6 +556,7 @@ function homeScreen(state, actions) {
         h("button", { class: "mi teamSettings", onclick: actions.openTeamSettings }, "Team settings"),
         // With no players, "+ Add players" on Home does the job, so the Squad item waits until there is a squad.
         hasPlayers ? h("button", { class: "mi squadItem", onclick: actions.openSquad }, `Squad (${state.players.length})`) : null,
+        h("button", { class: "mi historyItem", onclick: actions.openHistory }, "Season history"), // GDA-187
         h("div", { class: "mhd" }, "App"),
         // Sheet settings is still stored per team (GDA-163 will change that).
         h("button", { class: "mi sheetSettings", onclick: actions.openSheetSettings }, "Sheet settings"),
@@ -2228,7 +2230,7 @@ function noteSheet(state, game, actions) {
   if (state.noteFor === null || !player) {
     return null;
   }
-  const inGame = canCorrect(game);
+  const inGame = Boolean(game) && canCorrect(game); // GDA-187: opened from Season history there is no game, so figures only
   const done = h("button", { class: "btn pri big", id: "noteDone", onclick: actions.closeNote }, "Done");
   // GDA-109: three more ways to close, all saving exactly as Done does: this X, a tap on the grey background, a swipe down (main.js).
   const head = h("div", { class: "phd" }, avatar(player), h("h2", {}, player.name), h("button", { class: "arrow", id: "noteClose", "aria-label": "Close", onclick: actions.closeNote }, icon("close")));
@@ -2277,9 +2279,115 @@ function cannotOpenScreen(state, actions) {
   };
 }
 
+const HISTORY_HEADINGS = { name: "Player", played: "Played", goals: "Goals", potd: "POD" };
+const RESULT_WORDS = { W: "Won", D: "Drawn", L: "Lost" };
+
+/**
+ * Season history (GDA-187): the team's season on one page. Read-only. A summary card, then one card with two tabs:
+ * Players (a sortable table, a row opens the player's profile) and Results (every counted game, newest first).
+ * All figures come from the existing season rules plus history-rules.js, so they count the same games as the profile.
+ */
+function historyScreen(state, actions) {
+  const record = teamRecord(state.games);
+  const totals = seasonTotals({ games: state.games, players: state.players, eventsByGame: state.seasonEvents ?? {} });
+  const figure = (value, label, id) => h("div", { class: "hfig" }, h("b", { id }, String(value)), h("span", {}, label));
+  const summary = h(
+    "div",
+    { class: "card hcard", id: "historySummary" },
+    h("h2", {}, "Team"),
+    h("div", { class: "hsum" }, figure(record.played, "Played", "hPlayed"), figure(record.won, "Won", "hWon"), figure(record.drawn, "Drawn", "hDrawn"), figure(record.lost, "Lost", "hLost")),
+    h("div", { class: "hsum three" }, figure(record.goalsFor, "Goals for", "hFor"), figure(record.goalsAgainst, "Goals against", "hAgainst"), figure(goalDifferenceText(record.goalDifference), "Goal difference", "hDiff"))
+  );
+  const onPlayers = state.historyTab !== "results";
+  const tab = (id, which, text) =>
+    h("button", { type: "button", class: "htab", id, role: "tab", "aria-selected": String(onPlayers === (which === "players")), onclick: () => actions.setHistoryTab(which) }, text);
+  return {
+    nodes: [
+      header("Season history", actions.goHome),
+      h(
+        "div",
+        { class: "body" },
+        summary,
+        h(
+          "div",
+          { class: "card hcard" },
+          h("div", { class: "htabs", role: "tablist" }, tab("tabPlayers", "players", "Players"), tab("tabResults", "results", "Results")),
+          onPlayers ? historyPlayers(state, actions, totals.players) : historyResults(state)
+        )
+      ),
+      noteSheet(state, null, actions), // a row's profile (no game open: figures only)
+    ],
+  };
+}
+
+function historyPlayers(state, actions, totals) {
+  if (state.players.length === 0) {
+    return h("div", { class: "empty", id: "noHistoryPlayers" }, "No players yet.");
+  }
+  const mode = state.seasonMode === "minutes" ? "minutes" : "halves";
+  const sort = state.historySort;
+  const rows = historyRows(state.players, totals, gamesPlayed(state.games, state.players), sort, mode);
+  const option = (value, text) => h("option", { value, selected: value === mode }, text);
+  const heading = (column) => {
+    const on = sort.column === column;
+    return h(
+      "th",
+      { scope: "col", class: column === "name" ? "who" : "", ...(on ? { "aria-sort": sort.descending ? "descending" : "ascending" } : {}) },
+      h("button", { type: "button", class: "sorter", "data-col": column, onclick: () => actions.sortHistory(column) }, HISTORY_HEADINGS[column], h("span", { class: "so", "aria-hidden": "true" }, on ? (sort.descending ? "\u25bc" : "\u25b2") : ""))
+    );
+  };
+  const chart = (levels) =>
+    levels === null
+      ? h("span", { class: "hdash" }, "\u2013")
+      : h("span", { class: "hchart", role: "img", "aria-label": AREAS.map((a) => `${AREA_LABELS[a]} level ${levels[a]} of 3`).join(", ") }, ...AREAS.map((a) => h("i", { class: "l" + levels[a] })));
+  const row = (r) =>
+    h(
+      "tr",
+      { class: "hrow", "data-id": String(r.id), onclick: () => actions.openHistoryProfile(r.id) },
+      h("td", { class: "who" }, h("span", { class: "hname" }, r.name), h("span", { class: "chev", "aria-hidden": "true" }, "\u203a")),
+      h("td", {}, String(r.played)),
+      h("td", {}, String(r.goals)),
+      h("td", {}, String(r.potd)),
+      h("td", { class: "ch" }, chart(r.levels))
+    );
+  return h(
+    "div",
+    { role: "tabpanel" },
+    h("select", { class: "lmode", id: "historyMode", "aria-label": "Show as", onchange: (e) => actions.setSeasonMode(e.target.value) }, option("halves", "Halves"), option("minutes", "Minutes")),
+    h(
+      "table",
+      { class: "hist", id: "historyTable" },
+      h("thead", {}, h("tr", {}, ...["name", "played", "goals", "potd"].map(heading), h("th", { scope: "col", class: "ch" }, "Positions"))),
+      h("tbody", {}, ...rows.map(row))
+    )
+  );
+}
+
+function historyResults(state) {
+  const rows = resultRows(state.games);
+  if (rows.length === 0) {
+    return h("div", { class: "empty", id: "noResults", role: "tabpanel" }, "No finished games yet.");
+  }
+  return h(
+    "ul",
+    { class: "hres", id: "historyResults", role: "tabpanel" },
+    ...rows.map((r) =>
+      h(
+        "li",
+        { "data-id": String(r.id) },
+        h("span", { class: "hd" }, formatGameDate(r.date)),
+        h("span", { class: "ho" }, r.opposition),
+        h("span", { class: "hr " + r.letter, title: RESULT_WORDS[r.letter], "aria-label": RESULT_WORDS[r.letter] }, r.letter),
+        h("span", { class: "hs" }, `${r.us}\u2013${r.them}`)
+      )
+    )
+  );
+}
+
 const SCREENS = {
   home: homeScreen,
   squad: squadScreen,
+  history: historyScreen,
   add: addScreen,
   edit: editScreen,
   createGame: createGameScreen,

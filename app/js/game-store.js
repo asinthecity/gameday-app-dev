@@ -2,8 +2,8 @@
 // fully saved or not changed at all. See game-rules.js for what a game holds.
 
 import { change, read } from "./db.js";
-import { isInProgress, hereToggled, dotTurns, firstHalfCopyOf, lineUpMoved, SECOND_HALF, goalAdded, goalRemoved, playedToday, lineupKey, startedSecondHalf, undoneKickOff, isRemovedByUndo, endedHalf, reopenedHalf, benchReordered, planMoved, planBenchReordered, fieldMoved, pairPlanned, pairRemoved, swapEvent, swapUndone, swapped, gamesInOrder, halfEndCancelledEvent, halfEndEvent, halfStartEvent, movedOnto, newGame, nextCreatedOrder, positionChangeEvent, prePlaced, startedFirstHalf, withBenchOrder } from "./game-rules.js";
-import { buildRecord, gameAtFullTime } from "./record-rules.js";
+import { FINISHED, isInProgress, hereToggled, dotTurns, firstHalfCopyOf, lineUpMoved, SECOND_HALF, goalAdded, goalRemoved, playedToday, lineupKey, startedSecondHalf, undoneKickOff, isRemovedByUndo, endedHalf, reopenedHalf, benchReordered, planMoved, planBenchReordered, fieldMoved, pairPlanned, pairRemoved, swapEvent, swapUndone, swapped, gamesInOrder, halfEndCancelledEvent, halfEndEvent, halfStartEvent, movedOnto, newGame, nextCreatedOrder, positionChangeEvent, prePlaced, startedFirstHalf, withBenchOrder } from "./game-rules.js";
+import { buildRecord, gameAtFullTime, withRecordCorrected } from "./record-rules.js";
 import { canDeleteGame, gameArchived } from "./sheet-rules.js";
 import { squadInOrder } from "./squad-rules.js";
 import { ofTeam, sameTeam, withTeamId } from "./team-rules.js";
@@ -60,12 +60,20 @@ export function addGame(db, form, team, firstTeamId) {
 
 /** Reads one game, applies a rule from game-rules.js and writes it back, in one transaction. */
 export function changeGame(db, id, rule) {
-  return change(db, ["games"], (tx) => {
+  return change(db, ["games", "players"], (tx) => {
     const games = tx.objectStore("games");
     games.get(id).onsuccess = (event) => {
       const game = event.target.result;
       if (game) {
-        games.put(rule(game));
+        const next = rule(game);
+        // GDA-155: a finished game's stored record follows any change to its goals, notes or Player of the day.
+        const recordStale = next.state === FINISHED && next.record && (next.goals !== game.goals || next.notes !== game.notes || next.potdId !== game.potdId);
+        if (!recordStale) {
+          games.put(next);
+        } else {
+          // The squad is read so an older record (no player ids) can be matched by name.
+          tx.objectStore("players").getAll().onsuccess = (found) => games.put(withRecordCorrected(next, found.target.result));
+        }
       } else {
         tx.abort();
       }

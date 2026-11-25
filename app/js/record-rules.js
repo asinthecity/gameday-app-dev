@@ -127,6 +127,43 @@ export function gameAtFullTime(game, record) {
   return { ...rest, ...(firstHalfAtWhistle ? { firstHalfAtWhistle } : {}), state: FINISHED, record, toSend: true };
 }
 
+/**
+ * GDA-155: after goals, notes or Player of the day change on a finished game, brings its stored record into line.
+ * Only the score, goals list, and each player's goals, note and Player of the day change; positions, bench order,
+ * names, ids, date, opposition and venue stay exactly as stored (never rebuilt from today's squad).
+ */
+export function withRecordCorrected(game, squad = []) {
+  const record = game.record;
+  if (!record) {
+    return game;
+  }
+  const goals = goalsOf(game);
+  const score = scoreOf(game);
+  // Records saved before GDA-178 have no player ids: match a row to a player by name, as season-rules.js does
+  // (a name shared by two players cannot be told apart, so that row is left alone).
+  const idOf = (row) => {
+    if (row.id !== undefined) {
+      return row.id;
+    }
+    const same = squad.filter((p) => p.name === row.name);
+    return same.length === 1 ? same[0].id : undefined;
+  };
+  const nameOf = (id) => record.players.find((p) => idOf(p) === id)?.name ?? null;
+  return {
+    ...game,
+    record: {
+      ...record,
+      us: score.us,
+      them: score.them,
+      goals: goals.map((g) => ({ side: g.side, scorer: g.side === US && g.scorerId !== null ? nameOf(g.scorerId) : null, half: g.half ?? null, ...(typeof g.minute === "number" ? { minute: g.minute } : {}) })),
+      players: record.players.map((p) => {
+        const id = idOf(p);
+        return id === undefined ? p : { ...p, goals: goals.filter((g) => g.side === US && g.scorerId === id).length, note: noteOf(game, id), playerOfTheDay: potdOf(game) === id };
+      }),
+    },
+  };
+}
+
 /** One CSV cell. Wrapped in quotes if it holds a comma, quote or line break; quotes are doubled. */
 export function csvCell(value) {
   const text = String(value);

@@ -571,6 +571,8 @@ button.tl.them { text-align: right; }
 #potdValue .mini { flex: none; width: var(--s36); height: var(--s36); }
 #potdValue .mini .av { font-size: var(--fs-small); }
 .tl .t { flex: none; width: var(--s64); font-weight: var(--bold); color: var(--muted); font-variant-numeric: tabular-nums; }
+/* GDA-155: the plain "Edit goals" text link at the foot of a finished game's goal card. */
+.elink { display: flex; align-items: center; justify-content: center; width: 100%; min-height: var(--tap); margin-top: var(--s4); padding: 0; border: 0; background: none; color: var(--brand); font: inherit; text-decoration: underline; }
 .nt { gap: var(--s6); white-space: pre-line; }
 .nt b { font-size: var(--fs-body); }
 #noteSheet textarea { width: 100%; min-height: var(--s72); box-sizing: border-box; font-family: inherit; font-size: var(--fs-body); color: var(--ink); background: var(--page); border: var(--bw-signal) solid var(--edge); border-radius: var(--r-control); padding: var(--s9) var(--s11); resize: none; }

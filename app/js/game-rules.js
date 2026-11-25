@@ -1573,6 +1573,12 @@ export function scorerChoices(game, players, playedIds) {
  * a goal for us with no scorer is an own goal. A goal against has no scorer.
  */
 export function goalAdded(game, goal) {
+  if (canCorrectFinished(game)) {
+    // GDA-155: a goal added after Full Time goes on the end with no half and no minute (never 0).
+    const lateSide = goal.side === THEM ? THEM : US;
+    const lateScorer = lateSide === US && gamePlayerIds(game).has(goal.scorerId) ? goal.scorerId : null;
+    return { ...game, goals: [...goalsOf(game), { id: goal.id, side: lateSide, scorerId: lateScorer, half: null }] };
+  }
   if (!canAddGoal(game)) {
     return game;
   }
@@ -1623,7 +1629,7 @@ export function goalScorerChanged(game, goalId, scorerId) {
  */
 export function goalFixOf(game, goalId, nameOf) {
   const goal = goalsOf(game).find((g) => g.id === goalId);
-  if (!goal || !canEditNotes(game)) {
+  if (!goal || !canCorrect(game)) {
     return null;
   }
   const row = summaryOf(game, [], nameOf).goals[goalsOf(game).indexOf(goal)];
@@ -1661,6 +1667,19 @@ export function canEditNotes(game) {
   return Boolean(game) && canAddGoal(game);
 }
 
+/**
+ * GDA-155: a finished game (with its record, not archived) may have its goals, notes and Player of the day
+ * corrected. Nothing else about it can change (line-ups, swaps, positions, minutes, details stay locked).
+ */
+export function canCorrectFinished(game) {
+  return Boolean(game) && game.state === FINISHED && Boolean(game.record) && !game.archived;
+}
+
+/** Goals, notes and Player of the day may change: while the game is live (GDA-81) or once finished (GDA-155). */
+export function canCorrect(game) {
+  return canEditNotes(game) || canCorrectFinished(game);
+}
+
 /** One player's note ("" if none). */
 export function noteOf(game, playerId) {
   return game.notes?.[playerId] ?? "";
@@ -1671,7 +1690,7 @@ export function noteOf(game, playerId) {
  * trimmed at both ends; nothing left means no note. Unchanged if notes are locked or the player is not in this game.
  */
 export function withNote(game, playerId, text) {
-  if (!canEditNotes(game) || !gamePlayerIds(game).has(playerId)) {
+  if (!canCorrect(game) || !gamePlayerIds(game).has(playerId)) {
     return game;
   }
   const notes = { ...(game.notes ?? {}) };
@@ -1694,7 +1713,7 @@ export function potdOf(game) {
  * it if that player is the one chosen. Unchanged if locked or the player is not in this game.
  */
 export function withPotd(game, playerId, on) {
-  if (!canEditNotes(game) || !gamePlayerIds(game).has(playerId)) {
+  if (!canCorrect(game) || !gamePlayerIds(game).has(playerId)) {
     return game;
   }
   if (on) {
@@ -1711,7 +1730,7 @@ export function summaryOf(game, players, nameLookup) {
   const nameOf = nameLookup ?? ((id) => players.find((p) => p.id === id)?.name ?? null);
   const goals = goalsOf(game).map((goal) => ({
     id: goal.id,
-    when: `${goal.half === "secondHalf" ? "2nd" : "1st"}${typeof goal.minute === "number" ? ` ${goal.minute}'` : ""}`,
+    when: goal.half === null ? "" : `${goal.half === "secondHalf" ? "2nd" : "1st"}${typeof goal.minute === "number" ? ` ${goal.minute}'` : ""}`, // GDA-155: a goal added after Full Time has no half or minute
     who: goal.side === THEM ? "Opposition" : goal.scorerId === null ? "Own goal" : nameOf(goal.scorerId) ?? "Goal for us",
     side: goal.side === THEM ? THEM : US,
   }));

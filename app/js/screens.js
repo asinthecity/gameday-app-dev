@@ -6,7 +6,7 @@
 
 import { hasRecord } from "./record-rules.js";
 import { trimmedLine } from "./drag.js";
-import { finishedNewestFirst, FINISHED, FIRST_HALF, SECOND_HALF, canPlan, IN_PROGRESS_PHASE, NOT_STARTED_PHASE, phaseOf, canStartHalf, canResumeHalf, halfLineUpView, nextScreen, lineupKey, canChangeWhoIsHere, startedAtOf, endedAtOf, canUndoKickOff, formationRowHalf, shownFormation, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, planFigures, planFiguresFor, firstHalfFigures, firstHalfCopyOf, dotsFor, dotsLabel, showsSeasonChart, showsRotationCounts, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationSecondsOf, rotationText, ROTATION_EXTRA_SECONDS, snappedSeconds, clampRotation, halfOf, carriesRotationOrder, carriesBenchTime, canChangeCarryOver, MIN_ROTATION, MAX_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, canEditNotes, noteOf, potdOf, summaryOf, goalFixOf } from "./game-rules.js";
+import { finishedNewestFirst, FINISHED, FIRST_HALF, SECOND_HALF, canPlan, IN_PROGRESS_PHASE, NOT_STARTED_PHASE, phaseOf, canStartHalf, canResumeHalf, halfLineUpView, nextScreen, lineupKey, canChangeWhoIsHere, startedAtOf, endedAtOf, canUndoKickOff, formationRowHalf, shownFormation, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, planFigures, planFiguresFor, firstHalfFigures, firstHalfCopyOf, dotsFor, dotsLabel, showsSeasonChart, showsRotationCounts, formatGameDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationSecondsOf, rotationText, ROTATION_EXTRA_SECONDS, snappedSeconds, clampRotation, halfOf, carriesRotationOrder, carriesBenchTime, canChangeCarryOver, MIN_ROTATION, MAX_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, canEditNotes, canCorrect, canCorrectFinished, noteOf, potdOf, summaryOf, goalFixOf } from "./game-rules.js";
 import { TALLY_COLUMNS, interchangeRows, sortTally, tallyRows } from "./interchange-rules.js";
 import { LIST_COLUMNS, listBasedOn, listMeasure, listRows } from "./season-list-rules.js";
 import { AREAS, seasonTotals, potdListRows } from "./season-rules.js";
@@ -942,7 +942,7 @@ function playerSlot(player, state, canMove, isKeeper = false, benchTimer = false
       class: ["slot", planned ? "plan" : "", isKeeper ? "keeper" : "", planBench && shown.seconds !== null && ringFraction(shown.seconds, rotation) >= PILL_WHITE_FROM ? "wh" : ""].join(" ").trim(),
       ...(planBench && shown.seconds !== null ? { style: `--wait-fade: ${ringFraction(shown.seconds, rotation).toFixed(3)}` } : {}), // GDA-160: ring and tag colour for a frozen plan circle
       ...(canMove ? { "data-player": player.id } : {}),
-      ...(!state.viewId && (canEditNotes(openGame(state)) || (openGame(state).state === NOT_STARTED && !openGame(state).absent.includes(player.id))) ? { "data-note": player.id } : {}), // GDA-81/109: can be held for the profile (not an Absent circle, not a saved game)
+      ...((!state.viewId || canCorrectFinished(openGame(state))) && (canCorrect(openGame(state)) || (openGame(state).state === NOT_STARTED && !openGame(state).absent.includes(player.id))) ? { "data-note": player.id } : {}), // GDA-81/109: can be held for the profile (not an Absent circle, not a saved game)
       ...(planBench && !afterHalf ? { "data-plan-bench": player.id } : {}), // GDA-107: the plan's bench circles move with the 1st half
       ...(benchTimer ? { "data-bench": player.id } : {}), // Marks a timer circle; it is not draggable.
     },
@@ -1554,7 +1554,7 @@ function halfScreen(state, actions) {
  * Every action (a goal, Undo last goal, Cancel) closes it.
  */
 function goalDialog(state, game, actions) {
-  if (!state.goalOpen || !canAddGoal(game)) {
+  if (!state.goalOpen || !(canAddGoal(game) || canCorrectFinished(game))) {
     return null;
   }
   const players = scorerChoices(game, state.players, game.played);
@@ -1575,7 +1575,7 @@ function goalDialog(state, game, actions) {
     onToggle: actions.chooseScorer,
     onCancel: actions.closeGoalDialog,
     // GDA-108: opens the Summary (the clock keeps running); Back there returns to the game with this pop-up closed.
-    headAction: h("button", { class: "pkx txt", id: "openSummary", onclick: actions.openSummary }, "Summary"),
+    headAction: canCorrectFinished(game) ? null : h("button", { class: "pkx txt", id: "openSummary", onclick: actions.openSummary }, "Summary"), // GDA-155: on a finished game you are already on Full Time
     gridTail: ownGoal,
     middle: h("div", { class: "gagainst" }, h("button", { class: "btn", id: "goalThem", onclick: actions.goalAgainst }, "Opposition goal")),
     footer: h(
@@ -1859,7 +1859,7 @@ function scorePanel(ourName, ourLogo, theirName, score) {
  * `canChoose` is true before End game and save; a finished game shows the page locked (no row if nobody was chosen).
  * Used by the mid-game Summary, the Full Time screen and a finished game opened from Home.
  */
-function summaryBody(state, game, actions, { canChoose, soFar }) {
+function summaryBody(state, game, actions, { canChoose, soFar, editGoals = false }) {
   const team = state.teams.find((t) => t.id === (game.teamId ?? state.currentTeamId));
   const ourName = team?.name ?? "Our team";
   const summary = summaryOf(game, state.players);
@@ -1872,8 +1872,8 @@ function summaryBody(state, game, actions, { canChoose, soFar }) {
   return [
     soFar ? h("div", { class: "lbl", id: "fullTimeTitle" }, "Score so far") : null,
     scorePanel(ourName, currentLogos[team?.id], game.opposition, summary.score),
-    summary.goals.length > 0
-      ? h("div", { class: "card", id: "timeline" }, ...summary.goals.map((g) => h(canChoose ? "button" : "div", { class: g.side === US ? "tl" : "tl them", ...(canChoose ? { type: "button", "data-goal": g.id, onclick: () => actions.openGoalFix(g.id) } : {}) }, h("span", { class: "t" }, g.when), h("span", { class: "ball" }, icon("ball")), h("span", { class: g.side === US ? "" : "ro" }, g.who))))
+    summary.goals.length > 0 || editGoals
+      ? h("div", { class: "card", id: "timeline" }, ...summary.goals.map((g) => h(canChoose ? "button" : "div", { class: g.side === US ? "tl" : "tl them", ...(canChoose ? { type: "button", "data-goal": g.id, onclick: () => actions.openGoalFix(g.id) } : {}) }, h("span", { class: "t" }, g.when), h("span", { class: "ball" }, icon("ball")), h("span", { class: g.side === US ? "" : "ro" }, g.who))), editGoals ? h("button", { class: "elink", type: "button", id: "editGoals", onclick: actions.openEditGoals }, "Edit goals") : null)
       : null,
     summary.notes.length > 0 ? h("div", { class: "card nt", id: "notesCard" }, ...summary.notes.map((n) => h("div", {}, h("b", {}, n.name), " ", n.text))) : null,
     potdRow,
@@ -1965,20 +1965,22 @@ function fullTimeHead(state, actions) {
 function fullTimeScreen(state, actions) {
   const game = openGame(state);
   const open = !state.viewId;
+  const corrects = Boolean(state.viewId) && canCorrectFinished(game); // GDA-155: a finished game can still be corrected
   return {
     nodes: [
       fullTimeHead(state, actions),
       h(
         "div",
         { class: "body" },
-        ...summaryBody(state, game, actions, { canChoose: open && canEditNotes(game), soFar: false }),
+        ...summaryBody(state, game, actions, { canChoose: open ? canEditNotes(game) : corrects, soFar: false, editGoals: corrects }),
         problemLine(state.problem),
         // GDA-120: Settings sits bottom-left, End game and save takes the rest of the row.
         h("div", { class: "endrow" }, settingsButton(actions), open ? h("button", { class: "btn pri big", id: "fullTime", onclick: actions.askFullTime }, "End game and save") : h("button", { class: "btn big", id: "closeGameBottom", onclick: actions.closeGame }, "Close game"))
       ),
       gameDetailsSheet(state, game, actions),
       state.fullTimeAsk ? fullTimeSheet(actions) : null,
-      open ? potdPicker(state, game, actions) : null,
+      open || corrects ? potdPicker(state, game, actions) : null,
+      corrects ? goalDialog(state, game, actions) : null,
     ],
   };
 }
@@ -2143,7 +2145,7 @@ function potdHeadings(state, actions) {
 }
 
 function potdPicker(state, game, actions) {
-  if (!state.potdOpen || !canEditNotes(game)) {
+  if (!state.potdOpen || !canCorrect(game)) {
     return null;
   }
   const totals = seasonTotals({ games: state.games, players: state.players, eventsByGame: {} });
@@ -2229,7 +2231,7 @@ function noteSheet(state, game, actions) {
   if (state.noteFor === null || !player) {
     return null;
   }
-  const inGame = canEditNotes(game);
+  const inGame = canCorrect(game);
   const done = h("button", { class: "btn pri big", id: "noteDone", onclick: actions.closeNote }, "Done");
   // GDA-109: three more ways to close, all saving exactly as Done does: this X, a tap on the grey background, a swipe down (main.js).
   const head = h("div", { class: "phd" }, avatar(player), h("h2", {}, player.name), h("button", { class: "arrow", id: "noteClose", "aria-label": "Close", onclick: actions.closeNote }, icon("close")));

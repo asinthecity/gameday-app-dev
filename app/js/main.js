@@ -12,6 +12,8 @@ import {
   canReorderBench,
   canAddGoal,
   canEditNotes,
+  canCorrect,
+  canCorrectFinished,
   noteOf,
   potdOf,
   withNote,
@@ -541,14 +543,14 @@ async function saveUndo() {
 async function saveGoal(side, scorerId) {
   const game = openGame();
   state.goalOpen = false;
-  if (!game || !canAddGoal(game)) {
+  if (!game || !(canAddGoal(game) || canCorrectFinished(game))) {
     draw();
     return;
   }
   const goal = { id: crypto.randomUUID(), side, scorerId, at: Date.now() }; // `at` gives the minute within the half (GDA-82)
   saving = true;
   try {
-    await addGoal(db, state.gameId, goal);
+    await addGoal(db, state.viewId ?? state.gameId, goal);
     state.games = await gamesNow();
   } catch (error) {
     console.warn("Goal did not save", error);
@@ -569,7 +571,7 @@ async function saveGoalRemoval(goalId) {
   state.goalOpen = false;
   saving = true;
   try {
-    await removeGoal(db, state.gameId, goalId);
+    await removeGoal(db, state.viewId ?? state.gameId, goalId);
     state.games = await gamesNow();
   } catch (error) {
     console.warn("Goal removal did not save", error);
@@ -596,7 +598,7 @@ async function saveGoalFix(change) {
 async function saveGameChange(change) {
   saving = true;
   try {
-    await changeGame(db, state.gameId, change);
+    await changeGame(db, state.viewId ?? state.gameId, change);
     state.games = await gamesNow();
   } catch (error) {
     console.warn("Change did not save", error);
@@ -690,7 +692,7 @@ const actions = {
       return;
     }
     state.viewId = gameId;
-    goTo("half1");
+    goTo("fullTime"); // GDA-155: a finished game opens on Full Time; ‹ goes back through 2nd Half and 1st Half
   }),
   // GDA-149: leave a finished game being looked at, straight to Home. goTo("home") clears viewId; nothing is saved.
   closeGame: tap(() => {
@@ -861,13 +863,13 @@ const actions = {
   // GDA-91: removes the newest goal (either side); the dialog closes.
   undoLastGoal: tap(() => {
     const goal = lastGoal(openGame());
-    if (goal && canAddGoal(openGame())) {
+    if (goal && (canAddGoal(openGame()) || canCorrectFinished(openGame()))) {
       saveGoalRemoval(goal.id);
     }
   }),
-  // GDA-94: tap a goal in the Summary's timeline. Only before End game and save, never on a finished game.
+  // GDA-94: tap a goal in the Summary's timeline. Before End game and save, and (GDA-155) on a finished game.
   openGoalFix: tap((goalId) => {
-    if (!state.viewId && canEditNotes(openGame())) {
+    if (canCorrect(openGame())) {
       state.goalFixId = goalId;
       draw();
     }
@@ -957,6 +959,13 @@ const actions = {
   sortPotd: tap((column) => {
     state.potdSort = sortAfterTap(state.potdSort, column);
     draw();
+  }),
+  // GDA-155: the "Edit goals" link on a finished game's Full Time page opens the same Who scored? pop-up.
+  openEditGoals: tap(() => {
+    if (canCorrectFinished(openGame())) {
+      state.goalOpen = true;
+      draw();
+    }
   }),
   sortTally: tap((column) => {
     state.tallySort = sortAfterTap(state.tallySort, column);
@@ -1310,7 +1319,7 @@ const presses = watchLineUpPresses({
   // Open from the line-up before kick-off (an Absent circle too) and in a running game; never on a saved game.
   canOpen: (spot) => {
     const game = openGame();
-    return spot.playerId !== undefined && readyForTaps() && screenHalf(state.screen) !== 0 && !state.viewId && state.noteFor === null && Boolean(game) && (canEditNotes(game) || game.state === NOT_STARTED);
+    return spot.playerId !== undefined && readyForTaps() && screenHalf(state.screen) !== 0 && (!state.viewId || canCorrectFinished(game)) && state.noteFor === null && Boolean(game) && (canCorrect(game) || game.state === NOT_STARTED);
   },
   async tapped(spot) {
     try {

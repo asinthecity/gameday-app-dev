@@ -102,7 +102,7 @@ const state = {
   listView: false, // GDA-48: the line-up / game shows the List instead of the Pitch. Never saved; every screen opens on the Pitch.
   seasonMode: "halves", // GDA-176/109: halves or minutes, one choice shared by the season List and the player profile; remembered on the phone (meta "seasonMode"), halves the first time
   seasonEvents: {}, // GDA-176: saved events by game, read when the List opens (for minutes)
-  historyTab: "results", // GDA-187: the season tabs ("players" or "results"), on Season history and (GDA-185) on Home. Home always opens on Results; Season history opens on Players. Not remembered.
+  historyTab: "results", // GDA-187: the season tabs ("players" or "results"), on Season history and (GDA-185) on Home. Home and Season history both open on Results. Not remembered.
   historySort: { column: "name", descending: false }, // GDA-187: its player table's sort. Not remembered.
   seasonSort: { column: "name", descending: false }, // GDA-48: the season List's sort. Not remembered.
   summaryBack: null, // The game screen the mid-game Summary returns to (GDA-108). Never saved.
@@ -619,7 +619,7 @@ const actions = {
       console.warn("Could not read the season's events", error);
       state.seasonEvents = {}; // halves still show; minutes show dashes
     }
-    state.historyTab = "players";
+    state.historyTab = "results"; // GDA-185: Results first, same as Home
     state.historySort = { column: "name", descending: false };
     goTo("history");
   }),

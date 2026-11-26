@@ -39,6 +39,8 @@
   --res-d: #6A4BE0;            /* draw = the middle step (white letter 5.7:1), */
   --res-l: #E4DCFF;            /* loss = the lightest step (dark letter 13:1). No pink ring. */
   --shadow-card: 0 2px 8px rgba(55, 0, 60, .12); /* the white team card on Home's band */
+  --glow-upcoming: 0 0 12px 1px rgba(124, 92, 255, .25); /* GDA-185: soft violet glow round the upcoming-games tile (brand-bright at 25%) */
+  --edge-upcoming: #CDBDFF; /* its 1px lilac edge */
   --shadow-fab: 0 4px 12px rgba(55, 0, 60, .35); /* the floating "+ New game" pill */
   --scrim: rgba(17, 20, 24, .5);
   --shadow: rgba(17, 20, 24, .32);

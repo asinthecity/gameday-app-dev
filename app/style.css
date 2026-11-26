@@ -767,13 +767,10 @@ button.tl.them { text-align: right; }
 .hres { list-style: none; margin: 0; padding: 0; }
 .hres li { display: flex; align-items: center; gap: var(--s10); min-height: var(--s48); border-top: var(--bw) solid var(--line); }
 .hres li:first-child { border-top: 0; }
-.hres .hd { flex: none; width: var(--s48); white-space: nowrap; font-size: var(--fs-small); color: var(--muted); }
-.hres .ho { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.hres .hd { flex: none; width: var(--s48); white-space: nowrap; font-size: var(--fs-small); font-weight: var(--regular); color: var(--muted); }
+.hres .ho { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .hres .hs { flex: none; min-width: var(--s40); text-align: right; font-weight: var(--bold); font-variant-numeric: tabular-nums; }
 .hres .hr { flex: none; width: var(--s28); height: var(--s28); border-radius: var(--r-tag); display: grid; place-items: center; font-size: var(--fs-small); font-weight: var(--bold); }
-.hres .hr.W { background: var(--ink); color: var(--card); }
-.hres .hr.D { background: var(--btn); color: var(--ink); }
-.hres .hr.L { background: var(--card); color: var(--ink); border: var(--bw-signal) solid var(--tag-off); }
 
 /* GDA-185: Home's season. Games tile (rows: date, v Opponent + venue, time or score + status), tally row, Results / Players card, floating pill. */
 .homeBody { padding-bottom: calc(var(--s96) + var(--s16)); } /* the last row scrolls fully clear of the pill */
@@ -786,17 +783,16 @@ button.tl.them { text-align: right; }
 .gameRow .s { flex: none; text-align: right; font-weight: var(--bold); font-variant-numeric: tabular-nums; }
 .gameRow .s small { display: block; font-size: var(--fs-small); font-weight: var(--regular); color: var(--muted); white-space: nowrap; }
 .gameRow .s small.live { color: var(--danger); }
+.card.gamesTile { box-shadow: var(--glow-upcoming); border: var(--bw) solid var(--edge-upcoming); }
 .card.tally { padding: var(--s8) var(--s16); }
 .lt { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; }
 .lt span { display: block; font-size: var(--fs-small); color: var(--muted); }
 .lt b { display: block; font-size: var(--fs-body); font-weight: var(--bold); line-height: 1.4; }
-.hres.onHome .resRow { cursor: pointer; }
-.hres.onHome .ho { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.hres.onHome .ha { margin-left: var(--s6); font-size: var(--fs-small); color: var(--muted); }
-.hres.onHome .hr { border: 0; }
-.hres.onHome .hr.W { background: var(--res-w); color: var(--card); }
-.hres.onHome .hr.D { background: var(--res-d); color: var(--card); }
-.hres.onHome .hr.L { background: var(--res-l); color: var(--ink); }
+.hres .resRow { cursor: pointer; }
+.hres .ha { margin-left: var(--s6); font-size: var(--fs-small); color: var(--muted); }
+.hres .hr { border: 0; }
+.hres .hr.W { background: var(--res-w); color: var(--card); }
+.hres .hr.D { background: var(--res-d); color: var(--card); }
+.hres .hr.L { background: var(--res-l); color: var(--ink); }
 .fabWrap { position: fixed; left: 0; right: 0; bottom: calc(var(--s16) + env(safe-area-inset-bottom)); max-width: var(--s393); margin: 0 auto; height: 0; z-index: 5; pointer-events: none; }
 .fab { position: absolute; right: var(--s16); bottom: 0; height: var(--s56); padding: 0 var(--s22); border: 0; border-radius: var(--r-pill); background: var(--danger); color: var(--card); font-size: var(--fs-title); font-weight: var(--bold); white-space: nowrap; box-shadow: var(--shadow-fab); pointer-events: auto; }
-.hres.onHome .hd { font-weight: var(--regular); }

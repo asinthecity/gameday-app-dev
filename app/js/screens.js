@@ -419,17 +419,12 @@ function seasonOnHome(state, actions, record) {
     { class: "card tally", id: "homeTally" },
     h("div", { class: "lt" }, figure("P", record.played), figure("W", record.won), figure("D", record.drawn), figure("L", record.lost), figure("GF", record.goalsFor), figure("GA", record.goalsAgainst), figure("GD", goalDifferenceText(record.goalDifference)))
   );
-  const onPlayers = state.historyTab === "players";
-  const tab = (id, which, text) =>
-    h("button", { type: "button", class: "htab", id, role: "tab", "aria-selected": String(onPlayers === (which === "players")), onclick: () => actions.setHistoryTab(which) }, text);
-  const totals = seasonTotals({ games: state.games, players: state.players, eventsByGame: state.seasonEvents ?? {} });
   return [
     tally,
     h(
       "div",
       { class: "card hcard", id: "homeSeason" },
-      h("div", { class: "htabs", role: "tablist" }, tab("tabResults", "results", "Results"), tab("tabPlayers", "players", "Players")),
-      onPlayers ? historyPlayers(state, actions, totals.players) : historyResults(state, actions)
+      ...seasonTabs(state, actions)
     ),
   ];
 }
@@ -2211,7 +2206,6 @@ const RESULT_WORDS = { W: "Won", D: "Drawn", L: "Lost" };
  */
 function historyScreen(state, actions) {
   const record = teamRecord(state.games);
-  const totals = seasonTotals({ games: state.games, players: state.players, eventsByGame: state.seasonEvents ?? {} });
   const figure = (value, label, id) => h("div", { class: "hfig" }, h("b", { id }, String(value)), h("span", {}, label));
   const summary = h(
     "div",
@@ -2220,9 +2214,6 @@ function historyScreen(state, actions) {
     h("div", { class: "hsum" }, figure(record.played, "Played", "hPlayed"), figure(record.won, "Won", "hWon"), figure(record.drawn, "Drawn", "hDrawn"), figure(record.lost, "Lost", "hLost")),
     h("div", { class: "hsum three" }, figure(record.goalsFor, "Goals for", "hFor"), figure(record.goalsAgainst, "Goals against", "hAgainst"), figure(goalDifferenceText(record.goalDifference), "Goal difference", "hDiff"))
   );
-  const onPlayers = state.historyTab !== "results";
-  const tab = (id, which, text) =>
-    h("button", { type: "button", class: "htab", id, role: "tab", "aria-selected": String(onPlayers === (which === "players")), onclick: () => actions.setHistoryTab(which) }, text);
   return {
     nodes: [
       header("Season history", actions.goHome),
@@ -2233,13 +2224,27 @@ function historyScreen(state, actions) {
         h(
           "div",
           { class: "card hcard" },
-          h("div", { class: "htabs", role: "tablist" }, tab("tabPlayers", "players", "Players"), tab("tabResults", "results", "Results")),
-          onPlayers ? historyPlayers(state, actions, totals.players) : historyResults(state)
+          ...seasonTabs(state, actions)
         )
       ),
       noteSheet(state, null, actions), // a row's profile (no game open: figures only)
     ],
   };
+}
+
+/**
+ * The Results / Players tabs and the open tab's content (GDA-185). ONE implementation, used by Home and the Season history
+ * page, so the rows, shades, tab order (Results first) and Players table are identical on both.
+ */
+function seasonTabs(state, actions) {
+  const onPlayers = state.historyTab === "players";
+  const tab = (id, which, text) =>
+    h("button", { type: "button", class: "htab", id, role: "tab", "aria-selected": String(onPlayers === (which === "players")), onclick: () => actions.setHistoryTab(which) }, text);
+  const totals = seasonTotals({ games: state.games, players: state.players, eventsByGame: state.seasonEvents ?? {} });
+  return [
+    h("div", { class: "htabs", role: "tablist" }, tab("tabResults", "results", "Results"), tab("tabPlayers", "players", "Players")),
+    onPlayers ? historyPlayers(state, actions, totals.players) : historyResults(state, actions),
+  ];
 }
 
 function historyPlayers(state, actions, totals) {
@@ -2286,25 +2291,25 @@ function historyPlayers(state, actions, totals) {
 }
 
 /**
- * Results rows. Season history draws them plain. On Home (GDA-185, `actions` given) each row says "v Opponent" with a small H or A,
- * and a tap opens that finished game. Both use resultRows, so they list the same games.
+ * Results rows (GDA-185), the same on Home and on Season history: date, "v Opponent" with a small H or A, the W / D / L tag, the
+ * score. A tap opens that finished game.
  */
-function historyResults(state, actions = null) {
+function historyResults(state, actions) {
   const rows = resultRows(state.games);
   if (rows.length === 0) {
     return h("div", { class: "empty", id: "noResults", role: "tabpanel" }, "No finished games yet.");
   }
   return h(
     "ul",
-    { class: "hres" + (actions ? " onHome" : ""), id: "historyResults", role: "tabpanel" },
+    { class: "hres", id: "historyResults", role: "tabpanel" },
     ...rows.map((r) => {
       const venueTag = state.games.find((g) => g.id === r.id)?.venueTag;
       const side = venueTag === "Home" ? "H" : venueTag === "Away" ? "A" : "";
       return h(
         "li",
-        { "data-id": String(r.id), ...(actions ? { class: "resRow", "data-game": r.id, role: "button", tabindex: "0", onclick: () => actions.viewGame(r.id) } : {}) },
+        { "data-id": String(r.id), class: "resRow", "data-game": r.id, role: "button", tabindex: "0", onclick: () => actions.viewGame(r.id) },
         h("span", { class: "hd" }, formatShortDate(r.date)),
-        h("span", { class: "ho" }, actions ? `v ${r.opposition}` : r.opposition, actions && side ? h("span", { class: "ha" }, side) : null),
+        h("span", { class: "ho" }, `v ${r.opposition}`, side ? h("span", { class: "ha" }, side) : null),
         h("span", { class: "hr " + r.letter, title: RESULT_WORDS[r.letter], "aria-label": RESULT_WORDS[r.letter] }, r.letter),
         h("span", { class: "hs" }, `${r.us}\u2013${r.them}`)
       );

@@ -784,9 +784,18 @@ function newGameScreen(state, actions) {
         "div",
         { class: "body" },
         setCard(
-          factRow("Date", formatGameDate(game.date), "ngDate"),
-          factRow("Kick-off", formatKickOff(game.kickOff), "ngKickOff"),
-          factRow("Opposition", game.opposition, "ngOpposition"),
+          // GDA-199: editable until Full Time, read-only after.
+          ...(game.state === FINISHED
+            ? [
+                factRow("Date", formatGameDate(game.date), "ngDate"),
+                factRow("Kick-off", formatKickOff(game.kickOff), "ngKickOff"),
+                factRow("Opposition", game.opposition, "ngOpposition"),
+              ]
+            : [
+                detailEditor(game, "date", "Date", { type: "date" }, actions),
+                detailEditor(game, "kickOff", "Kick-off", { type: "time" }, actions),
+                detailEditor(game, "opposition", "Opposition", { type: "text", autocomplete: "off", autocapitalize: "words", autocorrect: "off", spellcheck: "false" }, actions),
+              ]),
           // GDA-105: Home / Away and Field are changed here (they used to be in the cog sheet); locked after Full Time.
           ...(game.state === FINISHED
             ? [factRow("Home or away", game.venueTag || "Not set", "ngVenueTag"), factRow("Field", game.venue || "Not set", "ngVenue")]
@@ -1194,6 +1203,26 @@ function hereDraftPicker(state, actions) {
     onDone: actions.doneHere,
     onCancel: actions.cancelHere,
   });
+}
+
+/**
+ * GDA-199: one editable game detail (date, kick-off, opposition), same inputs as the New game form. Saved when the
+ * field is left; a blank value is not saved and the saved one is shown again.
+ */
+function detailEditor(game, key, label, inputProps, actions) {
+  const input = h("input", { id: "ng-" + key, ...inputProps, "aria-label": label });
+  let saved = game[key] ?? ""; // the last saved value, shown again if the field is left blank
+  input.value = saved;
+  input.addEventListener("change", () => {
+    if (isBlank(input.value)) {
+      input.value = saved;
+      return;
+    }
+    saved = key === "opposition" ? input.value.trim() : input.value;
+    input.value = saved;
+    actions.changeDetails({ [key]: input.value });
+  });
+  return h("div", { class: "f" }, h("span", {}, label), input);
 }
 
 /**

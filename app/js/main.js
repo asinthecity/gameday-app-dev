@@ -50,6 +50,7 @@ import {
   carriesBenchTime,
   withVenue,
   hereDifferences,
+  withDetails,
 } from "./game-rules.js";
 import { loadSeasonEvents, loadGameEvents, archiveGame, deleteGame, addGame, addGoal, removeGoal, changeGame, endHalf, fullTime, loadGames, moveFieldPlayer, movePlan, movePlayer, planPair, prePlaceGame, reopenHalf, reorderBench, reorderPlanBench, startFirstHalf, startSecondHalf, undoKickOff, swapPlayers, toggleHere, undoSwap, unplanPair } from "./game-store.js";
 import { exportCsv, exportFileName, exportRows, EXPORT_FAILED, NOTHING_TO_EXPORT } from "./export-rules.js";
@@ -72,6 +73,10 @@ const FULL_TIME_PROBLEM = "Not saved. The game is still open. Tap End game and s
 // After a screen change, ignore taps briefly, so the second half of a fast
 // double tap cannot land on whatever is now under the finger.
 const TAP_PAUSE_MS = 300;
+// GDA-207: a "can't be undone" sheet ignores taps this long after it opens, so a double tap (or a tap the phone counts twice)
+// on the button that opened it cannot land on the red confirm that appears in the same place. Long enough for a slow double tap;
+// nobody reads the sheet and confirms faster.
+const CONFIRM_PAUSE_MS = 600;
 
 let db = null;
 let ignoreTapsUntil = 0;
@@ -251,6 +256,11 @@ function goTo(screen) {
 /** Call just before leaving the Squad list for a screen that comes back to it. */
 function rememberListScroll() {
   listScroll = document.querySelector(".list").scrollTop;
+}
+
+/** GDA-207: call when a destructive confirm opens. */
+function pauseForConfirm() {
+  ignoreTapsUntil = Date.now() + CONFIRM_PAUSE_MS;
 }
 
 function readyForTaps() {
@@ -779,6 +789,16 @@ const actions = {
     changeGame(db, game.id, (g) => (g.state === FINISHED ? g : withVenue(g, change)))
       .catch((error) => console.warn("Could not save the venue", error));
   },
+  // GDA-199: date, kick-off or opposition, saved when the field is left. Refused after Full Time; blanks are ignored by the rule.
+  changeDetails: (change) => {
+    const game = openGame();
+    if (!game || game.state === FINISHED) {
+      return;
+    }
+    state.games = state.games.map((g) => (g.id === game.id ? withDetails(g, change) : g));
+    changeGame(db, game.id, (g) => (g.state === FINISHED ? g : withDetails(g, change)))
+      .catch((error) => console.warn("Could not save the game details", error));
+  },
   // GDA-22, GDA-127: a valid typed shape for the next half to be played (see formationRowHalf). Same places, so
   // nobody moves. GDA-167: it no longer changes the team's default Formation. A stale screen (row now read-only) changes nothing.
   setFormation: (formation) => {
@@ -793,6 +813,7 @@ const actions = {
   // GDA-98: Undo kick-off asks first; Keep playing changes nothing.
   askUndoKickOff: tap(() => {
     state.undoKickOffAsk = true;
+    pauseForConfirm();
     draw();
   }),
   keepPlaying: tap(() => {
@@ -1044,6 +1065,7 @@ const actions = {
   startSecondHalf: tap(() => saveThenGoTo(() => startSecondHalf(db, state.gameId, Date.now()), "half2")),
   askFullTime: tap(() => {
     state.fullTimeAsk = true;
+    pauseForConfirm();
     draw();
   }),
   cancelFullTime: tap(() => {
@@ -1098,6 +1120,7 @@ const actions = {
     } else {
       state.problem = "";
       state.restoreAsk = true;
+      pauseForConfirm();
     }
     draw();
   }),
@@ -1186,6 +1209,7 @@ const actions = {
   }),
   askDeleteTeam: tap(() => {
     state.deleteTeamOpen = true;
+    pauseForConfirm();
     draw();
   }),
   cancelDeleteTeam: tap(() => {
@@ -1225,6 +1249,7 @@ const actions = {
   askArchive: tap((gameId) => {
     state.menuId = null;
     state.archiveId = gameId;
+    pauseForConfirm();
     draw();
   }),
   cancelArchive: tap(() => {
@@ -1239,6 +1264,7 @@ const actions = {
   askDelete: tap((gameId) => {
     state.menuId = null;
     state.deleteId = gameId;
+    pauseForConfirm();
     draw();
   }),
   cancelDelete: tap(() => {

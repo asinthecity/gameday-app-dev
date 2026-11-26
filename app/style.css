@@ -772,14 +772,15 @@ button.tl.them { text-align: right; }
 .hres .hs { flex: none; min-width: var(--s40); text-align: right; font-weight: var(--bold); font-variant-numeric: tabular-nums; }
 .hres .hr { flex: none; width: var(--s28); height: var(--s28); border-radius: var(--r-tag); display: grid; place-items: center; font-size: var(--fs-small); font-weight: var(--bold); }
 
+/* GDA-206: the opponent name is bold like the kick-off time; the venue under it stays regular. */
 /* GDA-185: Home's season. Games tile (rows: date, v Opponent + venue, time or score + status), tally row, Results / Players card, floating pill. */
 .homeBody { padding-bottom: calc(var(--s96) + var(--s16)); } /* the last row scrolls fully clear of the pill */
 .res { list-style: none; margin: 0; padding: 0; }
 .gameRow { display: flex; align-items: center; gap: var(--s8); min-height: var(--s52); border-top: var(--bw) solid var(--line); cursor: pointer; }
 .gameRow:first-child { border-top: 0; }
 .gameRow .d { flex: none; width: var(--s48); font-size: var(--fs-small); color: var(--muted); white-space: nowrap; }
-.gameRow .o { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.gameRow .o small { display: block; font-size: var(--fs-small); color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.gameRow .o { flex: 1; min-width: 0; font-weight: var(--bold); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gameRow .o small { display: block; font-size: var(--fs-small); font-weight: var(--regular); color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
 .gameRow .s { flex: none; text-align: right; font-weight: var(--bold); font-variant-numeric: tabular-nums; }
 .gameRow .s small { display: block; font-size: var(--fs-small); font-weight: var(--regular); color: var(--muted); white-space: nowrap; }
 .gameRow .s small.live { color: var(--danger); }

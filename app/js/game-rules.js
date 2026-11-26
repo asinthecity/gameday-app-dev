@@ -79,6 +79,20 @@ export function withVenue(game, change) {
   return next;
 }
 
+/**
+ * GDA-199: copies a game with a new date, kick-off and/or opposition (before Full Time; the caller checks that).
+ * A blank value (empty, or only spaces) is ignored, so a game always keeps all three. Opposition is trimmed.
+ */
+export function withDetails(game, change) {
+  const next = { ...game };
+  for (const key of ["date", "kickOff", "opposition"]) {
+    if (key in change && !isBlank(change[key])) {
+      next[key] = cleanText(change[key]);
+    }
+  }
+  return next;
+}
+
 /** A line-up with every place empty. Each call gives a separate one. */
 function emptyLineUp(places = POSITION_COUNT) {
   return { status: NOT_PLANNED, positions: new Array(places).fill(null) };

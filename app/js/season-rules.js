@@ -2,11 +2,11 @@
 // runs under `node --test`. GDA-48 (List) and GDA-57 (circle chart) read the answer.
 //
 // Only the current team's games that reached Full Time (they carry a saved record) count;
-// archived games count too. Every player is compared only with
+// archived games do not (GDA-204: Archive is a soft delete). Every player is compared only with
 // themselves: this file only adds up, it never ranks or suggests.
 
 import { formationOf } from "./formation-rules.js";
-import { halfPosition, hasRecord, timeInPositions } from "./record-rules.js";
+import { countsInSeason, halfPosition, timeInPositions } from "./record-rules.js";
 
 /** The four areas, in the order screens show them. */
 export const AREAS = ["Goal", "Defence", "Midfield", "Attack"];
@@ -72,8 +72,8 @@ export function seasonTotals({ games, players, eventsByGame }) {
   let gamesWithMinutes = 0;
 
   for (const game of games) {
-    if (!hasRecord(game)) {
-      continue; // not at Full Time, or no record: not counted
+    if (!countsInSeason(game)) {
+      continue; // not at Full Time, no record, or archived: not counted
     }
     gamesCounted++;
     // Minutes (and, for old records, halves) come from the events. A game with no events counts in halves only.

@@ -2,7 +2,7 @@
 // Google Sheets by hand. Rules only: no screens, no storage, so it all runs under `node --test`.
 // The export only reads: nothing stored is changed.
 
-import { csvCell, hasRecord } from "./record-rules.js";
+import { csvCell, countsInSeason } from "./record-rules.js";
 import { teamIdOf } from "./team-rules.js";
 
 export const NOTHING_TO_EXPORT = "Nothing to export yet. Finish a game first.";
@@ -28,8 +28,8 @@ function gameRows(game, teamName) {
 }
 
 /**
- * The export rows (no heading row): every finished game with a record, archived ones included, from every
- * team. Games not yet finished are left out. Teams in the order they were made, games oldest first.
+ * The export rows (no heading row): every finished game with a record from every team. Games not yet
+ * finished, and archived games (GDA-204), are left out. Teams in the order they were made, games oldest first.
  */
 export function exportRows(teams, games) {
   const firstTeamId = teams.length ? Math.min(...teams.map((team) => team.id)) : undefined;
@@ -37,7 +37,7 @@ export function exportRows(teams, games) {
   const rows = [];
   for (const team of teamOrder) {
     const finished = games
-      .filter((game) => hasRecord(game) && teamIdOf(game, firstTeamId) === team.id)
+      .filter((game) => countsInSeason(game) && teamIdOf(game, firstTeamId) === team.id)
       .sort((a, b) => String(a.record.date).localeCompare(String(b.record.date)) || a.id - b.id);
     for (const game of finished) {
       rows.push(...gameRows(game, team.name ?? ""));

@@ -259,7 +259,7 @@ function archiveSheet(state, actions) {
       "div",
       { class: "sheet" },
       h("h2", {}, `Archive v ${game.opposition} from the list?`),
-      h("p", { class: "archiveNote" }, "It stays saved on this phone."),
+      h("p", { class: "archiveNote" }, "It will no longer count in the season figures, Season history or the export. It stays saved on this phone."),
       h("button", { class: "btn del", id: "confirmArchive", onclick: actions.confirmArchive }, "Archive"),
       h("button", { class: "btn", id: "cancelArchive", onclick: actions.cancelArchive }, "Cancel")
     )

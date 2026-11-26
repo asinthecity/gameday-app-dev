@@ -184,3 +184,12 @@ export function recordToCsv(record) {
 export function hasRecord(game) {
   return game.state === FINISHED && Boolean(game.record);
 }
+
+/**
+ * The games that count in the season (GDA-204): finished with a record and NOT archived.
+ * Archive is a soft delete: an archived game stays saved (and in Back up data) but leaves
+ * the season figures, the Season history page and the export.
+ */
+export function countsInSeason(game) {
+  return hasRecord(game) && !game.archived;
+}

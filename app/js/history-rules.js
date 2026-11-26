@@ -1,13 +1,13 @@
 // The team Season history page (GDA-187): the counting and ordering behind it. No screen code and no storage,
 // so it runs under `node --test`. Read-only: it only adds up and orders what is already saved.
 //
-// Which games count is decided by the existing rule (hasRecord: Full Time with a saved record, archived games
-// included), the same one seasonTotals uses, so every figure on the page counts the same games.
+// Which games count is decided by the existing rule (countsInSeason: Full Time with a saved record, not archived;
+// GDA-204), the same one seasonTotals uses, so every figure on the page counts the same games.
 // Each player's goals, Player of the day count and positions come from seasonTotals; only the team record and
 // "games played" (new) are worked out here.
 
 import { AREAS } from "./season-rules.js";
-import { hasRecord, ABSENT_NAME } from "./record-rules.js";
+import { countsInSeason, ABSENT_NAME } from "./record-rules.js";
 import { finishedNewestFirst } from "./game-rules.js";
 
 /** W, D or L from this team's point of view (its goals are first). */
@@ -17,7 +17,7 @@ export function resultLetter(us, them) {
 
 /** The games that count: the same ones seasonTotals counts. */
 export function countedGames(games) {
-  return games.filter(hasRecord);
+  return games.filter(countsInSeason);
 }
 
 /** The team's record over the counted games. */

@@ -524,19 +524,20 @@ input:focus, input:focus-visible { outline: var(--bw-signal) solid var(--focus);
 .sheet:has(> .btn.del) > p.problem { color: var(--danger); }
 /* GDA-99: every scrim is above the clock card (z-index 21), so a sheet's dimmed background covers it. */
 
-/* Home's band (GDA-157): a small app header (clock logo, Game Day, menu button) with the team line under it. The band stays 152px tall. */
-.hdr.homeHdr { position: relative; flex-direction: column; align-items: stretch; gap: var(--s12); padding-left: var(--s16); padding-right: var(--s16); }
-.hdr .hrow { display: flex; align-items: center; gap: var(--s10); }
+/* Home's band (GDA-157, GDA-185): a slim 96px band with the app header (clock logo, Game Day, menu button). The team line sits on a white card that overlaps it. */
+.hdr.homeHdr { position: relative; align-items: flex-start; min-height: calc(var(--s96) + env(safe-area-inset-top)); padding-left: var(--s16); padding-right: var(--s16); }
+.hdr .hrow { display: flex; align-items: center; gap: var(--s10); flex: 1; min-width: 0; }
 .hdr .ic { width: var(--s44); height: var(--s44); border-radius: var(--r-round); background: var(--back-fill); font-size: var(--fs-title); }
 .appLogo { width: var(--s32); height: var(--s32); border-radius: var(--r-control); display: block; flex: none; }
+.teamCard { position: relative; margin: calc(-1 * var(--s28)) var(--s16) 0; background: var(--card); border-radius: var(--r-card); box-shadow: var(--shadow-card); }
 /* The team line is one big tap target: no fill, a bare chevron. */
-.hdr .team { width: 100%; min-height: var(--s72); padding: var(--s8); border: 0; background: none; font: inherit; text-align: left; align-items: center; gap: var(--s12); }
+.teamCard .team { width: 100%; min-height: var(--s72); padding: var(--s8) var(--s12); border: 0; background: none; font: inherit; text-align: left; align-items: center; gap: var(--s12); }
 .team .tx { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.team b { font-size: var(--fs-big); font-weight: var(--bold); line-height: 1.1; color: var(--ink); }
+.team b { font-size: var(--fs-title); font-weight: var(--bold); line-height: 1.2; color: var(--ink); }
 .team .tsize { white-space: nowrap; }
 .team .chev { flex: none; width: var(--s32); text-align: center; font-size: var(--fs-chev); line-height: 1; }
-/* The crest is shown whole with a soft white glow: a 1px white edge plus a gentle halo that follows its shape. A team with no logo gets the initials disc. */
-.logo.homeLogo.pic { border-radius: 0; object-fit: contain; filter: drop-shadow(0 0 1px var(--card)) drop-shadow(0 0 4px var(--glow-white)); }
+/* The crest is shown whole, no glow: a white crest blends into the white card. A team with no logo gets the initials disc. */
+.logo.homeLogo.pic { border-radius: 0; object-fit: contain; }
 .logo.rowLogo { width: var(--s32); height: var(--s32); max-width: none; font-size: var(--fs-small); }
 .logo.rowLogo.pic { border-radius: 0; object-fit: contain; filter: drop-shadow(0 0 1px var(--card)) drop-shadow(0 0 4px var(--glow-white)); }
 .mi.teamItem { display: flex; align-items: center; gap: var(--s8); }
@@ -773,3 +774,29 @@ button.tl.them { text-align: right; }
 .hres .hr.W { background: var(--ink); color: var(--card); }
 .hres .hr.D { background: var(--btn); color: var(--ink); }
 .hres .hr.L { background: var(--card); color: var(--ink); border: var(--bw-signal) solid var(--tag-off); }
+
+/* GDA-185: Home's season. Games tile (rows: date, v Opponent + venue, time or score + status), tally row, Results / Players card, floating pill. */
+.homeBody { padding-bottom: calc(var(--s96) + var(--s16)); } /* the last row scrolls fully clear of the pill */
+.res { list-style: none; margin: 0; padding: 0; }
+.gameRow { display: flex; align-items: center; gap: var(--s8); min-height: var(--s52); border-top: var(--bw) solid var(--line); cursor: pointer; }
+.gameRow:first-child { border-top: 0; }
+.gameRow .d { flex: none; width: var(--s48); font-size: var(--fs-small); color: var(--muted); white-space: nowrap; }
+.gameRow .o { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gameRow .o small { display: block; font-size: var(--fs-small); color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.gameRow .s { flex: none; text-align: right; font-weight: var(--bold); font-variant-numeric: tabular-nums; }
+.gameRow .s small { display: block; font-size: var(--fs-small); font-weight: var(--regular); color: var(--muted); white-space: nowrap; }
+.gameRow .s small.live { color: var(--danger); }
+.card.tally { padding: var(--s8) var(--s16); }
+.lt { display: grid; grid-template-columns: repeat(7, 1fr); text-align: center; }
+.lt span { display: block; font-size: var(--fs-small); color: var(--muted); }
+.lt b { display: block; font-size: var(--fs-body); font-weight: var(--bold); line-height: 1.4; }
+.hres.onHome .resRow { cursor: pointer; }
+.hres.onHome .ho { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hres.onHome .ha { margin-left: var(--s6); font-size: var(--fs-small); color: var(--muted); }
+.hres.onHome .hr { border: 0; }
+.hres.onHome .hr.W { background: var(--res-w); color: var(--card); }
+.hres.onHome .hr.D { background: var(--res-d); color: var(--card); }
+.hres.onHome .hr.L { background: var(--res-l); color: var(--ink); }
+.fabWrap { position: fixed; left: 0; right: 0; bottom: calc(var(--s16) + env(safe-area-inset-bottom)); max-width: var(--s393); margin: 0 auto; height: 0; z-index: 5; pointer-events: none; }
+.fab { position: absolute; right: var(--s16); bottom: 0; height: var(--s56); padding: 0 var(--s22); border: 0; border-radius: var(--r-pill); background: var(--danger); color: var(--card); font-size: var(--fs-title); font-weight: var(--bold); white-space: nowrap; box-shadow: var(--shadow-fab); pointer-events: auto; }
+.hres.onHome .hd { font-weight: var(--regular); }

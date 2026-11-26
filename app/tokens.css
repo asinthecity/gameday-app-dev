@@ -35,6 +35,11 @@
   --pitch-b: #209D57;
   --pitch-track: rgba(255, 255, 255, .45); /* track of the frozen rings on the pitch at Half Time (GDA-136) */
   --pitch-line: rgba(255, 255, 255, .7);
+  --res-w: #37003C;            /* GDA-185: Home's W / D / L tags: win = darkest purple (white letter), */
+  --res-d: #6A4BE0;            /* draw = the middle step (white letter 5.7:1), */
+  --res-l: #E4DCFF;            /* loss = the lightest step (dark letter 13:1). No pink ring. */
+  --shadow-card: 0 2px 8px rgba(55, 0, 60, .12); /* the white team card on Home's band */
+  --shadow-fab: 0 4px 12px rgba(55, 0, 60, .35); /* the floating "+ New game" pill */
   --scrim: rgba(17, 20, 24, .5);
   --shadow: rgba(17, 20, 24, .32);
   --glow-white: rgba(255, 255, 255, .9); /* soft halo around the team crest on Home's band */

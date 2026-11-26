@@ -4,9 +4,8 @@
 // Names only ever reach the page as plain text (never as HTML), so a name
 // containing < or & just shows as typed.
 
-import { hasRecord } from "./record-rules.js";
 import { trimmedLine } from "./drag.js";
-import { canDeleteGame, finishedNewestFirst, FINISHED, FIRST_HALF, SECOND_HALF, canPlan, IN_PROGRESS_PHASE, NOT_STARTED_PHASE, phaseOf, canStartHalf, canResumeHalf, halfLineUpView, nextScreen, lineupKey, canChangeWhoIsHere, startedAtOf, endedAtOf, canUndoKickOff, formationRowHalf, shownFormation, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, planFigures, planFiguresFor, firstHalfFigures, firstHalfCopyOf, dotsFor, dotsLabel, showsSeasonChart, showsRotationCounts, formatGameDate, formatShortDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationSecondsOf, rotationText, ROTATION_EXTRA_SECONDS, snappedSeconds, clampRotation, halfOf, carriesRotationOrder, carriesBenchTime, canChangeCarryOver, MIN_ROTATION, MAX_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, canEditNotes, canCorrect, canCorrectFinished, noteOf, potdOf, summaryOf, goalFixOf } from "./game-rules.js";
+import { canDeleteGame, canArchiveGame, FINISHED, FIRST_HALF, SECOND_HALF, canPlan, IN_PROGRESS_PHASE, NOT_STARTED_PHASE, phaseOf, canStartHalf, canResumeHalf, halfLineUpView, nextScreen, lineupKey, canChangeWhoIsHere, startedAtOf, endedAtOf, canUndoKickOff, formationRowHalf, shownFormation, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, planFigures, planFiguresFor, firstHalfFigures, firstHalfCopyOf, dotsFor, dotsLabel, showsSeasonChart, showsRotationCounts, formatGameDate, formatShortDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationSecondsOf, rotationText, ROTATION_EXTRA_SECONDS, snappedSeconds, clampRotation, halfOf, carriesRotationOrder, carriesBenchTime, canChangeCarryOver, MIN_ROTATION, MAX_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, canEditNotes, canCorrect, canCorrectFinished, noteOf, potdOf, summaryOf, goalFixOf } from "./game-rules.js";
 import { TALLY_COLUMNS, interchangeRows, sortTally, tallyRows } from "./interchange-rules.js";
 import { LIST_COLUMNS, listBasedOn, listMeasure, listRows } from "./season-list-rules.js";
 import { AREAS, seasonTotals, potdListRows } from "./season-rules.js";
@@ -179,74 +178,26 @@ function updateCard(notice, actions) {
   return h("div", { class: "card" }, h("b", {}, notice.text), problemLine(notice.problem), button);
 }
 
-/** The ⋯ button in its own area, so tapping it never opens the game (GDA-69). */
-function menuButton(game, actions) {
-  return h("button", { class: "ic menuBtn", "aria-label": "Game menu", onclick: () => actions.openMenu(game.id) }, "\u22ef");
-}
-
-/** The small menu under a card's ⋯ button. A transparent cover behind it closes it when I tap away. */
-function cardMenu(game, state, actions, items) {
-  if (state.menuId !== game.id) {
-    return null;
-  }
+/**
+ * GDA-185: one not-finished game as a two-line row in Home's games tile: date, "v Opponent" with the venue under it, and the
+ * kick-off time (the live score once started) with the status text under that. The whole row opens the game as the old
+ * Line-up button did. Upcoming / In progress is worked out from the saved game each time Home is drawn (never stored).
+ */
+function gameRow(game, actions) {
+  const notStarted = game.state === NOT_STARTED;
+  const label = notStarted ? "Upcoming" : "In progress";
+  const score = scoreOf(game);
+  const venue = venueLine(game);
   return h(
-    "div",
-    {},
-    h("div", { class: "menuCover", onclick: actions.closeMenu }),
-    h("div", { class: "pop cardMenu" }, ...items)
+    "li",
+    { class: "gameRow", "data-game": game.id, role: "button", tabindex: "0", onclick: () => actions.openLineUp(game.id) },
+    h("span", { class: "d" }, formatShortDate(game.date)),
+    h("span", { class: "o" }, `v ${game.opposition}`, venue ? h("small", {}, venue) : null),
+    h("span", { class: "s" }, notStarted ? formatKickOff(game.kickOff) : `${score.us}\u2013${score.them}`, h("small", { class: "stx" + (notStarted ? "" : " live"), "data-status-tag": label }, label))
   );
 }
 
-/** GDA-148: Planned / In progress / Completed, worked out from the saved game each time Home is drawn (never stored). */
-function statusTag(game) {
-  const label = game.record ? "Completed" : game.state === NOT_STARTED ? "Planned" : "In progress";
-  return h("span", { class: "tag status", "data-status-tag": label }, label);
-}
-
-function gameCard(game, state, actions) {
-  // Only a game not started has a menu (Delete). A game in progress has none.
-  const hasMenu = canDeleteGame(game);
-  return h(
-    "div",
-    { class: "card game" },
-    h(
-      "div",
-      { class: "head" },
-      h("div", { class: "info" }, h("div", { class: "nameRow" }, h("b", {}, `vs ${game.opposition}`), statusTag(game)), h("div", {}, `${formatGameDate(game.date)} \u00b7 ${formatKickOff(game.kickOff)}`), h("div", {}, venueLine(game))),
-      hasMenu ? h("div", { class: "menuwrap" }, menuButton(game, actions)) : null
-    ),
-    hasMenu
-      ? cardMenu(game, state, actions, [h("button", { class: "mi d deleteGame", onclick: () => actions.askDelete(game.id) }, "Delete")])
-      : null,
-    h("button", { class: "btn", onclick: () => actions.openLineUp(game.id) }, "Line-up")
-  );
-}
-
-
-/** A finished game on Home: the result and a ⋯ menu (Archive). No history screen. */
-function finishedCard(game, state, actions) {
-  return h(
-    "div",
-    { class: "card finished", "data-game": game.id, onclick: (event) => {
-        // GDA-100: a tap anywhere on the card opens the game, except on its own buttons and menu.
-        if (!event.target.closest("button, .menuCover, .cardMenu")) {
-          actions.viewGame(game.id);
-        }
-      },
-    },
-    h(
-      "div",
-      { class: "head" },
-      h("div", { class: "info" }, h("div", { class: "nameRow" }, h("b", {}, `vs ${game.opposition} \u00b7 ${game.record.us} - ${game.record.them}`), statusTag(game)), h("div", {}, formatGameDate(game.date))),
-      h("div", { class: "menuwrap" }, menuButton(game, actions))
-    ),
-    cardMenu(game, state, actions, [
-      h("button", { class: "mi d archiveGame", onclick: () => actions.askArchive(game.id) }, "Archive"),
-    ])
-  );
-}
-
-/** "Archive v Eagles from the list?" with one confirm and. */
+/** "Archive v Eagles?" with one confirm (GDA-185: asked from the finished game's Settings sheet, so it shows there). */
 function archiveSheet(state, actions) {
   const game = state.games.find((g) => g.id === state.archiveId);
   if (!game) {
@@ -258,7 +209,7 @@ function archiveSheet(state, actions) {
     h(
       "div",
       { class: "sheet" },
-      h("h2", {}, `Archive v ${game.opposition} from the list?`),
+      h("h2", {}, `Archive v ${game.opposition}?`),
       h("p", { class: "archiveNote" }, "It will no longer count in the season figures, Season history or the export. It stays saved on this phone."),
       h("button", { class: "btn del", id: "confirmArchive", onclick: actions.confirmArchive }, "Archive"),
       h("button", { class: "btn", id: "cancelArchive", onclick: actions.cancelArchive }, "Cancel")
@@ -427,7 +378,7 @@ function deleteTeamSheet(state, actions, refusal) {
   );
 }
 
-/** The team line in Home's band (GDA-157): crest, name, "N a side" and a bare ▾. The whole line is one tap target that opens the team list. */
+/** The team line on Home's white team card (GDA-157, GDA-185): crest, name, "N players" and a bare ▾. The whole line is one tap target that opens the team list. */
 function teamLine(state, actions) {
   const team = currentTeamOf(state);
   if (!team) {
@@ -437,7 +388,7 @@ function teamLine(state, actions) {
     "button",
     { class: "team", id: "teamLine", "aria-label": `Team: ${team.name}. Change team`, onclick: actions.openTeamList },
     teamLogo(team.name, currentLogos[state.currentTeamId], "homeLogo"),
-    h("span", { class: "tx" }, h("b", {}, team.name), h("span", { class: "tsize" }, `${team.playersPerSide} a side`)),
+    h("span", { class: "tx" }, h("b", {}, team.name), h("span", { class: "tsize" }, plural(state.players.length, "player"))),
     h("span", { class: "chev", "aria-hidden": "true" }, state.teamListOpen ? "\u25b4" : "\u25be")
   );
 }
@@ -457,6 +408,32 @@ function teamMenuItems(state, actions) {
   ].filter(Boolean);
 }
 
+/**
+ * The season section of Home (GDA-185): the tally row, then one card with Results (first) and Players tabs. It reuses Season
+ * history's own pieces (historyPlayers, historyResults), so Home and that page always show the same games and figures.
+ */
+function seasonOnHome(state, actions, record) {
+  const figure = (label, value) => h("div", {}, h("span", {}, label), h("b", {}, String(value)));
+  const tally = h(
+    "div",
+    { class: "card tally", id: "homeTally" },
+    h("div", { class: "lt" }, figure("P", record.played), figure("W", record.won), figure("D", record.drawn), figure("L", record.lost), figure("GF", record.goalsFor), figure("GA", record.goalsAgainst), figure("GD", goalDifferenceText(record.goalDifference)))
+  );
+  const onPlayers = state.historyTab === "players";
+  const tab = (id, which, text) =>
+    h("button", { type: "button", class: "htab", id, role: "tab", "aria-selected": String(onPlayers === (which === "players")), onclick: () => actions.setHistoryTab(which) }, text);
+  const totals = seasonTotals({ games: state.games, players: state.players, eventsByGame: state.seasonEvents ?? {} });
+  return [
+    tally,
+    h(
+      "div",
+      { class: "card hcard", id: "homeSeason" },
+      h("div", { class: "htabs", role: "tablist" }, tab("tabResults", "results", "Results"), tab("tabPlayers", "players", "Players")),
+      onPlayers ? historyPlayers(state, actions, totals.players) : historyResults(state, actions)
+    ),
+  ];
+}
+
 function homeScreen(state, actions) {
   // The saved data could not be upgraded and was left as it was: say so, and never show an empty squad.
   if (state.upgradeFailed) {
@@ -465,12 +442,16 @@ function homeScreen(state, actions) {
     };
   }
   const hasPlayers = state.players.length > 0;
-  const createButton = hasPlayers
-    ? h("button", { class: "btn pri big", onclick: actions.openCreateGame }, "+ Create game")
+  // GDA-185: the floating pink "+ New game" pill replaces the "+ Create game" button (not shown with no players).
+  const newGamePill = hasPlayers
+    ? h("div", { class: "fabWrap" }, h("button", { class: "fab", id: "newGame", onclick: actions.openCreateGame }, "+ New game"))
     : null;
-  const cards = state.games.filter((game) => game.state !== FINISHED).map((game) => gameCard(game, state, actions));
-  // Finished games with a record keep their card. Old test games (no record) stay hidden.
-  const finished = finishedNewestFirst(state.games.filter((game) => hasRecord(game) && !game.archived)).map((game) => finishedCard(game, state, actions));
+  // Upcoming and in-progress games share one tile (GDA-185); no tile when there are none.
+  const unfinished = state.games.filter((game) => game.state !== FINISHED);
+  const gamesTile = unfinished.length > 0 ? h("div", { class: "card gamesTile" }, h("ul", { class: "res" }, ...unfinished.map((game) => gameRow(game, actions)))) : null;
+  // The season on Home (GDA-185): the same counted games as Season history (history-rules.js), hidden until one has finished.
+  const record = teamRecord(state.games);
+  const season = record.played > 0 ? seasonOnHome(state, actions, record) : [];
   const addPlayers = hasPlayers
     ? []
     : [
@@ -509,10 +490,11 @@ function homeScreen(state, actions) {
   return {
     nodes: [
       // Home's band (GDA-157): small app header (clock logo, Game Day, menu button), then the team line that opens the team list.
+      h("div", { class: "hdr homeHdr" }, h("div", { class: "hrow" }, h("img", { class: "appLogo", src: "icons/icon-180.png", alt: "", draggable: false }), h("h1", {}, "Game Day"), topMenu)),
+      // GDA-185: the team line sits on a white card that overlaps the slim band; the team list drops down from it.
       h(
         "div",
-        { class: "hdr homeHdr" },
-        h("div", { class: "hrow" }, h("img", { class: "appLogo", src: "icons/icon-180.png", alt: "", draggable: false }), h("h1", {}, "Game Day"), topMenu),
+        { class: "teamCard" },
         teamLine(state, actions),
         h(
           "div",
@@ -521,18 +503,9 @@ function homeScreen(state, actions) {
           h("div", { class: "pop teamList" + (state.teamListOpen ? " show" : "") }, ...teamMenuItems(state, actions))
         )
       ),
-      h(
-        "div",
-        { class: "body" },
-        updateCard(state.updateNotice, actions),
-        problemLine(state.problem),
-        createButton,
-        ...cards,
-        ...finished,
-        ...addPlayers
-      ),
-      deleteSheet(state, actions),
-      archiveSheet(state, actions),
+      h("div", { class: "body homeBody" }, updateCard(state.updateNotice, actions), problemLine(state.problem), gamesTile, ...season, ...addPlayers),
+      newGamePill,
+      noteSheet(state, null, actions), // a player's profile opened from the Players tab (figures only)
       restoreSheet(state, actions),
     ].filter(Boolean),
   };
@@ -1303,6 +1276,13 @@ function gameDetailsSheet(state, game, actions) {
   if (!state.rotationOpen) {
     return null;
   }
+  // GDA-185: Archive and Delete are asked from this sheet; their confirm replaces it, and Cancel brings it back.
+  if (state.archiveId) {
+    return archiveSheet(state, actions);
+  }
+  if (state.deleteId) {
+    return deleteSheet(state, actions);
+  }
   if (state.hereDraft) {
     return hereDraftPicker(state, actions);
   }
@@ -1328,7 +1308,10 @@ function gameDetailsSheet(state, game, actions) {
       carryOverSwitches(carryValuesOf(game), !canChangeCarryOver(game), actions),
       // GDA-143: Done sits where Undo kick-off used to, Undo kick-off at the bottom.
       h("button", { class: "btn pri", id: "rotDone", onclick: actions.closeRotation }, "Done"),
-      undoRow && !state.undoKickOffAsk ? setCard(undoRow) : undoRow
+      undoRow && !state.undoKickOffAsk ? setCard(undoRow) : undoRow,
+      // GDA-185: low-key red buttons at the bottom: Delete before kick-off, Archive on a finished game (never both).
+      canDeleteGame(game) ? h("button", { class: "btn redtext", id: "deleteGame", onclick: () => actions.askDelete(game.id) }, "Delete game") : null,
+      canArchiveGame(game) ? h("button", { class: "btn redtext", id: "archiveGame", onclick: () => actions.askArchive(game.id) }, "Archive game") : null
     )
   );
 }
@@ -2302,24 +2285,30 @@ function historyPlayers(state, actions, totals) {
   );
 }
 
-function historyResults(state) {
+/**
+ * Results rows. Season history draws them plain. On Home (GDA-185, `actions` given) each row says "v Opponent" with a small H or A,
+ * and a tap opens that finished game. Both use resultRows, so they list the same games.
+ */
+function historyResults(state, actions = null) {
   const rows = resultRows(state.games);
   if (rows.length === 0) {
     return h("div", { class: "empty", id: "noResults", role: "tabpanel" }, "No finished games yet.");
   }
   return h(
     "ul",
-    { class: "hres", id: "historyResults", role: "tabpanel" },
-    ...rows.map((r) =>
-      h(
+    { class: "hres" + (actions ? " onHome" : ""), id: "historyResults", role: "tabpanel" },
+    ...rows.map((r) => {
+      const venueTag = state.games.find((g) => g.id === r.id)?.venueTag;
+      const side = venueTag === "Home" ? "H" : venueTag === "Away" ? "A" : "";
+      return h(
         "li",
-        { "data-id": String(r.id) },
+        { "data-id": String(r.id), ...(actions ? { class: "resRow", "data-game": r.id, role: "button", tabindex: "0", onclick: () => actions.viewGame(r.id) } : {}) },
         h("span", { class: "hd" }, formatShortDate(r.date)),
-        h("span", { class: "ho" }, r.opposition),
+        h("span", { class: "ho" }, actions ? `v ${r.opposition}` : r.opposition, actions && side ? h("span", { class: "ha" }, side) : null),
         h("span", { class: "hr " + r.letter, title: RESULT_WORDS[r.letter], "aria-label": RESULT_WORDS[r.letter] }, r.letter),
         h("span", { class: "hs" }, `${r.us}\u2013${r.them}`)
-      )
-    )
+      );
+    })
   );
 }
 

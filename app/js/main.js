@@ -102,7 +102,7 @@ const state = {
   listView: false, // GDA-48: the line-up / game shows the List instead of the Pitch. Never saved; every screen opens on the Pitch.
   seasonMode: "halves", // GDA-176/109: halves or minutes, one choice shared by the season List and the player profile; remembered on the phone (meta "seasonMode"), halves the first time
   seasonEvents: {}, // GDA-176: saved events by game, read when the List opens (for minutes)
-  historyTab: "players", // GDA-187: Season history's tab ("players" or "results"). Not remembered.
+  historyTab: "results", // GDA-187: the season tabs ("players" or "results"), on Season history and (GDA-185) on Home. Home always opens on Results; Season history opens on Players. Not remembered.
   historySort: { column: "name", descending: false }, // GDA-187: its player table's sort. Not remembered.
   seasonSort: { column: "name", descending: false }, // GDA-48: the season List's sort. Not remembered.
   summaryBack: null, // The game screen the mid-game Summary returns to (GDA-108). Never saved.
@@ -215,6 +215,8 @@ function goTo(screen) {
   state.listView = false; // GDA-48: a screen always opens on the Pitch
   if (screen === "home") {
     state.viewId = null; // Leaving a finished game's view.
+    state.historyTab = "results"; // GDA-185: Home opens on Results every time (the tab is not remembered)
+    state.historySort = { column: "name", descending: false };
   }
   state.problem = "";
   state.showRemoveWarning = false;
@@ -621,8 +623,17 @@ const actions = {
     state.historySort = { column: "name", descending: false };
     goTo("history");
   }),
-  setHistoryTab: tap((tab) => {
+  setHistoryTab: tap(async (tab) => {
     state.historyTab = tab === "results" ? "results" : "players";
+    if (state.historyTab === "players" && state.screen === "home") {
+      // GDA-185: Home's Players tab needs the season's events for Minutes (Season history reads them when it opens).
+      try {
+        state.seasonEvents = await loadSeasonEvents(db);
+      } catch (error) {
+        console.warn("Could not read the season's events", error);
+        state.seasonEvents = {}; // halves still show; minutes show dashes
+      }
+    }
     draw();
   }),
   sortHistory: tap((column) => {

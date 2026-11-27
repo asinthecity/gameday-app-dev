@@ -198,6 +198,7 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 /* GDA-131: on these screens the row is the header band; its side padding (24) puts the arrows where the live game card holds them, so they do not jump between screens. Its height (with the old top margin) is what the row took before, so a pitch below it loses nothing. */
 .clk.bar { margin: 0; height: calc(var(--s68) + var(--s6) + env(safe-area-inset-top)); padding: calc(var(--s10) + env(safe-area-inset-top)) var(--s24) var(--s6); background: var(--grad-hero); border-radius: var(--r-hero); overflow: visible; }
 /* GDA-210: the game details header stays at the top while the page scrolls. */
+.clk.bar.ctr h1 { text-align: center; }  /* GDA-214: New game / Game details title centred between the two 44px arrows */
 .clk.bar.pinned { position: sticky; top: 0; }
 .clk.bar .arrow { border-radius: var(--r-round); background: var(--back-fill); }
 .clk.bar .arrow.off { color: var(--muted); background: var(--back-fill-off); }

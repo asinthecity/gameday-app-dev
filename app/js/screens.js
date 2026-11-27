@@ -152,7 +152,7 @@ function navArrows(state, actions, nextGo = false) {
 /** The top row of a screen with no clock: arrow, title (and a small state tag), arrow. Same box as the game header card. */
 function navBar(title, tag, state, actions, pinned = false) {
   const [back, next] = navArrows(state, actions);
-  return h("div", { class: pinned ? "clk bar pinned" : "clk bar" }, back, h("h1", {}, title), tag ? h("span", { class: "tag" }, tag) : null, next);
+  return h("div", { class: pinned ? "clk bar ctr pinned" : "clk bar ctr" }, back, h("h1", {}, title), tag ? h("span", { class: "tag" }, tag) : null, next);
 }
 
 /** The player's photo if they have one (GDA-52), otherwise their coloured initials. */
@@ -772,7 +772,7 @@ function createGameScreen(state, actions) {
   const text = { type: "text", autocomplete: "off", autocapitalize: "words", autocorrect: "off", spellcheck: "false" };
   return {
     nodes: [
-      h("div", { class: "clk bar" }, arrowButton("back", actions.leaveCreateGame), h("h1", {}, "New game"), nextArrow),
+      h("div", { class: "clk bar ctr" }, arrowButton("back", actions.leaveCreateGame), h("h1", {}, "New game"), nextArrow),
       h(
         "div",
         { class: "body" },
@@ -1295,8 +1295,8 @@ function restartMenuSheet(state, actions) {
       "div",
       { class: "sheet" },
       h("h2", {}, "Restart"),
-      h("button", { class: "btn", id: "restartHalf", onclick: () => actions.askRestart("half") }, "Restart half"),
-      screenHalf(state.screen) === 2 ? h("button", { class: "btn", id: "restartGameFromSheet", onclick: () => actions.askRestart("game") }, "Restart game") : null,
+      h("button", { class: "btn redtext", id: "restartHalf", onclick: () => actions.askRestart("half") }, "Restart half"),
+      screenHalf(state.screen) === 2 ? h("button", { class: "btn redtext", id: "restartGameFromSheet", onclick: () => actions.askRestart("game") }, "Restart game") : null,
       h("button", { class: "btn", id: "closeRestartMenu", onclick: actions.closeRestartMenu }, "Cancel")
     )
   );
@@ -1536,12 +1536,11 @@ function runningHalf(state, actions, half) {
   const startedAt = half === 2 ? game.secondHalfStartedAt : game.firstHalfStartedAt;
   const endedAt = half === 2 ? game.secondHalfEndedAt : game.firstHalfEndedAt;
   const clock = clockText(startedAt, live ? Date.now() : endedAt, halfOf(game));
-  const atHalfTime = half === 1 && canResumeHalf(game, 1);
   const label = half === 2 ? "2nd Half" : "1st Half";
   let chip = null; // nothing to stop or resume: the slot stays, empty
   if (live) {
     // Stop = End Half (no confirmation; Resume half at Half Time is the way back). drawClock makes it solid dark when time is up.
-    chip = headChip("endHalf", "End half", "stop", isTimeUp(startedAt, Date.now(), halfOf(game)), actions.endHalf);
+    chip = headChip("endHalf", "End half", "stop", true, actions.endHalf);
   } else if (canResumeHalf(game, half)) {
     chip = headChip("resumeHalf", "Resume half", "play", false, actions.resumeHalf);
   }
@@ -1553,7 +1552,7 @@ function runningHalf(state, actions, half) {
     fixed: true,
     noMove: true,
     nodes: [
-      ...gameHead(state, actions, { label, clock, over: isTimeUp(startedAt, live ? Date.now() : endedAt, halfOf(game)), chip, nextGo: atHalfTime }),
+      ...gameHead(state, actions, { label, clock, over: isTimeUp(startedAt, live ? Date.now() : endedAt, halfOf(game)), chip, nextGo: !live }),
       // GDA-125: no strip. The swap pill lives on the pitch and only while the half is running.
       h("div", { class: "lu" }, ...gameBody(view, state, game, actions, live)),
       bottomBar(state, actions), // empty unless there is an error message
@@ -1784,7 +1783,6 @@ export function drawClock(state) {
     const timeUp = isTimeUp(startedAtOf(game), now, halfOf(game));
     clock.closest(".clk")?.classList.toggle("over", timeUp); // marks time up; no look of its own (GDA-154: the pink head bar was removed)
     clock.classList.toggle("pulse", timeUp); // GDA-182: only the clock numbers pulse pink, and only while the half is running (drawClock runs only on a live half)
-    document.getElementById("endHalf")?.classList.toggle("go", timeUp); // time up: the Stop chip goes solid dark
     // GDA-150: the pill is drawn first and each part on its own, so a problem in one can never leave the pill without its time.
     try { drawSwapPill(game, state.players, now, timeUp); } catch (error) { console.error("swap pill", error); }
     try { drawBenchTimers(game, now); } catch (error) { console.error("bench timers", error); }

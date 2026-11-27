@@ -23,6 +23,9 @@ const ICONS = {
   // Back arrow (GDA-75) and End half flag.
   back: ["M15 5l-7 7 7 7"],
   next: ["M9 5l7 7-7 7"],
+  // GDA-211: the Home team-switch chevron, drawn like back and next (no font size).
+  chevDown: ["M6 9l6 6 6-6"],
+  chevUp: ["M6 15l6-6 6 6"],
   close: ["M6 6l12 12", "M18 6L6 18"], // GDA-149: Close game on a finished game's Full Time page
   // GDA-166: stopwatch with a tick inside the face (Full time).
   stopwatch: ["M12 6a8 8 0 1 0 0 16a8 8 0 1 0 0-16", "M10 2.5h4", "M12 2.5V6", "M18.5 7l1.5-1.5", "M8.5 14.3l2.4 2.4 4.6-5"],
@@ -141,7 +144,7 @@ function navArrows(state, actions, nextGo = false) {
   let next = arrowButton("next", hasNext ? actions.goNext : null, toFullTime ? { iconName: "stopwatch", label: "Full time" } : {});
   if (state.screen === "fullTime" && state.viewId) {
     // GDA-149: a finished game looked at from Home: the inactive next arrow becomes Close game (same 44px slot).
-    next = h("button", { class: "arrow", id: "closeGameTop", "aria-label": "Close game", onclick: actions.closeGame }, icon("close"));
+    next = h("button", { class: "back", id: "closeGameTop", "aria-label": "Close game", onclick: actions.closeGame }, icon("close"));
   }
   if (nextGo) {
     next.classList.add("go"); // GDA-120: at Half Time the next arrow is the solid dark "go" style
@@ -211,7 +214,7 @@ function archiveSheet(state, actions) {
       { class: "sheet" },
       h("h2", {}, `Archive v ${game.opposition}?`),
       h("p", { class: "archiveNote" }, "It will no longer count in the season figures, Season history or the export. It stays saved on this phone."),
-      h("button", { class: "btn del", id: "confirmArchive", onclick: actions.confirmArchive }, "Archive"),
+      h("button", { class: "btn pri", id: "confirmArchive", onclick: actions.confirmArchive }, "Archive"),
       h("button", { class: "btn", id: "cancelArchive", onclick: actions.cancelArchive }, "Cancel")
     )
   );
@@ -317,7 +320,7 @@ function teamFormScreen(state, actions) {
           "div",
           {},
           // GDA-208: plain style (not red), just above Delete team. Not offered for the only team (that case is the hint above).
-          h("button", { class: "btn", id: "archiveTeam", onclick: actions.askArchiveTeam }, "Archive team"),
+          h("button", { class: "btn gapbig", id: "archiveTeam", onclick: actions.askArchiveTeam }, "Archive team"),
           h("button", { class: "btn redtext", id: "deleteTeam", onclick: actions.askDeleteTeam }, "Delete team")
         );
   return {
@@ -416,7 +419,7 @@ function teamLine(state, actions) {
     { class: "team", id: "teamLine", "aria-label": `Team: ${team.name}. Change team`, onclick: actions.openTeamList },
     teamLogo(team.name, currentLogos[state.currentTeamId], "homeLogo"),
     h("span", { class: "tx" }, h("b", {}, team.name), h("span", { class: "tsize" }, plural(state.players.length, "player"))),
-    h("span", { class: "chev", "aria-hidden": "true" }, state.teamListOpen ? "\u25b4" : "\u25be")
+    h("span", { class: "chev", "aria-hidden": "true" }, icon(state.teamListOpen ? "chevUp" : "chevDown"))
   );
 }
 
@@ -511,7 +514,7 @@ function homeScreen(state, actions) {
         h("div", { class: "exportHint" }, EXPORT_HINT),
         // GDA-153: one file with everything on the phone.
         h("button", { class: "mi backUpData", onclick: actions.backUpData }, "Back up data"),
-        h("button", { class: "mi restoreData", onclick: actions.askRestore }, "Restore data"),
+        h("button", { class: "mi d restoreData", onclick: actions.askRestore }, "Restore data"),
         h("div", { class: "ver" }, `Version ${self.GAMEDAY_VERSION}`)
       )
     )
@@ -1370,7 +1373,7 @@ function gameDetailsSheet(state, game, actions) {
       "div",
       { class: "sheet" },
       sheetHead("Game settings", actions.closeRotation, "rotX"),
-      canArchiveGame(game) ? h("button", { class: "btn redtext", id: "archiveGame", onclick: () => actions.askArchive(game.id) }, "Archive game") : null
+      canArchiveGame(game) ? h("button", { class: "btn", id: "archiveGame", onclick: () => actions.askArchive(game.id) }, "Archive game") : null
     )
   );
 }
@@ -1621,7 +1624,7 @@ function goalDialog(state, game, actions) {
     footer: h(
       "div",
       { class: "pfoot" },
-      h("button", { class: "btn grey undo2", id: "undoGoal", disabled: undoLine === null, onclick: actions.undoLastGoal }, "Undo last goal", undoLine ? h("small", { id: "undoLine" }, undoLine) : null)
+      h("button", { class: "btn undo2", id: "undoGoal", disabled: undoLine === null, onclick: actions.undoLastGoal }, "Undo last goal", undoLine ? h("small", { id: "undoLine" }, undoLine) : null)
     ),
   });
 }
@@ -1880,7 +1883,7 @@ function fullTimeSheet(actions) {
       { class: "sheet" },
       h("h2", {}, "End the game?"),
       h("p", {}, "It can't be reopened."),
-      h("button", { class: "btn del", id: "confirmFullTime", onclick: actions.fullTime }, "End game and save"),
+      h("button", { class: "btn pri", id: "confirmFullTime", onclick: actions.fullTime }, "End game and save"),
       h("button", { class: "btn", id: "cancelFullTime", onclick: actions.cancelFullTime }, "Cancel")
     )
   );
@@ -2015,7 +2018,7 @@ function fullTimeScreen(state, actions) {
         ...summaryBody(state, game, actions, { canChoose: open ? canEditNotes(game) : corrects, soFar: false, editGoals: corrects }),
         problemLine(state.problem),
         // GDA-210: the cog (bottom-left) is only on a saved game, where its sheet holds Archive game alone.
-        h("div", { class: "endrow" }, canArchiveGame(game) ? settingsButton(actions) : null, open ? h("button", { class: "btn pri big", id: "fullTime", onclick: actions.askFullTime }, "End game and save") : h("button", { class: "btn big", id: "closeGameBottom", onclick: actions.closeGame }, "Close game"))
+        h("div", { class: "endrow" }, canArchiveGame(game) ? settingsButton(actions) : null, open ? h("button", { class: "btn pri big", id: "fullTime", onclick: actions.askFullTime }, "End game and save") : h("button", { class: "btn", id: "closeGameBottom", onclick: actions.closeGame }, "Close game"))
       ),
       gameDetailsSheet(state, game, actions),
       state.fullTimeAsk ? fullTimeSheet(actions) : null,
@@ -2225,7 +2228,7 @@ function potdPicker(state, game, actions) {
     h(
       "div",
       { class: "sheet profile potd" },
-      h("div", { class: "phd" }, h("h2", {}, "Player of the day"), h("button", { class: "arrow", id: "potdClose", "aria-label": "Close", onclick: actions.closePotdPicker }, icon("close"))),
+      h("div", { class: "phd" }, h("h2", {}, "Player of the day"), h("button", { class: "pkx", id: "potdClose", "aria-label": "Close", onclick: actions.closePotdPicker }, "\u00d7")),
       potdHeadings(state, actions),
       h("div", { class: "psb potdlist", id: "potdList" }, ...rows)
     )
@@ -2288,7 +2291,7 @@ function noteSheet(state, game, actions) {
   const inGame = Boolean(game) && canCorrect(game); // GDA-187: opened from Season history there is no game, so figures only
   const done = h("button", { class: "btn pri big", id: "noteDone", onclick: actions.closeNote }, "Done");
   // GDA-109: three more ways to close, all saving exactly as Done does: this X, a tap on the grey background, a swipe down (main.js).
-  const head = h("div", { class: "phd" }, avatar(player), h("h2", {}, player.name), h("button", { class: "arrow", id: "noteClose", "aria-label": "Close", onclick: actions.closeNote }, icon("close")));
+  const head = h("div", { class: "phd" }, avatar(player), h("h2", {}, player.name), h("button", { class: "pkx", id: "noteClose", "aria-label": "Close", onclick: actions.closeNote }, "\u00d7"));
   const onScrim = (event) => {
     if (event.target === event.currentTarget) {
       actions.closeNote(); // only the grey background itself, never the sheet

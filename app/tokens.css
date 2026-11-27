@@ -86,11 +86,10 @@
   --circle-bench: 46px;        /* live bench, up to 6 subs */
   --circle-bench-many: 36px;   /* live bench, 7 or more subs (they share one row): picture 36px, ring box 44px (GDA-133) */
 
-  /* Type: four sizes, plus the clock and the Full Time score. Two weights. */
+  /* Type (GDA-211, 12-fpl-style 9a): 12 captions, 16 everything incl. all button words, 20 bold titles, 32 bold figures, 40 bold clock, 72 bold Full Time score; 28 pitch initials. Two weights. */
   --fs-small: 12px;
-  --fs-pill-word: 10px;       /* the small word on the round swap button (GDA-165) */
-  --fs-pill-time: 17px;       /* its time (GDA-165) */
-  --fs-chev: 40px;            /* Home team-switch arrow (GDA-165) */
+  --fs-pill-word: 10px;       /* the small word on the round swap button, kept small so the time can be big (GDA-211 criterion 7) */
+  --fs-pill-time: 17px;       /* the time on the round swap button: the one exception to the scale (GDA-211 criterion 7). 17px is the largest that keeps "+10:00" inside the 64px circle (18px pokes out) */
   --fs-body: 16px;
   --fs-title: 20px;
   --fs-initial-large: 28px;   /* initials on the 80px pitch circles (GDA-162) */
@@ -98,7 +97,7 @@
   --fs-clock: 40px;
   --clock-pulse: 2s;          /* GDA-182: one full pulse of the clock numbers (dark purple to pink and back) when a half's time is up */
   --fs-final: 72px;
-  --tracking-caps: .12em;      /* letter-spacing of menu captions (TEAMS, THIS TEAM) */
+  --tracking-caps: .06em;      /* the one letter-spacing of every capital caption (GDA-211) */
   --regular: 400;
   --bold: 700;
   --clock-w: 102px;            /* the clock box: just wide enough for 25:00 */

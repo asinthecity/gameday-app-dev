@@ -2,7 +2,7 @@
 // fully saved or not changed at all. See game-rules.js for what a game holds.
 
 import { change, read } from "./db.js";
-import { canDeleteGame, gameArchived, FINISHED, isInProgress, hereToggled, dotTurns, firstHalfCopyOf, lineUpMoved, SECOND_HALF, goalAdded, goalRemoved, playedToday, lineupKey, startedSecondHalf, undoneKickOff, isRemovedByUndo, restartedGame, isRemovedByRestartGame, endedHalf, reopenedHalf, benchReordered, planMoved, planBenchReordered, fieldMoved, pairPlanned, pairRemoved, swapEvent, swapUndone, swapped, gamesInOrder, halfEndCancelledEvent, halfEndEvent, halfStartEvent, movedOnto, newGame, nextCreatedOrder, positionChangeEvent, prePlaced, startedFirstHalf, withBenchOrder } from "./game-rules.js";
+import { SWAP, canDeleteGame, gameArchived, FINISHED, isInProgress, hereToggled, dotTurns, firstHalfCopyOf, lineUpMoved, SECOND_HALF, goalAdded, goalRemoved, playedToday, lineupKey, startedSecondHalf, undoneKickOff, isRemovedByUndo, restartedGame, isRemovedByRestartGame, endedHalf, reopenedHalf, benchReordered, planMoved, planBenchReordered, fieldMoved, pairPlanned, pairRemoved, swapEvent, swapUndone, swapped, gamesInOrder, halfEndCancelledEvent, halfEndEvent, halfStartEvent, movedOnto, newGame, nextCreatedOrder, positionChangeEvent, prePlaced, startedFirstHalf, withBenchOrder } from "./game-rules.js";
 import { buildRecord, gameAtFullTime, withRecordCorrected } from "./record-rules.js";
 import { squadInOrder } from "./squad-rules.js";
 import { ofTeam, sameTeam, withTeamId } from "./team-rules.js";
@@ -30,6 +30,7 @@ export function loadGames(db, teamId, firstTeamId) {
           game.dotTurns = isInProgress(game) ? dotTurns(game, found.target.result) : null; // the half being played
           const whistle = firstHalfCopyOf(game); // the 1st half as it ended (GDA-116); older games have no copy and show no dots
           game.firstHalfDotTurns = whistle && typeof whistle.firstHalfEndedAt === "number" ? dotTurns(whistle, found.target.result.filter((e) => e.at <= whistle.firstHalfEndedAt)) : null;
+          game.swapCount = found.target.result.filter((e) => e.type === SWAP).length; // GDA-212: a real Swap only (in memory; the App tour's tip 9)
           game.played = [...playedToday(game, found.target.result)]; // GDA-90: who the Who scored? dialog may offer, in memory only
           waiting -= 1;
           if (waiting === 0) {

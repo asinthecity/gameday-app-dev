@@ -509,6 +509,7 @@ function homeScreen(state, actions) {
         hasPlayers ? h("button", { class: "mi squadItem", onclick: actions.openSquad }, `Squad (${state.players.length})`) : null,
         h("button", { class: "mi historyItem", onclick: actions.openHistory }, "Season history"), // GDA-187
         h("div", { class: "mhd" }, "App"),
+        h("button", { class: "mi appTour", onclick: actions.appTour }, "App tour"), // GDA-212
         // GDA-189: one CSV of every team's finished games, with a one-line hint on what to do with it.
         h("button", { class: "mi exportData", onclick: actions.exportData }, "Export to spreadsheet"),
         h("div", { class: "exportHint" }, EXPORT_HINT),

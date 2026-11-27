@@ -43,6 +43,9 @@
   --edge-upcoming: #CDBDFF; /* its 1px lilac edge */
   --shadow-fab: 0 4px 12px rgba(55, 0, 60, .35); /* the floating "+ New game" pill */
   --scrim: rgba(17, 20, 24, .5);
+  --tip-dim: rgba(55, 0, 60, .22); /* GDA-212: the screen dimmed round a tip's ring (ink at 22%) */
+  --tip-finger: rgba(55, 0, 60, .3); /* the faint fingertip dot in the drag animation (ink at 30%) */
+  --tip-loop: 2.6s;            /* one run of the drag animation (2.4 to 2.8 s asked for) */
   --shadow: rgba(17, 20, 24, .32);
   --glow-white: rgba(255, 255, 255, .9); /* soft halo around the team crest on Home's band */
   --shadow-menu: 0 12px 32px rgba(55, 0, 60, .25); /* top menu and card menu pop-overs */

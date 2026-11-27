@@ -68,6 +68,9 @@ import { addPlayer, loadSquad, removePlayer, renamePlayer } from "./squad-store.
 import { addTeam, archiveTeam, bringBackTeam, deleteTeam, loadTeams, removeOldSheetSetting, switchTeam, updateTeam } from "./team-store.js";
 import { rememberFirstTeamId, canSwitchTeams, cleanTeamForm, deleteRefusal, newGameFormFor, teamFormValues, teamValuesToSave } from "./team-rules.js";
 import { applyUpdate, currentUpdateNotice, startUpdates } from "./updates.js";
+import { loadSeen, restartTour, runFirstOpen, saveSeen } from "./tour-store.js"; // GDA-212: the App tour
+import { metaWithFlag, withSeen } from "./tour-rules.js";
+import { drawTip } from "./tips.js";
 
 const SAVE_PROBLEM = "That did not save. Please try again.";
 const FULL_TIME_PROBLEM = "Not saved. The game is still open. Tap End game and save to try again.";
@@ -137,6 +140,7 @@ const state = {
   restoreAsk: false, // "Restore will replace all data?" is showing. Never saved.
   deleteId: null, // The not-started game being asked about ("Delete?"). Never saved.
   updateNotice: currentUpdateNotice(),
+  tourSeen: [], // GDA-212: the tip numbers closed with Got it (saved on the phone, meta "tourSeen").
 };
 
 // The current team's squad and games (never another team's).
@@ -164,6 +168,7 @@ async function loadEverything() {
   setLogos(state.logos);
   state.games = await gamesNow();
   state.seasonMode = (await getMeta(db, SEASON_MODE_KEY)) === "minutes" ? "minutes" : "halves"; // GDA-109
+  state.tourSeen = await loadSeen(db); // GDA-212
 }
 
 const LOGO_PROBLEM = "Couldn't save the logo";
@@ -220,6 +225,7 @@ async function saveTeamThenHome(save) {
 function draw() {
   state.updateNotice = currentUpdateNotice();
   drawScreen(state, actions);
+  drawTip(state, actions); // GDA-212: at most one tip, only on the Demo team; it changes no data
 }
 
 function goTo(screen) {
@@ -1136,6 +1142,32 @@ const actions = {
     }
     draw();
   }),
+  // ---- App tour (GDA-212) ----
+  // Clears the closed tips and makes the Demo team again if it was deleted. Stays where it is: no screen change.
+  appTour: tap(async () => {
+    state.topMenuOpen = false;
+    state.problem = "";
+    saving = true;
+    try {
+      await restartTour(db, [...state.teams, ...state.archivedTeams]);
+      await loadEverything();
+    } catch (error) {
+      console.warn("App tour failed", error);
+      state.problem = SAVE_PROBLEM;
+    }
+    saving = false;
+    draw();
+  }),
+  // Got it: the tip is closed and marked seen. It only ever writes the seen list, never team, player or game data.
+  tipGotIt: async (n) => {
+    state.tourSeen = withSeen(state.tourSeen, n);
+    draw(); // closes it at once, even if saving the mark fails (it then shows again next time)
+    try {
+      await saveSeen(db, state.tourSeen);
+    } catch (error) {
+      console.warn("Could not save the seen tip", error);
+    }
+  },
   // ---- Back up and restore (GDA-153) ----
   backUpData: tap(async () => {
     state.topMenuOpen = false;
@@ -1488,7 +1520,8 @@ async function restoreFrom(file) {
       draw();
       return;
     }
-    await replaceAllStores(db, parsed.stores);
+    // GDA-212: a restored phone shows exactly what the backup holds, plus the "tour shown" flag, so it never gets a Demo team or tips.
+    await replaceAllStores(db, { ...parsed.stores, meta: metaWithFlag(parsed.stores.meta) });
     await loadEverything();
     goTo("home");
   } catch (error) {
@@ -1530,6 +1563,8 @@ async function start() {
     } catch (error) {
       console.warn("Could not remove the old Sheet setting", error);
     }
+    // GDA-212: on a brand-new install, make the Demo team; any other phone just gets the flag. Never stops the app.
+    await runFirstOpen(db);
     await loadEverything();
     resumeGameIfAny();
     draw();

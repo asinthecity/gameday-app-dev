@@ -799,3 +799,33 @@ button.tl.them { text-align: right; }
 .hres .hr.L { background: var(--res-l); color: var(--ink); }
 .fabWrap { position: fixed; left: 0; right: 0; bottom: calc(var(--s16) + env(safe-area-inset-bottom)); max-width: var(--s393); margin: 0 auto; height: 0; z-index: 5; pointer-events: none; }
 .fab { position: absolute; right: var(--s16); bottom: 0; height: var(--s56); padding: 0 var(--s22); border: 0; border-radius: var(--r-pill); background: var(--danger); color: var(--card); font-size: var(--fs-body); font-weight: var(--bold); white-space: nowrap; box-shadow: var(--shadow-fab); pointer-events: auto; }
+
+/* ---- App tour tips (GDA-212): a ring, a bubble and, for the drag tips, a copy of a player circle gliding to its drop spot.
+   Built from the approved mock-up docs/mockups/gda-212/tips.html. The layer lets every tap through except the bubble's own. ---- */
+#tipLayer { position: fixed; left: 0; top: 0; right: 0; bottom: 0; z-index: 40; pointer-events: none; }
+.tipRing { position: fixed; border-radius: var(--r-control); box-shadow: 0 0 0 var(--s3) var(--brand-bright), 0 0 0 100vmax var(--tip-dim); pointer-events: none; }
+.tipRing.round { border-radius: var(--r-round); }
+.tipBox { position: fixed; left: calc(var(--fl, 0px) + var(--s40)); width: calc(var(--fw, 100%) - 2 * var(--s40)); box-sizing: border-box; background: var(--card); border-radius: var(--r-card); box-shadow: var(--shadow-menu); padding: var(--s14) var(--s16); font-size: var(--fs-body); line-height: 1.35; pointer-events: auto; }
+.tipBox p { margin: 0 0 var(--s12); }
+.tipBox::after { content: ""; position: absolute; left: calc(var(--ax, 50%) - var(--s8)); width: var(--s16); height: var(--s16); background: var(--card); transform: rotate(45deg); display: none; }
+.tipBox.up::after { display: block; top: calc(-1 * var(--s8)); }
+.tipBox.down::after { display: block; bottom: calc(-1 * var(--s8)); }
+.tipRow { display: flex; align-items: center; justify-content: space-between; }
+.tipCount { font-size: var(--fs-small); color: var(--muted); white-space: nowrap; }
+.tipGot { width: auto; flex: none; padding: 0 var(--s20); min-height: var(--tap); }
+.tipDrag { position: fixed; box-sizing: border-box; pointer-events: none; opacity: 0; animation: tipDrag var(--tip-loop) ease-in-out infinite; }
+.tipDrag .av { border: var(--s3) solid var(--card); box-shadow: 0 var(--s3) var(--s8) var(--shadow); }
+.tipDrag i { position: absolute; left: 30%; top: 30%; width: var(--s22); height: var(--s22); border-radius: var(--r-round); background: var(--tip-finger); transform: translate(var(--s4), var(--s6)); }
+@keyframes tipDrag {
+  0%   { opacity: 0; transform: translate(0, 0) scale(1); }
+  10%  { opacity: 1; transform: translate(0, 0) scale(1); }
+  22%  { opacity: 1; transform: translate(0, calc(-1 * var(--s4))) scale(1.15); }
+  68%  { opacity: 1; transform: translate(var(--dx), var(--dy)) scale(1.15); }
+  82%  { opacity: 1; transform: translate(var(--dx), var(--dy)) scale(1.15); }
+  95%  { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(1.15); }
+  100% { opacity: 0; transform: translate(0, 0) scale(1); }
+}
+/* Reduce motion: no gliding; the copy stays still at the end spot. */
+@media (prefers-reduced-motion: reduce) {
+  .tipDrag { animation: none; opacity: 1; transform: translate(var(--dx), var(--dy)) scale(1.15); }
+}

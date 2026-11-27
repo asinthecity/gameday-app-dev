@@ -52,6 +52,9 @@ const APP_FILES = [
   "./js/storage-rules.js",
   "./js/team-rules.js",
   "./js/team-store.js",
+  "./js/tips.js",
+  "./js/tour-rules.js",
+  "./js/tour-store.js",
   "./js/update-rules.js",
   "./js/updates.js",
 ];

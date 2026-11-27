@@ -190,7 +190,7 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 /* The ‹ and › arrows on the four game screens (GDA-95): 44 x 44, in the same top row box (.clk) on every one. */
 .arrow { flex: none; width: var(--s44); height: var(--s44); border: 0; border-radius: var(--r-control); background: var(--btn); color: var(--ink); padding: 0; display: flex; align-items: center; justify-content: center; }
 .arrow svg { width: var(--s26); height: var(--s26); }
-.arrow.off { color: var(--btn-off-ink); }  /* a forward arrow that cannot be used: plain grey, nothing dashed */
+.arrow.off { color: var(--muted); }  /* a forward arrow that cannot be used: plain grey, nothing dashed */
 .arrow:active { filter: brightness(.92); }
 /* The same row without the card: New game, 1st Half and 2nd Half not started, Full Time. */
 /* GDA-131: on these screens the row is the header band; its side padding (24) puts the arrows where the live game card holds them, so they do not jump between screens. Its height (with the old top margin) is what the row took before, so a pitch below it loses nothing. */
@@ -199,7 +199,7 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .clk.bar.ctr h1 { text-align: center; }  /* GDA-214: New game / Game details title centred between the two 44px arrows */
 .clk.bar.pinned { position: sticky; top: 0; }
 .clk.bar .arrow { border-radius: var(--r-round); background: var(--back-fill); }
-.clk.bar .arrow.off { color: var(--btn-off-ink); background: var(--back-fill-off); }
+.clk.bar .arrow.off { color: var(--muted); background: var(--back-fill-off); }
 /* Head bar of the half screens and Full Time (GDA-120): back arrow, half label, clock, chip slot, next arrow. Five fixed columns (44, 64, 102, 64, 44)
    spread evenly, so the clock is dead centre whatever sits in the label or chip slot. 12px side padding on a 360px phone, so 318px of controls fit. */
 .clk.bar.hb { display: grid; gap: 0; grid-template-columns: var(--s44) var(--s64) var(--clock-w) var(--s64) var(--s44); justify-content: space-between; align-items: center; }
@@ -213,7 +213,7 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .chip { flex: none; width: var(--s44); height: var(--s44); border: 0; border-radius: var(--r-round); background: var(--back-fill); color: var(--ink); padding: 0; display: flex; align-items: center; justify-content: center; }
 .chip svg { width: var(--s22); height: var(--s22); }
 .chip.go { background: var(--brand); color: var(--card); }
-.chip.off, .chip:disabled { background: var(--back-fill-off); color: var(--btn-off-ink); border: var(--bw-signal) solid transparent; }
+.chip.off, .chip:disabled { background: var(--back-fill-off); color: var(--muted); border: var(--bw-signal) solid transparent; }
 .holdable { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; } /* GDA-214: a long press must not select text or show the iOS callout */
 .chip:active { filter: brightness(.92); }
 /* The score card: one white 44px card; the whole card is the tap target and the thing that flashes. */

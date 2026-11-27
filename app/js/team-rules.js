@@ -47,6 +47,30 @@ export function firstTeamIdOf(teams) {
   return teams.length ? Math.min(...teams.map((team) => team.id)) : undefined;
 }
 
+/**
+ * GDA-208: archived teams are hidden from the team list but kept. A team with no `archived` flag (made before this
+ * version, or from an old backup) is not archived. Gives { active, archived, revived }: `active` are the teams in the
+ * list, `archived` the hidden ones, and `revived` is the first-made team brought back if every team in the file was
+ * archived (should not happen, as the last team cannot be archived).
+ */
+export function splitTeams(teams) {
+  let active = teams.filter((team) => !team.archived);
+  let archived = teams.filter((team) => team.archived);
+  let revived = null;
+  if (active.length === 0 && archived.length > 0) {
+    const firstId = firstTeamIdOf(archived);
+    revived = archived.find((team) => team.id === firstId);
+    active = [{ ...revived, archived: false }];
+    archived = archived.filter((team) => team.id !== firstId);
+  }
+  return { active, archived, revived };
+}
+
+/** The current team: the wanted one if it is in the list (not archived), else the first team in the list. */
+export function chooseCurrentTeamId(activeTeams, wantedId) {
+  return (activeTeams.find((team) => team.id === wantedId) ?? activeTeams[0])?.id;
+}
+
 /** Only the records (players or games) of one team. A record with no teamId counts as the first team's. */
 export function ofTeam(records, teamId, firstTeamId) {
   return records.filter((record) => teamIdOf(record, firstTeamId) === teamId);

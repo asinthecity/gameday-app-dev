@@ -64,8 +64,8 @@ import { loadPhotos, removePhoto, savePhoto } from "./photo-store.js";
 import { loadLogos, removeLogo, saveLogo } from "./logo-store.js";
 import { cleanName } from "./squad-rules.js";
 import { addPlayer, loadSquad, removePlayer, renamePlayer } from "./squad-store.js";
-import { addTeam, deleteTeam, loadTeams, removeOldSheetSetting, switchTeam, updateTeam } from "./team-store.js";
-import { rememberFirstTeamId, canSwitchTeams, cleanTeamForm, deleteRefusal, firstTeamIdOf, newGameFormFor, teamFormValues, teamValuesToSave } from "./team-rules.js";
+import { addTeam, archiveTeam, bringBackTeam, deleteTeam, loadTeams, removeOldSheetSetting, switchTeam, updateTeam } from "./team-store.js";
+import { rememberFirstTeamId, canSwitchTeams, cleanTeamForm, deleteRefusal, newGameFormFor, teamFormValues, teamValuesToSave } from "./team-rules.js";
 import { applyUpdate, currentUpdateNotice, startUpdates } from "./updates.js";
 
 const SAVE_PROBLEM = "That did not save. Please try again.";
@@ -118,7 +118,10 @@ const state = {
   undo: null, // After Swap, for about 5 seconds: { before, eventId, until }. Never saved.
   problem: "",
   justSaved: false, // GDA-186: true only on Full Time straight after End game and save; shows the "Game saved" line.
-  teams: [], // Every team, oldest first (GDA-68).
+  teams: [], // The teams in the team list, oldest first (GDA-68). Archived teams are not here (GDA-208).
+  archivedTeams: [], // GDA-208: teams hidden from the list, everything kept.
+  archiveTeamOpen: false, // The "Archive team?" confirm. Never saved.
+  archivedListOpen: false, // The Archived teams list inside the team drop-down. Never saved.
   currentTeamId: null, // The team Home and Squad show.
   firstTeamId: null, // What a record with no team ID belongs to.
   teamForm: null, // The Add / Team settings form: { mode, values, errors }. Never saved until Save.
@@ -145,10 +148,11 @@ function currentTeam() {
 
 /** Reads teams, then the current team's squad and games. */
 async function loadEverything() {
-  const { teams, currentTeamId } = await loadTeams(db);
+  const { teams, archivedTeams, currentTeamId, firstTeamId } = await loadTeams(db);
   state.teams = teams;
+  state.archivedTeams = archivedTeams;
   state.currentTeamId = currentTeamId;
-  state.firstTeamId = firstTeamIdOf(teams);
+  state.firstTeamId = firstTeamId; // GDA-208: from ALL teams, archived included
   rememberFirstTeamId(state.firstTeamId);
   state.players = await squadNow();
   state.photos = await loadPhotos(db);
@@ -245,6 +249,8 @@ function goTo(screen) {
   state.archiveId = null;
   state.fullTimeAsk = false;
   state.deleteTeamOpen = false;
+  state.archiveTeamOpen = false;
+  state.archivedListOpen = false;
   ignoreTapsUntil = Date.now() + TAP_PAUSE_MS;
   draw();
   window.scrollTo(0, 0);
@@ -1215,6 +1221,37 @@ const actions = {
   cancelDeleteTeam: tap(() => {
     state.deleteTeamOpen = false;
     draw();
+  }),
+  askArchiveTeam: tap(() => {
+    state.archiveTeamOpen = true;
+    pauseForConfirm();
+    draw();
+  }),
+  cancelArchiveTeam: tap(() => {
+    state.archiveTeamOpen = false;
+    draw();
+  }),
+  confirmArchiveTeam: tap(() => {
+    if (deleteRefusal(state.teams, state.games)) {
+      return;
+    }
+    state.archiveTeamOpen = false;
+    saveTeamThenHome(() => archiveTeam(db, state.currentTeamId));
+  }),
+  // The Archived teams list under "+ Add team": opens and closes; a team in it is brought back with one tap (no confirm).
+  openArchivedTeams: tap(() => {
+    if (!canSwitchTeams(state.games)) {
+      return;
+    }
+    state.archivedListOpen = !state.archivedListOpen;
+    draw();
+  }),
+  bringBackTeam: tap((id) => {
+    if (!canSwitchTeams(state.games)) {
+      return;
+    }
+    state.archivedListOpen = false;
+    saveTeamThenHome(() => bringBackTeam(db, id));
   }),
   confirmDeleteTeam: tap(() => {
     if (deleteRefusal(state.teams, state.games)) {

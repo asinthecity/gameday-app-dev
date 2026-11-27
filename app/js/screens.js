@@ -313,7 +313,13 @@ function teamFormScreen(state, actions) {
     ? null
     : refusal === "only"
       ? h("p", { class: "hint", id: "onlyTeam" }, LAST_TEAM_MESSAGE)
-      : h("button", { class: "btn redtext", id: "deleteTeam", onclick: actions.askDeleteTeam }, "Delete team");
+      : h(
+          "div",
+          {},
+          // GDA-208: plain style (not red), just above Delete team. Not offered for the only team (that case is the hint above).
+          h("button", { class: "btn", id: "archiveTeam", onclick: actions.askArchiveTeam }, "Archive team"),
+          h("button", { class: "btn redtext", id: "deleteTeam", onclick: actions.askDeleteTeam }, "Delete team")
+        );
   return {
     nodes: [
       header(adding ? "Add team" : "Team settings", actions.cancelTeamForm),
@@ -352,6 +358,7 @@ function teamFormScreen(state, actions) {
         deleteArea ? h("div", { class: "gapbig" }, deleteArea) : null
       ),
       state.deleteTeamOpen ? deleteTeamSheet(state, actions, refusal) : null,
+      state.archiveTeamOpen ? archiveTeamSheet(state, actions, refusal) : null,
     ].filter(Boolean),
   };
 }
@@ -374,6 +381,26 @@ function deleteTeamSheet(state, actions, refusal) {
       h("p", { id: "deleteTeamWarn" }, "Back up data first if you want to keep a copy."),
       h("button", { class: "btn del", id: "confirmDeleteTeam", onclick: actions.confirmDeleteTeam }, "Delete team"),
       h("button", { class: "btn", id: "cancelDeleteTeam", onclick: actions.cancelDeleteTeam }, "Cancel")
+    )
+  );
+}
+
+/** GDA-208: the Archive team confirm, or the refusal when a game is in progress in that team. */
+function archiveTeamSheet(state, actions, refusal) {
+  const team = state.teams.find((t) => t.id === state.currentTeamId);
+  if (refusal) {
+    return h("div", { class: "scrim", id: "archiveTeamConfirm" }, h("div", { class: "sheet" }, h("h2", {}, `Can't archive ${team.name}`), h("p", { class: "refuse" }, IN_PROGRESS_REFUSAL + "."), h("button", { class: "btn", id: "cancelArchiveTeam", onclick: actions.cancelArchiveTeam }, "OK")));
+  }
+  return h(
+    "div",
+    { class: "scrim", id: "archiveTeamConfirm" },
+    h(
+      "div",
+      { class: "sheet" },
+      h("h2", {}, `Archive ${team.name}?`),
+      h("p", { id: "archiveTeamText" }, "The team leaves the team list. Its players and games stay saved on this phone and still go into Back up data and Export to spreadsheet. You can bring it back from Archived teams."),
+      h("button", { class: "btn pri", id: "confirmArchiveTeam", onclick: actions.confirmArchiveTeam }, "Archive team"),
+      h("button", { class: "btn", id: "cancelArchiveTeam", onclick: actions.cancelArchiveTeam }, "Cancel")
     )
   );
 }
@@ -405,6 +432,13 @@ function teamMenuItems(state, actions) {
     locked ? h("div", { class: "mlock", id: "teamLock" }, LOCKED_MESSAGE) : null,
     ...items,
     h("button", { class: "mi addTeam", disabled: locked, onclick: actions.openAddTeam }, "+ Add team"),
+    // GDA-208: only once a team is archived. Tapping it shows the archived teams; tapping one brings it back and makes it current.
+    state.archivedTeams.length ? h("button", { class: "mi archivedTeams", id: "archivedTeams", disabled: locked, onclick: actions.openArchivedTeams }, `Archived teams (${state.archivedTeams.length})`) : null,
+    ...(state.archivedListOpen && !locked
+      ? state.archivedTeams.map((team) =>
+          h("button", { class: "mi teamItem", "data-archived-team": team.id, onclick: () => actions.bringBackTeam(team.id) }, h("span", { class: "tickCol" }), teamLogo(team.name, currentLogos[team.id], "rowLogo"), h("span", { class: "tmName" }, team.name, h("span", { class: "tsize" }, ` \u00b7 ${team.playersPerSide} a side`)))
+        )
+      : []),
   ].filter(Boolean);
 }
 

@@ -4,23 +4,28 @@
 import { change, read } from "./db.js";
 import { firstFormationFor } from "./formation-rules.js";
 import { anyInProgress } from "./game-rules.js";
-import { firstTeamIdOf, ofTeam } from "./team-rules.js";
+import { chooseCurrentTeamId, firstTeamIdOf, ofTeam, splitTeams } from "./team-rules.js";
 import { OLD_SHEET_KEY, teamWithoutSheet } from "./export-rules.js";
 
 const CURRENT = "currentTeamId";
 
-/** Every team (oldest first) and which one is current. The current one is always a real team. */
-export function loadTeams(db) {
-  return read(db, ["teams", "meta"], (tx, answer) => {
-    tx.objectStore("teams").getAll().onsuccess = (found) => {
-      const teams = found.target.result.sort((a, b) => a.id - b.id);
-      tx.objectStore("meta").get(CURRENT).onsuccess = (saved) => {
-        const wanted = saved.target.result?.value;
-        const current = teams.find((team) => team.id === wanted) ?? teams[0];
-        answer({ teams, currentTeamId: current?.id });
-      };
+/**
+ * Every team in the list (oldest first, archived ones left out), the archived teams, and which team is current
+ * (never an archived one). `firstTeamId` is the first-made team across ALL teams, archived or not (GDA-208), because
+ * a record with no teamId belongs to it.
+ */
+export async function loadTeams(db) {
+  const found = await read(db, ["teams", "meta"], (tx, answer) => {
+    tx.objectStore("teams").getAll().onsuccess = (all) => {
+      const teams = all.target.result.sort((a, b) => a.id - b.id);
+      tx.objectStore("meta").get(CURRENT).onsuccess = (saved) => answer({ all: teams, wanted: saved.target.result?.value });
     };
   });
+  const { active, archived, revived } = splitTeams(found.all);
+  if (revived) {
+    await updateTeam(db, revived.id, { archived: false }); // every team was archived: the first-made comes back
+  }
+  return { teams: active, archivedTeams: archived, currentTeamId: chooseCurrentTeamId(active, found.wanted), firstTeamId: firstTeamIdOf(found.all) };
 }
 
 /** Makes a new team and makes it current, together. Finishes with its id. */
@@ -74,8 +79,8 @@ export function deleteTeam(db, id) {
     teams.getAll().onsuccess = (foundTeams) => {
       const all = foundTeams.target.result.sort((a, b) => a.id - b.id);
       const firstId = firstTeamIdOf(all);
-      const remaining = all.filter((team) => team.id !== id);
-      if (remaining.length === all.length || remaining.length === 0) {
+      const remaining = all.filter((team) => team.id !== id && !team.archived); // GDA-208: archived teams never become current
+      if (!all.some((team) => team.id === id) || remaining.length === 0) {
         tx.abort();
         return;
       }
@@ -101,6 +106,55 @@ export function deleteTeam(db, id) {
         teams.delete(id);
         tx.objectStore("logos").delete(id); // Its logo goes too (GDA-126).
         tx.objectStore("meta").put({ key: CURRENT, value: remaining[0].id });
+      };
+    };
+  });
+}
+
+/**
+ * GDA-208: hides ONE team from the team list; every player, game and event is kept. If it was the current team, the
+ * first team left in the list becomes current. Refused (nothing changes) for the last team in the list, an archived
+ * or missing team, or a team with a game in progress.
+ */
+export function archiveTeam(db, id) {
+  return change(db, ["teams", "games", "meta"], (tx) => {
+    const teams = tx.objectStore("teams");
+    teams.getAll().onsuccess = (foundTeams) => {
+      const all = foundTeams.target.result.sort((a, b) => a.id - b.id);
+      const target = all.find((team) => team.id === id);
+      const remaining = all.filter((team) => team.id !== id && !team.archived);
+      if (!target || target.archived || remaining.length === 0) {
+        tx.abort();
+        return;
+      }
+      tx.objectStore("games").getAll().onsuccess = (foundGames) => {
+        if (anyInProgress(ofTeam(foundGames.target.result, id, firstTeamIdOf(all)))) {
+          tx.abort();
+          return;
+        }
+        teams.put({ ...target, archived: true });
+        tx.objectStore("meta").get(CURRENT).onsuccess = (saved) => {
+          if (saved.target.result?.value === id) {
+            tx.objectStore("meta").put({ key: CURRENT, value: remaining[0].id });
+          }
+        };
+      };
+    };
+  });
+}
+
+/** GDA-208: puts an archived team back in the list and makes it current. Refused while any game is in progress. */
+export function bringBackTeam(db, id) {
+  return change(db, ["teams", "games", "meta"], (tx) => {
+    tx.objectStore("games").getAll().onsuccess = (games) => {
+      tx.objectStore("teams").get(id).onsuccess = (found) => {
+        const team = found.target.result;
+        if (!team || !team.archived || anyInProgress(games.target.result)) {
+          tx.abort();
+          return;
+        }
+        tx.objectStore("teams").put({ ...team, archived: false });
+        tx.objectStore("meta").put({ key: CURRENT, value: id });
       };
     };
   });

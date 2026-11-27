@@ -29,7 +29,7 @@ function gameRows(game, teamName) {
 
 /**
  * The export rows (no heading row): every finished game with a record from every team. Games not yet
- * finished, and archived games (GDA-204), are left out. Teams in the order they were made, games oldest first.
+ * finished, and archived games (GDA-204), are left out. Archived TEAMS (GDA-208) are included: pass every team in the store. Teams in the order they were made, games oldest first.
  */
 export function exportRows(teams, games) {
   const firstTeamId = teams.length ? Math.min(...teams.map((team) => team.id)) : undefined;

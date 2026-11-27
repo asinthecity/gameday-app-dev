@@ -49,14 +49,3 @@ export function listRows(players, totals, absentIds, sort, mode = "halves") {
 export function listMeasure(mode) {
   return mode === "minutes" ? "% of minutes played" : "% of halves played";
 }
-
-/** The "based on" part of the caption: "based on 8 games", or in Minutes "based on 5 games, 4 with minutes" (older games have no minutes). */
-export function listBasedOn(gamesCounted, mode = "halves", gamesWithMinutes = 0) {
-  const games = `${gamesCounted} ${gamesCounted === 1 ? "game" : "games"}`;
-  return mode === "minutes" ? `based on ${games}, ${gamesWithMinutes} with minutes` : `based on ${games}`;
-}
-
-/** The whole caption as text: "% of halves played · based on 8 games". */
-export function listCaption(gamesCounted, mode = "halves", gamesWithMinutes = 0) {
-  return `${listMeasure(mode)} \u00b7 ${listBasedOn(gamesCounted, mode, gamesWithMinutes)}`;
-}

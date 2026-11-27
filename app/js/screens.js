@@ -7,7 +7,7 @@
 import { trimmedLine } from "./drag.js";
 import { canDeleteGame, canArchiveGame, FINISHED, FIRST_HALF, SECOND_HALF, canPlan, IN_PROGRESS_PHASE, NOT_STARTED_PHASE, phaseOf, canStartHalf, canResumeHalf, halfLineUpView, nextScreen, lineupKey, canChangeWhoIsHere, startedAtOf, endedAtOf, canUndoKickOff, formationRowHalf, shownFormation, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, planFigures, planFiguresFor, firstHalfFigures, firstHalfCopyOf, dotsFor, dotsLabel, showsSeasonChart, showsRotationCounts, formatGameDate, formatShortDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationSecondsOf, rotationText, ROTATION_EXTRA_SECONDS, snappedSeconds, clampRotation, halfOf, carriesRotationOrder, carriesBenchTime, canChangeCarryOver, MIN_ROTATION, MAX_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, canEditNotes, canCorrect, canCorrectFinished, noteOf, potdOf, summaryOf, goalFixOf } from "./game-rules.js";
 import { TALLY_COLUMNS, interchangeRows, sortTally, tallyRows } from "./interchange-rules.js";
-import { LIST_COLUMNS, listBasedOn, listMeasure, listRows } from "./season-list-rules.js";
+import { LIST_COLUMNS, listMeasure, listRows } from "./season-list-rules.js";
 import { AREAS, seasonTotals, potdListRows } from "./season-rules.js";
 import { gamesPlayed, goalDifferenceText, historyRows, resultRows, teamRecord } from "./history-rules.js";
 import { checkFormation, formatFormationDigits, formationOf, pitchRows } from "./formation-rules.js";
@@ -150,9 +150,9 @@ function navArrows(state, actions, nextGo = false) {
 }
 
 /** The top row of a screen with no clock: arrow, title (and a small state tag), arrow. Same box as the game header card. */
-function navBar(title, tag, state, actions) {
+function navBar(title, tag, state, actions, pinned = false) {
   const [back, next] = navArrows(state, actions);
-  return h("div", { class: "clk bar" }, back, h("h1", {}, title), tag ? h("span", { class: "tag" }, tag) : null, next);
+  return h("div", { class: pinned ? "clk bar pinned" : "clk bar" }, back, h("h1", {}, title), tag ? h("span", { class: "tag" }, tag) : null, next);
 }
 
 /** The player's photo if they have one (GDA-52), otherwise their coloured initials. */
@@ -816,7 +816,7 @@ function newGameScreen(state, actions) {
   const undoRow = undoKickOffRow(state, game, actions);
   return {
     nodes: [
-      navBar(gameHasKickedOff(game) ? "Game details" : "New game", null, state, actions),
+      navBar(gameHasKickedOff(game) ? "Game details" : "New game", null, state, actions, true), // GDA-210: pinned while the page scrolls
       h(
         "div",
         { class: "body" },
@@ -2033,14 +2033,14 @@ function listBox(state, actions, caption, content, pill = null, tabs = null) {
   );
 }
 
-/** GDA-213: the Interchange history / Season positions tabs in a game's List view (the Results / Players tab look). Opens on Interchange history. */
+/** GDA-213: the Today / Season tabs in a game's List view (the Results / Players tab look). Opens on Interchange history. */
 function listTabs(state, actions) {
   const onSeason = state.listTab === "season";
   const tab = (id, which, text) =>
     h("button", { type: "button", class: "htab", id, role: "tab", "aria-selected": String(onSeason === (which === "season")), onclick: () => actions.setListTab(which) }, text);
   return h("div", { class: "htabs", role: "tablist" }, tab("tabGame", "game", LIST_TAB_LABELS.game), tab("tabSeason", "season", LIST_TAB_LABELS.season));
 }
-const LIST_TAB_LABELS = { game: "Interchange history", season: "Season positions" };
+const LIST_TAB_LABELS = { game: "Today", season: "Season" };
 
 /** List view in a running game: the existing Interchange history (GDA-121) in the pitch's place. */
 function historyList(state, game, actions, pill) {
@@ -2063,11 +2063,10 @@ function seasonList(state, game, actions, { tabs = null, pill = null } = {}) {
   const sort = state.seasonSort;
   const mode = state.seasonMode === "minutes" ? "minutes" : "halves"; // GDA-176: opens on Halves
   const { here, absent } = listRows(state.players, totals.players, game.absent ?? [], sort, mode);
-  // The phone's own select (GDA-176) names the measure; the "based on" text follows it.
+  // The phone's own select (GDA-176) names the measure; 
   const option = (value) => h("option", { value, selected: value === mode }, listMeasure(value));
   const caption = [
     h("select", { class: "lmode", id: "seasonMode", "aria-label": "Measure", onchange: (e) => actions.setSeasonMode(e.target.value) }, option("halves"), option("minutes")),
-    totals.gamesCounted === 0 ? null : h("span", { id: "listBasedOn" }, ` \u00b7 ${listBasedOn(totals.gamesCounted, mode, totals.gamesWithMinutes)}`),
   ];
   if (totals.gamesCounted === 0) {
     return listBox(state, actions, caption, h("div", { class: "empty", id: "noSeason" }, "No saved games yet.", h("br"), "This fills in when a game is saved at Full Time."), pill, tabs);

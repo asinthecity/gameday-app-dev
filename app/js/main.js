@@ -51,8 +51,9 @@ import {
   withVenue,
   hereDifferences,
   withDetails,
+  canUndoKickOff,
 } from "./game-rules.js";
-import { loadSeasonEvents, loadGameEvents, archiveGame, deleteGame, addGame, addGoal, removeGoal, changeGame, endHalf, fullTime, loadGames, moveFieldPlayer, movePlan, movePlayer, planPair, prePlaceGame, reopenHalf, reorderBench, reorderPlanBench, startFirstHalf, startSecondHalf, undoKickOff, swapPlayers, toggleHere, undoSwap, unplanPair } from "./game-store.js";
+import { loadSeasonEvents, loadGameEvents, archiveGame, deleteGame, addGame, addGoal, removeGoal, changeGame, endHalf, fullTime, loadGames, moveFieldPlayer, movePlan, movePlayer, planPair, prePlaceGame, reopenHalf, reorderBench, reorderPlanBench, startFirstHalf, startSecondHalf, undoKickOff, restartGame, swapPlayers, toggleHere, undoSwap, unplanPair } from "./game-store.js";
 import { exportCsv, exportFileName, exportRows, EXPORT_FAILED, NOTHING_TO_EXPORT } from "./export-rules.js";
 import { shareFile } from "./share-file.js";
 import { backupFileName, BACKUP_FAILED, makeBackup, parseBackup, RESTORE_BUSY, RESTORE_FAILED } from "./backup-rules.js";
@@ -96,7 +97,8 @@ const state = {
   addCameFrom: "home",
   showRemoveWarning: false,
   hereDraft: null, // GDA-43: the Who is here picker's unsaved draft (a Set of player ids), or null when closed.
-  undoKickOffAsk: false, // Undo kick-off confirm showing in the Game details sheet.
+  restartMenu: false, // GDA-214: the long-press sheet (Restart half / Restart game) is open.
+  restartAsk: null, // GDA-214: "half" or "game" while that restart's confirm shows.
   rotationOpen: false, // The rotation stepper sheet on the ready and game screens.
   goalOpen: false, // The "Who scored?" dialog (GDA-90).
   goalFixId: null, // GDA-94: the goal whose change/remove pop-up is open (from the Summary). Never saved.
@@ -232,7 +234,8 @@ function goTo(screen) {
   state.problem = "";
   state.showRemoveWarning = false;
   state.rotationOpen = false;
-  state.undoKickOffAsk = false;
+  state.restartMenu = false;
+  state.restartAsk = null;
   state.hereDraft = null;
   state.undo = null;
   state.goalOpen = false;
@@ -818,27 +821,42 @@ const actions = {
     changeGame(db, game.id, (g) => (formationRowHalf(g) !== null ? withFormation(g, formation) : g))
       .catch((error) => console.warn("Could not save the formation", error));
   },
-  // GDA-98: Undo kick-off asks first; Keep playing changes nothing.
-  askUndoKickOff: tap(() => {
-    state.undoKickOffAsk = true;
+  // GDA-214: Restart half / Restart game (replace Undo kick-off). A 600 ms hold on the chip or clock opens the menu; each choice asks first.
+  openRestartMenu: tap(() => {
+    const game = openGame();
+    if (game && canUndoKickOff(game, screenHalf(state.screen))) {
+      state.restartMenu = true;
+      draw();
+    }
+  }),
+  closeRestartMenu: tap(() => {
+    state.restartMenu = false;
+    draw();
+  }),
+  askRestart: tap((which) => {
+    state.restartMenu = false;
+    state.restartAsk = which;
     pauseForConfirm();
     draw();
   }),
-  keepPlaying: tap(() => {
-    state.undoKickOffAsk = false;
+  cancelRestart: tap(() => {
+    state.restartAsk = null;
     draw();
   }),
-  confirmUndoKickOff: tap(async () => {
-    // GDA-210: asked from the details page, so the half is the one the game is in (not the screen).
-    const half = openGame().state === "second half" ? 2 : 1;
-    state.undoKickOffAsk = false;
-    // Saved first (all or nothing); a screen that is out of date changes nothing. Then the screen the saved game opens on.
-    // Then back to the half it undid (the same place the old cog sheet left Ben).
-    await saveThenGoTo(() => undoKickOff(db, state.gameId, half), half === 2 ? "half2" : "half1");
+  confirmRestart: tap(async () => {
+    const which = state.restartAsk;
+    state.restartAsk = null;
+    if (which === "game") {
+      // Both halves, back to before 1st-half kick-off; the game then opens on the 1st Half, not started.
+      await saveThenGoTo(() => restartGame(db, state.gameId), "half1");
+    } else if (which === "half") {
+      // The half the screen shows. The save checks the saved game still agrees, so an out-of-date screen changes nothing.
+      const half = screenHalf(state.screen);
+      await saveThenGoTo(() => undoKickOff(db, state.gameId, half), half === 2 ? "half2" : "half1");
+    }
   }),
   closeRotation: tap(() => {
     state.rotationOpen = false;
-    state.undoKickOffAsk = false;
     state.hereDraft = null;
     draw();
   }),

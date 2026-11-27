@@ -884,17 +884,27 @@ export function reopenedHalf(game, half = null) {
 // ---- Undo kick-off (GDA-98) ----
 const HALF_KEYS = { 1: "firstHalf", 2: "secondHalf" };
 
-/** Undo kick-off is offered only for a half that is In progress and has a saved copy from its kick-off. */
+/**
+ * Restart half (GDA-214, was Undo kick-off) is offered for a half that has kicked off and has a saved copy from its kick-off,
+ * while it is under way AND after it has ended, up to the point the next half kicks off. 1st half: from its kick-off until
+ * the 2nd half kicks off (half time included). 2nd half: from its kick-off until End game and save.
+ */
 export function canUndoKickOff(game, half) {
-  return phaseOf(game, half) === IN_PROGRESS_PHASE && Boolean(game.atKickOff?.[HALF_KEYS[half]]);
+  if (!game.atKickOff?.[HALF_KEYS[half]]) {
+    return false; // no copy (a game from before GDA-98, or already saved)
+  }
+  if (half === 1) {
+    return game.state === FIRST_HALF && typeof game.firstHalfStartedAt === "number";
+  }
+  return game.state === SECOND_HALF && typeof game.secondHalfStartedAt === "number";
 }
 
 /**
- * Undo kick-off for half 1 or 2: the game goes back to the copy saved at that kick-off, so that half
+ * Restart half for half 1 or 2: the game goes back to the copy saved at that kick-off, so that half
  * is Not started (clock, swaps, goals, bench times and late arrivals of that half all gone).
- * Undoing the 1st half keeps the 2nd-half plan as it is NOW (the plan is Ben's work, not something
- * that happened). Undoing the 2nd half leaves the 1st half Ended, with Resume half available.
- * If the half is not running or there is no copy (stale screen, old game) the game comes back unchanged.
+ * Restarting the 1st half keeps the 2nd-half plan as it is NOW (the plan is Ben's work, not something
+ * that happened). Restarting the 2nd half leaves the 1st half Ended, with Resume half available.
+ * If the half is not restartable or there is no copy (stale screen, old game) the game comes back unchanged.
  */
 export function undoneKickOff(game, half) {
   if (!canUndoKickOff(game, half)) {
@@ -902,13 +912,42 @@ export function undoneKickOff(game, half) {
   }
   const saved = game.atKickOff[HALF_KEYS[half]];
   if (half === 1) {
-    // The plan and the GDA-86 switches are Ben's choices, not things that happened, so they stay as they are now.
-    // GDA-127: the 2nd half's Formation is the same kind of choice, so it is kept too.
-    const second = game.formation2 ? { formation2: game.formation2 } : {};
-    return { ...saved, ...second, carryRotationOrder: game.carryRotationOrder, carryBenchTime: game.carryBenchTime, lineups: { ...saved.lineups, secondHalf: game.lineups.secondHalf } };
+    return firstKickOffRestored(game, game.lineups.secondHalf);
   }
   // Keep the 1st half's own copy, so the game is exactly as before the 2nd half started.
   return game.atKickOff.firstHalf ? { ...saved, atKickOff: { firstHalf: game.atKickOff.firstHalf } } : saved;
+}
+
+/** The game as it was before 1st-half kick-off, with Ben's 2nd-half choices (plan `secondPlan`, Formation, switches) as they are now. */
+function firstKickOffRestored(game, secondPlan) {
+  const saved = game.atKickOff.firstHalf;
+  // The plan and the GDA-86 switches are Ben's choices, not things that happened, so they stay as they are now.
+  // GDA-127: the 2nd half's Formation is the same kind of choice, so it is kept too.
+  const second = game.formation2 ? { formation2: game.formation2 } : {};
+  return { ...saved, ...second, carryRotationOrder: game.carryRotationOrder, carryBenchTime: game.carryBenchTime, lineups: { ...saved.lineups, secondHalf: secondPlan } };
+}
+
+/** Restart game (GDA-214): offered from 1st-half kick-off until End game and save, when the kick-off copy is held. */
+export function canRestartGame(game) {
+  const started = (game.state === FIRST_HALF || game.state === SECOND_HALF) && typeof game.firstHalfStartedAt === "number";
+  return started && Boolean(game.atKickOff?.firstHalf);
+}
+
+/**
+ * Restart game: both halves go back to before 1st-half kick-off (the copy kept at kick-off). The 2nd-half plan is kept as
+ * Restart half keeps it; from the 2nd half that is the plan as it stood when the 2nd half kicked off. Unchanged if not offered.
+ */
+export function restartedGame(game) {
+  if (!canRestartGame(game)) {
+    return game;
+  }
+  const secondPlan = game.state === SECOND_HALF && game.atKickOff.secondHalf ? game.atKickOff.secondHalf.lineups.secondHalf : game.lineups.secondHalf;
+  return firstKickOffRestored(game, secondPlan);
+}
+
+/** True for a log entry that Restart game removes (both halves from the 1st kick-off on). `game` is the game BEFORE the restart. */
+export function isRemovedByRestartGame(game, event) {
+  return isRemovedByUndo(game, 1, event) || (typeof game.secondHalfStartedAt === "number" && isRemovedByUndo(game, 2, event));
 }
 
 /** True for a log entry that Undo kick-off removes: this half's entries from its start on. `game` is the game BEFORE the undo. */

@@ -113,6 +113,7 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 /* Remove warning */
 .scrim { position: fixed; left: 0; right: 0; top: 0; bottom: 0; z-index: 22; background: var(--scrim); display: flex; align-items: flex-end; justify-content: center; }
 .sheet { width: 100%; max-width: var(--s393); background: var(--page); border-top: 0; border-radius: var(--r-sheet) var(--r-sheet) 0 0; padding: var(--s16) var(--s12) calc(var(--s14) + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: var(--s10); }
+.sheet p { margin: 0 0 var(--s8); font-size: var(--fs-body); } /* GDA-214: the one-line warning on a restart confirm */
 .sheet h2 { margin: 0 0 var(--s4); font-size: var(--fs-title); text-align: left; overflow-wrap: anywhere; }
 /* One sheet layout (rule 7): title left, X top right, one full-width main action at the bottom. */
 .shead { display: flex; align-items: center; gap: var(--s8); }
@@ -214,6 +215,7 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .chip svg { width: var(--s22); height: var(--s22); }
 .chip.go { background: var(--brand); color: var(--card); }
 .chip.off, .chip:disabled { background: var(--back-fill-off); color: var(--muted); border: var(--bw-signal) solid transparent; }
+.holdable { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; } /* GDA-214: a long press must not select text or show the iOS callout */
 .chip:active { filter: brightness(.92); }
 /* The score card: one white 44px card; the whole card is the tap target and the thing that flashes. */
 .scard { flex: none; position: relative; z-index: 21; height: var(--s44); margin: var(--s6) var(--s12) 0; padding: 0 var(--s16); border: 0; border-radius: var(--r-card); background: var(--card); color: var(--ink); font: inherit; display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; text-align: left; }
@@ -375,8 +377,6 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .gr .btn.main:disabled { font-size: var(--fs-body); line-height: 1.2; }
 .sheet .pair { display: flex; gap: var(--s10); }
 .sheet .pair .btn { flex: 1; }
-.undoAsk { gap: var(--s8); }
-.undoAsk p { margin: 0; font-size: var(--fs-body); }
 
 /* Full Time and Saved (GDA-50) */
 .lbl { font-weight: var(--bold); text-align: center; }

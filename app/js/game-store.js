@@ -2,7 +2,7 @@
 // fully saved or not changed at all. See game-rules.js for what a game holds.
 
 import { change, read } from "./db.js";
-import { canDeleteGame, gameArchived, FINISHED, isInProgress, hereToggled, dotTurns, firstHalfCopyOf, lineUpMoved, SECOND_HALF, goalAdded, goalRemoved, playedToday, lineupKey, startedSecondHalf, undoneKickOff, isRemovedByUndo, endedHalf, reopenedHalf, benchReordered, planMoved, planBenchReordered, fieldMoved, pairPlanned, pairRemoved, swapEvent, swapUndone, swapped, gamesInOrder, halfEndCancelledEvent, halfEndEvent, halfStartEvent, movedOnto, newGame, nextCreatedOrder, positionChangeEvent, prePlaced, startedFirstHalf, withBenchOrder } from "./game-rules.js";
+import { canDeleteGame, gameArchived, FINISHED, isInProgress, hereToggled, dotTurns, firstHalfCopyOf, lineUpMoved, SECOND_HALF, goalAdded, goalRemoved, playedToday, lineupKey, startedSecondHalf, undoneKickOff, isRemovedByUndo, restartedGame, isRemovedByRestartGame, endedHalf, reopenedHalf, benchReordered, planMoved, planBenchReordered, fieldMoved, pairPlanned, pairRemoved, swapEvent, swapUndone, swapped, gamesInOrder, halfEndCancelledEvent, halfEndEvent, halfStartEvent, movedOnto, newGame, nextCreatedOrder, positionChangeEvent, prePlaced, startedFirstHalf, withBenchOrder } from "./game-rules.js";
 import { buildRecord, gameAtFullTime, withRecordCorrected } from "./record-rules.js";
 import { squadInOrder } from "./squad-rules.js";
 import { ofTeam, sameTeam, withTeamId } from "./team-rules.js";
@@ -303,28 +303,38 @@ export function startSecondHalf(db, gameId, at) {
 }
 
 /**
- * Undo kick-off (GDA-98) for half 1 or 2, all or nothing in ONE transaction: the game goes back to its
- * copy from kick-off and that half's log entries are removed. A stale screen (half not running, no copy)
+ * Restart half (GDA-98, GDA-214) for half 1 or 2, all or nothing in ONE transaction: the game goes back to its
+ * copy from kick-off and that half's log entries are removed. A stale screen (not restartable, no copy)
  * changes nothing.
  */
 export function undoKickOff(db, gameId, half) {
+  return restartWith(db, gameId, (game) => undoneKickOff(game, half), (game, event) => isRemovedByUndo(game, half, event));
+}
+
+/** Restart game (GDA-214): the same, for both halves; the log entries of both halves are removed. */
+export function restartGame(db, gameId) {
+  return restartWith(db, gameId, restartedGame, isRemovedByRestartGame);
+}
+
+/** One transaction: put the game the rule gives back, and delete the log entries the other rule names. */
+function restartWith(db, gameId, ruleFor, isRemoved) {
   return change(db, ["games", "events"], (tx) => {
     const games = tx.objectStore("games");
     games.get(gameId).onsuccess = (found) => {
       const saved = found.target.result;
-      const undone = saved ? undoneKickOff(saved, half) : null;
+      const undone = saved ? ruleFor(saved) : null;
       if (!undone) {
         tx.abort();
         return;
       }
       if (undone === saved) {
-        return; // Stale screen: nothing to undo, nothing changed.
+        return; // Stale screen: nothing to restart, nothing changed.
       }
       games.put(undone);
       tx.objectStore("events").index("gameId").openCursor(gameId).onsuccess = (e) => {
         const cursor = e.target.result;
         if (cursor) {
-          if (isRemovedByUndo(saved, half, cursor.value)) {
+          if (isRemoved(saved, cursor.value)) {
             cursor.delete();
           }
           cursor.continue();

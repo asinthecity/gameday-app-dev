@@ -5,7 +5,7 @@
 // containing < or & just shows as typed.
 
 import { trimmedLine } from "./drag.js";
-import { canDeleteGame, canArchiveGame, FINISHED, FIRST_HALF, SECOND_HALF, canPlan, IN_PROGRESS_PHASE, NOT_STARTED_PHASE, phaseOf, canStartHalf, canResumeHalf, halfLineUpView, nextScreen, lineupKey, canChangeWhoIsHere, startedAtOf, endedAtOf, canUndoKickOff, formationRowHalf, shownFormation, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, planFigures, planFiguresFor, firstHalfFigures, firstHalfCopyOf, dotsFor, dotsLabel, showsSeasonChart, showsRotationCounts, formatGameDate, formatShortDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationSecondsOf, rotationText, ROTATION_EXTRA_SECONDS, snappedSeconds, clampRotation, halfOf, carriesRotationOrder, carriesBenchTime, canChangeCarryOver, MIN_ROTATION, MAX_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, canEditNotes, canCorrect, canCorrectFinished, noteOf, potdOf, summaryOf, goalFixOf } from "./game-rules.js";
+import { canDeleteGame, canArchiveGame, FINISHED, FIRST_HALF, SECOND_HALF, canPlan, IN_PROGRESS_PHASE, NOT_STARTED_PHASE, phaseOf, canStartHalf, canResumeHalf, halfLineUpView, nextScreen, lineupKey, canChangeWhoIsHere, startedAtOf, endedAtOf, canUndoKickOff, canRestartGame, formationRowHalf, shownFormation, benchSeconds, benchTimerText, canCreateGame, VENUE_TAGS, venueLine, clockText, isBenchLate, ringFraction, planFigures, planFiguresFor, firstHalfFigures, firstHalfCopyOf, dotsFor, dotsLabel, showsSeasonChart, showsRotationCounts, formatGameDate, formatShortDate, formatKickOff, isBlank, isTimeUp, lineUpView, swapMessage, pairsOf, benchNumberOf, rotationSecondsOf, rotationText, ROTATION_EXTRA_SECONDS, snappedSeconds, clampRotation, halfOf, carriesRotationOrder, carriesBenchTime, canChangeCarryOver, MIN_ROTATION, MAX_ROTATION, NOT_STARTED, scoreOf, canAddGoal, scorerChoices, undoLineOf, lastGoal, US, canEditNotes, canCorrect, canCorrectFinished, noteOf, potdOf, summaryOf, goalFixOf } from "./game-rules.js";
 import { TALLY_COLUMNS, interchangeRows, sortTally, tallyRows } from "./interchange-rules.js";
 import { LIST_COLUMNS, listMeasure, listRows } from "./season-list-rules.js";
 import { AREAS, seasonTotals, potdListRows } from "./season-rules.js";
@@ -813,10 +813,9 @@ function createGameScreen(state, actions) {
 function newGameScreen(state, actions) {
   const game = openGame(state);
   const finished = game.state === FINISHED;
-  const undoRow = undoKickOffRow(state, game, actions);
   return {
     nodes: [
-      navBar(gameHasKickedOff(game) ? "Game details" : "New game", null, state, actions, true), // GDA-210: pinned while the page scrolls
+      navBar("Game details", null, state, actions, true), // GDA-210: pinned while the page scrolls
       h(
         "div",
         { class: "body" },
@@ -851,12 +850,13 @@ function newGameScreen(state, actions) {
           canEditNotes(game) ? displaySwitch("showRotationCounts", "Rotation counts", showsRotationCounts(game, currentTeamOf(state)), () => actions.setDisplayChoice("showRotationCounts")) : null
         ),
         carryOverSwitches(carryValuesOf(game), !canChangeCarryOver(game), actions),
-        // Set apart at the bottom: Undo kick-off (a running half) or Delete game (before kick-off); never both.
-        undoRow && !state.undoKickOffAsk ? h("div", { class: "gapbig" }, setCard(undoRow)) : undoRow,
+        // Set apart at the bottom: Restart game (from kick-off until End game and save) or Delete game (before kick-off); never both.
+        !finished && canRestartGame(game) ? h("div", { class: "gapbig" }, setCard(h("button", { class: "btn redtext", id: "restartGame", onclick: () => actions.askRestart("game") }, "Restart game"))) : null,
         canDeleteGame(game) ? h("button", { class: "btn redtext gapbig", id: "deleteGame", onclick: () => actions.askDelete(game.id) }, "Delete game") : null
       ),
       state.deleteId ? deleteSheet(state, actions) : null,
       state.hereDraft ? hereDraftPicker(state, actions) : null,
+      restartAskSheet(state, actions),
     ],
   };
 }
@@ -1281,26 +1281,44 @@ function venueEditor(game, actions) {
 }
 
 /**
- * Undo kick-off (GDA-98): in the Game details sheet only while the half shown is In progress and has a
- * saved copy from its kick-off. Not shown at all otherwise (not just greyed). The first tap asks;
- * "Keep playing" changes nothing; "Undo kick-off" undoes it.
+ * GDA-214: the sheet a long press on the chip or clock opens. 1st half: Restart half. 2nd half: Restart half and Restart game.
+ * Nothing is changed by opening or closing it; each choice asks first (restartAskSheet).
  */
-function undoKickOffRow(state, game, actions) {
-  // GDA-210: on the details page the half is the one the game is in.
-  const half = game.state === FIRST_HALF ? 1 : game.state === SECOND_HALF ? 2 : 0;
-  if (half === 0 || !canUndoKickOff(game, half)) {
+function restartMenuSheet(state, actions) {
+  if (!state.restartMenu) {
     return null;
-  }
-  if (!state.undoKickOffAsk) {
-    return h("button", { class: "btn redtext", id: "undoKickOff", onclick: actions.askUndoKickOff }, "Undo kick-off");
   }
   return h(
     "div",
-    { class: "card undoAsk", id: "undoKickOffAsk" },
-    h("b", {}, "Undo kick-off?"),
-    h("p", {}, "The clock goes back to 0:00 and this half's swaps and goals are removed."),
-    h("button", { class: "btn del", id: "confirmUndoKickOff", onclick: actions.confirmUndoKickOff }, "Undo kick-off"),
-    h("button", { class: "btn", id: "keepPlaying", onclick: actions.keepPlaying }, "Cancel")
+    { class: "scrim", id: "restartMenu" },
+    h(
+      "div",
+      { class: "sheet" },
+      h("h2", {}, "Restart"),
+      h("button", { class: "btn", id: "restartHalf", onclick: () => actions.askRestart("half") }, "Restart half"),
+      screenHalf(state.screen) === 2 ? h("button", { class: "btn", id: "restartGameFromSheet", onclick: () => actions.askRestart("game") }, "Restart game") : null,
+      h("button", { class: "btn", id: "closeRestartMenu", onclick: actions.closeRestartMenu }, "Cancel")
+    )
+  );
+}
+
+/** GDA-214: the confirm for Restart half or Restart game: one short line, a red confirm (ignores taps for 600 ms, GDA-207) and Cancel. */
+function restartAskSheet(state, actions) {
+  if (!state.restartAsk) {
+    return null;
+  }
+  const game = state.restartAsk === "game";
+  return h(
+    "div",
+    { class: "scrim", id: "restartAsk" },
+    h(
+      "div",
+      { class: "sheet" },
+      h("h2", {}, game ? "Restart game?" : "Restart half?"),
+      h("p", {}, game ? "Both halves go back to before kick-off. Goals, swaps and times are removed." : "This half goes back to 0:00. Its goals, swaps and times are removed."),
+      h("button", { class: "btn del", id: "confirmRestart", onclick: actions.confirmRestart }, game ? "Restart game" : "Restart half"),
+      h("button", { class: "btn", id: "cancelRestart", onclick: actions.cancelRestart }, "Cancel")
+    )
   );
 }
 
@@ -1391,6 +1409,55 @@ export function setLogos(logos) {
   currentLogos = logos;
 }
 
+/** GDA-214: how long a press must last to count as a hold (a check accepts 500 to 800 ms). */
+const HOLD_MS = 600;
+
+/**
+ * GDA-214: a press held for HOLD_MS calls `onHold`; the tap that follows the hold is swallowed, so holding never starts or stops the clock.
+ * Letting go earlier is a normal tap. A finger that slides away cancels the hold. Text selection and the iOS callout are switched off in CSS (.holdable).
+ */
+function makeHoldable(element, onHold) {
+  let timer = null;
+  let held = false;
+  let start = null;
+  const cancel = () => {
+    clearTimeout(timer);
+    timer = null;
+  };
+  element.classList.add("holdable");
+  element.addEventListener("pointerdown", (event) => {
+    held = false;
+    start = { x: event.clientX, y: event.clientY };
+    cancel();
+    timer = setTimeout(() => {
+      timer = null;
+      held = true;
+      onHold();
+    }, HOLD_MS);
+  });
+  element.addEventListener("pointermove", (event) => {
+    if (timer && start && Math.hypot(event.clientX - start.x, event.clientY - start.y) > 10) {
+      cancel();
+    }
+  });
+  for (const name of ["pointerup", "pointercancel", "pointerleave"]) {
+    element.addEventListener(name, cancel);
+  }
+  element.addEventListener("contextmenu", (event) => event.preventDefault()); // Android's long-press menu
+  // Capture: runs before the element's own tap handler, so the tap after a hold does nothing.
+  element.addEventListener(
+    "click",
+    (event) => {
+      if (held) {
+        held = false;
+        event.stopImmediatePropagation();
+        event.preventDefault();
+      }
+    },
+    true
+  );
+}
+
 /**
  * One round chip on the head bar (GDA-120): Start (triangle), Stop (square) or Resume half (undo arrow). `go` is the solid dark look.
  * `onClick` null draws it greyed out and inert (aria-disabled). The chip always sits in the same 64px slot.
@@ -1434,7 +1501,15 @@ function gameHead(state, actions, { label, clock, over = false, chip = null, nex
   const [back, next] = navArrows(state, actions, nextGo);
   const words = label.split(" ");
   const labelNode = h("h1", { class: "hl" }, words[0], " ", h("br"), words.slice(1).join(" ")); // the screen's heading, in two lines
-  const band = h("div", { class: over ? "clk bar hb over" : "clk bar hb" }, back, labelNode, h("div", { class: "ck" }, clockNode(clock, chip, over)), h("div", { class: "cs" }, chip), next);
+  const clockEl = clockNode(clock, chip, over);
+  if (chip?.holdAction) {
+    // GDA-214: a 600 ms hold on the chip or the clock (when the clock is a button) opens the Restart sheet instead of a tap.
+    makeHoldable(chip, chip.holdAction);
+    if (clockEl.tagName === "BUTTON") {
+      makeHoldable(clockEl, chip.holdAction);
+    }
+  }
+  const band = h("div", { class: over ? "clk bar hb over" : "clk bar hb" }, back, labelNode, h("div", { class: "ck" }, clockEl), h("div", { class: "cs" }, chip), next);
   const parts = [
     h("span", { class: "side l" }, teamLogo(usName, currentLogos[team?.id]), h("span", { class: "tn" }, usName)),
     h("span", { class: "mid" }, h("span", { class: "tg", id: "scoreUs" }, String(score.us)), h("span", { class: "dash", "aria-hidden": "true" }, "\u2013"), h("span", { class: "tg", id: "scoreThem" }, String(score.them))),
@@ -1462,13 +1537,17 @@ function runningHalf(state, actions, half) {
   const endedAt = half === 2 ? game.secondHalfEndedAt : game.firstHalfEndedAt;
   const clock = clockText(startedAt, live ? Date.now() : endedAt, halfOf(game));
   const atHalfTime = half === 1 && canResumeHalf(game, 1);
-  const label = atHalfTime ? "Half Time" : half === 2 ? "2nd Half" : "1st Half";
+  const label = half === 2 ? "2nd Half" : "1st Half";
   let chip = null; // nothing to stop or resume: the slot stays, empty
   if (live) {
     // Stop = End Half (no confirmation; Resume half at Half Time is the way back). drawClock makes it solid dark when time is up.
     chip = headChip("endHalf", "End half", "stop", isTimeUp(startedAt, Date.now(), halfOf(game)), actions.endHalf);
   } else if (canResumeHalf(game, half)) {
-    chip = headChip("resumeHalf", "Resume half", "undo", false, actions.resumeHalf);
+    chip = headChip("resumeHalf", "Resume half", "play", false, actions.resumeHalf);
+  }
+  // GDA-214: holding the chip or the clock opens Restart half / Restart game (only while those are offered).
+  if (chip && canUndoKickOff(game, half)) {
+    chip.holdAction = actions.openRestartMenu;
   }
   return {
     fixed: true,
@@ -1481,6 +1560,8 @@ function runningHalf(state, actions, half) {
       goalDialog(state, game, actions),
       noteSheet(state, game, actions),
       potdPicker(state, game, actions), // GDA-175: opened from Game settings; the clock keeps running underneath
+      restartMenuSheet(state, actions),
+      restartAskSheet(state, actions),
     ],
     after: () => {
       drawClock(state);

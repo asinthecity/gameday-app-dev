@@ -354,7 +354,6 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .pill .pu { display: flex; flex-direction: column; align-items: center; font-size: var(--fs-small); font-weight: var(--bold); line-height: var(--s14); } /* GDA-164: round Undo, arrow above the word */
 .pill .pu svg { width: var(--s20); height: var(--s20); }
 /* The keeper's name plate in the pill's row stops short of the pill and of the Settings button (GDA-120), so a long name never reaches either. */
-.pitch.cogged .line:last-of-type .nm { max-width: calc(100% - var(--s24)); }
 /* The tap area: the whole pill, only there when a tap does something (Swap with a pair planned, Undo after a swap). */
 .pill .pillTap { position: absolute; left: 0; top: 0; right: 0; bottom: 0; border: 0; border-radius: var(--r-pill); padding: 0; background: transparent; }
 
@@ -665,7 +664,6 @@ button.tl.them { text-align: right; }
 /* GDA-120: Settings is a round 56px button. On a pitch it is 8px in from the bottom-left corner, mirroring the swap pill (same ring, same layer).
    At Full Time it sits left of "End game and save" in a row (.endrow). */
 .cog.corner { width: var(--s56); height: var(--s56); margin-left: 0; border-radius: var(--r-round); }
-.pitch .cog.corner { position: absolute; left: var(--s8); bottom: var(--s8); z-index: 6; border: var(--s3) solid var(--card); box-shadow: var(--ring); }
 .endrow { display: flex; align-items: center; gap: var(--s8); }
 .endrow .btn { flex: 1; min-width: 0; }
 /* The row under the pitch holds only an error message; with nothing in it it takes no room. */
@@ -686,7 +684,6 @@ button.tl.them { text-align: right; }
 .lvcap { font-size: var(--fs-small); color: var(--muted); }
 .lmode { min-height: var(--s44); max-width: 100%; border: 0; border-radius: var(--r-pill); background: var(--btn); color: var(--ink); font: inherit; font-size: var(--fs-small); padding: 0 var(--s12); } /* GDA-176: the phone's own select */
 .lvscroll { flex: 1 1 0; min-height: 0; overflow-y: auto; padding: 0 var(--s14); }
-.listbox .cog.corner { position: absolute; left: var(--s8); bottom: var(--s8); z-index: 6; border: var(--s3) solid var(--card); box-shadow: var(--ring); }
 .listbox .lvscroll:after { content: ""; display: block; height: var(--s68); } /* room to scroll the last rows clear of the swap pill and Settings */
 .lvsub { margin-top: var(--s8); font-size: var(--fs-small); color: var(--muted); letter-spacing: var(--tracking-caps); text-transform: uppercase; }
 .listbox .tl { padding: 0; }
@@ -748,6 +745,10 @@ button.tl.them { text-align: right; }
 .hfig span { font-size: var(--fs-small); color: var(--muted); }
 .htabs { display: flex; border-bottom: var(--bw) solid var(--line); }
 .htab { flex: 1; min-height: var(--tap); background: none; border: 0; border-bottom: var(--s3) solid transparent; margin-bottom: calc(-1 * var(--bw)); font: inherit; color: var(--muted); }
+.listbox .lvhead .htabs { flex: 1; border-bottom: 0; } /* GDA-213: the game's List view tabs sit in the header beside the Pitch / List switch */
+.listbox .htab { white-space: nowrap; }
+.lvtop { padding: var(--s4) 0; }
+.gapbig { margin-top: var(--s32); } /* GDA-210: Undo kick-off / Delete game set apart at the bottom of the details page */
 .htab[aria-selected="true"] { color: var(--ink); font-weight: var(--bold); border-bottom-color: var(--ink); }
 .hist { width: 100%; table-layout: fixed; border-collapse: collapse; font-variant-numeric: tabular-nums; margin-top: var(--s4); }
 .hist th, .hist td { padding: 0 var(--s2); text-align: right; font-weight: var(--regular); }

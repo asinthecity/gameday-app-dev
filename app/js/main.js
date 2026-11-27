@@ -104,6 +104,7 @@ const state = {
   interchange: null, // GDA-121: { events } read when Interchange history opens. Never saved.
   interchangeBack: null, // The screen Interchange history returns to. Never saved.
   tallySort: { column: "name", descending: false }, // The bench time table's sort. Not remembered.
+  listTab: "game", // GDA-213: the tab of a game's List view ("game" = Interchange history, "season" = Season positions). Never saved; opens on "game".
   listView: false, // GDA-48: the line-up / game shows the List instead of the Pitch. Never saved; every screen opens on the Pitch.
   seasonMode: "halves", // GDA-176/109: halves or minutes, one choice shared by the season List and the player profile; remembered on the phone (meta "seasonMode"), halves the first time
   seasonEvents: {}, // GDA-176: saved events by game, read when the List opens (for minutes)
@@ -222,6 +223,7 @@ function draw() {
 function goTo(screen) {
   state.screen = screen;
   state.listView = false; // GDA-48: a screen always opens on the Pitch
+  state.listTab = "game";
   if (screen === "home") {
     state.viewId = null; // Leaving a finished game's view.
     state.historyTab = "results"; // GDA-185: Home opens on Results every time (the tab is not remembered)
@@ -827,10 +829,12 @@ const actions = {
     draw();
   }),
   confirmUndoKickOff: tap(async () => {
-    const half = screenHalf(state.screen);
+    // GDA-210: asked from the details page, so the half is the one the game is in (not the screen).
+    const half = openGame().state === "second half" ? 2 : 1;
     state.undoKickOffAsk = false;
     // Saved first (all or nothing); a screen that is out of date changes nothing. Then the screen the saved game opens on.
-    await saveThenGoTo(() => undoKickOff(db, state.gameId, half), state.screen);
+    // Then back to the half it undid (the same place the old cog sheet left Ben).
+    await saveThenGoTo(() => undoKickOff(db, state.gameId, half), half === 2 ? "half2" : "half1");
   }),
   closeRotation: tap(() => {
     state.rotationOpen = false;
@@ -970,6 +974,7 @@ const actions = {
       draw();
       return;
     }
+    state.listTab = "game"; // GDA-213: List view always opens on Interchange history
     const game = openGame();
     try {
       if (game && typeof game.firstHalfStartedAt === "number") {
@@ -983,6 +988,20 @@ const actions = {
     } catch (error) {
       console.warn("Could not open the list", error);
       state.problem = "Could not open the list. Try again.";
+    }
+    draw();
+  }),
+  // GDA-213: the tabs of a game's List view. Season positions needs the season's saved events (for Minutes), read when it is first opened.
+  setListTab: tap(async (which) => {
+    state.listTab = which === "season" ? "season" : "game";
+    if (state.listTab === "season") {
+      state.seasonSort = state.seasonSort ?? { column: "name", descending: false };
+      try {
+        state.seasonEvents = await loadSeasonEvents(db);
+      } catch (error) {
+        console.warn("Could not read the season's events", error);
+        state.seasonEvents = {}; // halves still show; minutes show dashes
+      }
     }
     draw();
   }),
@@ -1034,13 +1053,6 @@ const actions = {
   },
   openPotdPicker: tap(() => {
     state.potdSort = { column: "count", descending: false };
-    state.potdOpen = true;
-    draw();
-  }),
-  // GDA-175: from Game settings; the settings sheet closes so a pick returns straight to the game.
-  openPotdFromSettings: tap(() => {
-    state.potdSort = { column: "count", descending: false };
-    state.rotationOpen = false;
     state.potdOpen = true;
     draw();
   }),

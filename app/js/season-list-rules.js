@@ -15,7 +15,7 @@ const byName = (a, b) => a.name.localeCompare(b.name);
  * @param {number[]} absentIds players marked Absent for this game
  * @param {{column: string, descending: boolean}} sort
  * @param {"halves"|"minutes"} mode  which figures to show (GDA-176); the sort and dash rules are the same in both
- * @returns {{ here: Row[], absent: Row[] }}   Row = { id, name, played, percent: {Goal.. Attack} } (percent null = show a dash)
+ * @returns {{ here: Row[], absent: Row[] }}   Row = { id, name, played, percent: {Goal.. Attack}, level: {Goal.. Attack} 0..3 } (percent null = show a dash)
  *
  * Absent players are listed last, under their own heading, sorted the same way within it.
  * On an area column, players with no halves played (dashes) come last in BOTH directions.
@@ -24,12 +24,13 @@ const byName = (a, b) => a.name.localeCompare(b.name);
 export function listRows(players, totals, absentIds, sort, mode = "halves") {
   const rows = players.map((p) => {
     const season = totals.get(p.id);
+    const zero = Object.fromEntries(AREAS.map((a) => [a, 0]));
     const none = Object.fromEntries(AREAS.map((a) => [a, null]));
     if (mode === "minutes") {
       // "played" here means "has minutes": a player with no minutes shows dashes, last in either direction (S5).
-      return { id: p.id, name: p.name, played: season?.minutesTotal > 0 ? 1 : 0, percent: season?.minutesPercent ?? none };
+      return { id: p.id, name: p.name, played: season?.minutesTotal > 0 ? 1 : 0, percent: season?.minutesPercent ?? none, level: season?.minutesLevel ?? zero };
     }
-    return { id: p.id, name: p.name, played: season?.halvesPlayed ?? 0, percent: season?.percent ?? none };
+    return { id: p.id, name: p.name, played: season?.halvesPlayed ?? 0, percent: season?.percent ?? none, level: season?.level ?? zero };
   });
   const way = sort.descending ? -1 : 1;
   const order = (a, b) => {

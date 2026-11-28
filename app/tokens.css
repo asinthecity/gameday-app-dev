@@ -74,8 +74,8 @@
      screens.js reads these to draw the rings, so there is one source. Taller phones get bigger circles; see the two
      @media blocks at the bottom of this file. Small-phone values are the ones before GDA-118 except the 4-row pitch. */
   /* GDA-57: season chart on the line-up circles before kick-off (docs/discovery/12-fpl-style.md, option D "Shade") */
-  --chart-l1: #9B7BFF;         /* level 1, up to a third of halves: 3.15:1 on white (level is also told by height) */
-  --chart-l2: #6A4BE0;         /* level 2: 5.7:1 */
+  --chart-l1: #B09AFF;         /* level 1, up to a third of halves: 2.4:1 on white (under 3:1; height carries the level) */
+  --chart-l2: #5A33C8;         /* level 2: 7.7:1 */
   --chart-l3: var(--ink);      /* level 3: 17.1:1 */
   --chart-l0: var(--muted);    /* level 0: the 1 px baseline only */
   --chart-col: 7px;            /* column width */

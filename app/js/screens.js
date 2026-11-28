@@ -2139,7 +2139,7 @@ const AREA_HEADINGS = { name: "Name", Goal: "Keeper", Defence: "Defence", Midfie
 
 /**
  * List view before kick-off (GDA-48): every player with the share of halves they played in each area (GDA-173 works the
- * numbers out), A to Z until a heading is tapped. A dash and an empty bar for no halves played; nobody coloured or ranked.
+ * numbers out), A to Z until a heading is tapped. A dash and no level column for no halves played; nobody coloured or ranked.
  */
 function seasonList(state, game, actions, { tabs = null, pill = null } = {}) {
   const totals = seasonTotals({ games: state.games, players: state.players, eventsByGame: state.seasonEvents ?? {} });
@@ -2162,9 +2162,10 @@ function seasonList(state, game, actions, { tabs = null, pill = null } = {}) {
       h("button", { type: "button", class: "sorter", "data-col": column, onclick: () => actions.sortSeason(column) }, AREA_HEADINGS[column], h("span", { class: "so", "aria-hidden": "true" }, sorted ? (sort.descending ? "\u25bc" : "\u25b2") : ""))
     );
   };
-  const cell = (percent) =>
-    h("td", {}, h("span", { class: "pp" }, percent === null ? "\u2013" : `${percent}%`), h("span", { class: "tr" }, percent === null ? null : h("b", { style: `width: ${percent}%` })));
-  const row = (r) => h("tr", { "data-id": String(r.id) }, h("td", { class: "who" }, r.name), ...LIST_COLUMNS.slice(1).map((area) => cell(r.percent[area])));
+  // GDA-218: the % and, beside it, one level column (same l0..l3 look as the line-up chart); a dash has no column
+  const cell = (percent, level) =>
+    h("td", {}, percent === null ? h("span", { class: "pp" }, "\u2013") : h("div", { class: "pc" }, h("span", { class: "pp" }, `${percent}%`), h("span", { class: "lv", "aria-hidden": "true" }, h("i", { class: `l${level}` }))));
+  const row = (r) => h("tr", { "data-id": String(r.id) }, h("td", { class: "who" }, r.name), ...LIST_COLUMNS.slice(1).map((area) => cell(r.percent[area], r.level[area])));
   const table = h(
     "table",
     { class: "season", id: "seasonTable" },

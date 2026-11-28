@@ -50,7 +50,7 @@ function newestFirst(lines) {
  *   halves:  { Goal, Defence, Midfield, Attack },   // counts
  *   share:   { ... },                  // true fraction 0..1 (0 if none played)
  *   percent: { ... },                  // whole number, .5 up; null when no halves played (show a dash)
- *   level:   { ... },                  // 0..3, on halves only
+ *   level:   { ... },                  // 0..3, on halves (minutesLevel is the same on minutes)
  *   minutes: { ... },                  // minutes on the pitch in that area (may be fractional)
  *   minutesTotal,                      // all minutes on the pitch
  *   minutesShare:   { ... },           // true fraction of minutes (0 if none)
@@ -172,6 +172,7 @@ export function seasonTotals({ games, players, eventsByGame }) {
       minutes: each((a) => m[a] / 60000),
       minutesTotal: msTotal / 60000,
       minutesShare: each((a) => (msTotal ? m[a] / msTotal : 0)),
+      minutesLevel: each((a) => levelOf(m[a], msTotal)), // GDA-218: the same thresholds on the TRUE minutes share (whole-ms counts)
       minutesPercent: each((a) => (msTotal ? percentOf(m[a], msTotal) : null)),
       goals: stats.get(id).goals, // GDA-109: season goals
       potdCount: stats.get(id).potd, // GDA-109: times Player of the Day (saved games only, so never today)

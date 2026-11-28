@@ -697,9 +697,15 @@ button.tl.them { text-align: right; }
 .season .so { display: inline-block; width: 1em; text-align: left; }
 .season td { padding: var(--s4) var(--s6) var(--s4) 0; height: var(--s42); border-top: var(--bw) solid var(--line); vertical-align: middle; }
 .season td.who { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.season { --chart-col: var(--s12); --chart-step: var(--s9); } /* GDA-218: wider, taller level columns for this list only */
+.season .pc { display: flex; align-items: flex-end; gap: var(--s4); height: var(--s36); padding-bottom: var(--s4); box-sizing: border-box; } /* fixed height: every % sits on one line whatever the column's height (as the mock-up) */
+.season .pc .pp { margin-bottom: calc(-1 * var(--s3)); }
 .season .pp { display: block; }
-.season .tr { display: block; height: var(--s4); border-radius: var(--r-tag); background: var(--line); overflow: hidden; }
-.season .tr b { display: block; height: 100%; background: var(--brand-bright); }
+.season .lv { display: block; }
+.season .lv i { display: block; width: var(--chart-col); height: var(--chart-base); background: var(--chart-l0); border: var(--chart-edge); box-sizing: content-box; }
+.season .lv i.l1 { height: calc(var(--chart-base) + var(--chart-step)); background: var(--chart-l1); }
+.season .lv i.l2 { height: calc(var(--chart-base) + 2 * var(--chart-step)); background: var(--chart-l2); }
+.season .lv i.l3 { height: calc(var(--chart-base) + 3 * var(--chart-step)); background: var(--chart-l3); }
 .season tr.sep td { height: var(--s30); border-top: 0; padding-top: var(--s8); font-size: var(--fs-small); letter-spacing: var(--tracking-caps); color: var(--muted); }
 
 /* GDA-57: the season chart on a line-up circle before kick-off, under the circle where a game's turn dots go (GDA-179). Four columns stand on a baseline; height and shade show the level. */

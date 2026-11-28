@@ -4,6 +4,8 @@
 // time, on the real screens. Tips only ever show while the Demo team is the current team.
 // Words come from docs/discovery/10-domain-model.md (team, player, game, line-up, bench, Swap, Full Time).
 
+/** Stored (meta): true when the coach chose "Explore on my own"; tips stay off until ☰ > App tour. */
+export const OFF_KEY = "tourOff";
 /** The one stored flag (meta store): true once the app has decided about the tour on this phone. */
 export const TOUR_FLAG = "tourShown";
 /** The tips already closed with "Got it" (meta store): a list of tip numbers. */
@@ -51,6 +53,10 @@ export const DEMO_PLAYERS = ["Alex", "Ben", "Charlie", "Dylan", "Ethan", "Finn",
 /** The Demo team's settings: the same defaults as a team made on the Add team screen. */
 export const DEMO_TEAM = { name: DEMO_NAME, playersPerSide: 9, halfMinutes: 25 };
 
+/** The picture files (app/demo/) for the crest and for each player, by name: "Alex" -> demo/alex.svg. */
+export const DEMO_LOGO_FILE = "demo/logo.svg";
+export const demoPhotoFile = (name) => `demo/${name.toLowerCase()}.svg`;
+
 const pad = (n) => String(n).padStart(2, "0");
 /** "2026-11-28" in the phone's own date, the way the date box on the New game screen saves it. */
 function dateText(date) {
@@ -92,27 +98,36 @@ export function demoFinishedPlan(kickOffAt, halfMinutes = DEMO_TEAM.halfMinutes)
       { side: "them", scorer: null, half: 2, at: secondStart + 17 * MIN },
     ],
     potd: 7, // squad index of the Player of the day
+    // Real Swaps, so the bench players come on and most players try two positions (the app's point: fair game time).
+    // Each move: the bench player (squad index) goes on at a position (place: 0 keeper, 1 to 3 defence, 4 to 6 midfield, 7 and 8 attack).
+    swaps: [
+      { half: 1, at: kickOffAt + 9 * MIN, moves: [{ on: 9, place: 4 }, { on: 10, place: 2 }, { on: 11, place: 7 }] },
+      { half: 1, at: kickOffAt + 18 * MIN, moves: [{ on: 4, place: 1 }, { on: 2, place: 8 }] },
+      { half: 2, at: secondStart + 3 * MIN, moves: [{ on: 7, place: 5 }, { on: 1, place: 6 }, { on: 8, place: 4 }] },
+      { half: 2, at: secondStart + 12 * MIN, moves: [{ on: 5, place: 7 }, { on: 9, place: 3 }, { on: 6, place: 8 }] },
+    ],
   };
 }
 
 // ---- The tips ----
 
-/** The ten tips, exactly as approved in docs/mockups/gda-212/tips.html. `animated` tips show the drag animation. */
+/** The eleven tips, exactly as approved in docs/mockups/gda-212/tips.html (tip 3 added by Ben, criterion 12). `animated` tips show the drag animation. */
 export const TIPS = [
   { n: 1, text: "Set up your Squad, formation and game day defaults in Team settings." },
   { n: 2, text: "Create a new game to get started." },
-  { n: 3, text: "Drag players between the positions to set your starting line-up.", animated: true },
-  { n: 4, text: "The bars show where each player has played so far this season." },
-  { n: 5, text: "Tap a player to see their detailed season history." },
-  { n: 6, text: "In a game, drag a bench player onto a pitch player to plan a swap.", animated: true },
-  { n: 7, text: "Drag another bench player on to plan several swaps at once.", animated: true },
-  { n: 8, text: "Tap Swap when you’re ready; all planned swaps happen together." },
-  { n: 9, text: "Tap the score to log a goal. Tap a player for notes and Player of the day." },
-  { n: 10, text: "At Full Time, check the summary, then tap End game and save." },
+  { n: 3, text: "Or tap the Sample FC game to set its line-up." },
+  { n: 4, text: "Drag players between the positions to set your starting line-up.", animated: true },
+  { n: 5, text: "The bars show where each player has played so far this season." },
+  { n: 6, text: "Tap a player to see their detailed season history." },
+  { n: 7, text: "In a game, drag a bench player onto a pitch player to plan a swap.", animated: true },
+  { n: 8, text: "Drag another bench player on to plan several swaps at once.", animated: true },
+  { n: 9, text: "Tap Swap when you\u2019re ready; all planned swaps happen together." },
+  { n: 10, text: "Tap the score to log a goal. Tap a player for notes and Player of the day." },
+  { n: 11, text: "At Full Time, check the summary, then tap End game and save." },
 ];
 export const TIP_COUNT = TIPS.length;
 
-/** The list of tip numbers marked seen, cleaned: only whole numbers 1 to 10, no repeats. */
+/** The list of tip numbers marked seen, cleaned: only whole numbers 1 to 11, no repeats. */
 export function cleanSeen(value) {
   if (!Array.isArray(value)) {
     return [];
@@ -128,15 +143,15 @@ export function withSeen(seen, n) {
 /**
  * Which tip is due now, or null. One at a time: the lowest number whose trigger holds. Never any tip unless
  * the current team is the Demo team.
- * `ctx`: { demo, screen, seen, sheetOpen, topMenuOpen, profileOpen, notStarted, running, planned, swapMade, viewing }
+ * `ctx`: { demo, off, screen, seen, sheetOpen, topMenuOpen, profileOpen, notStarted, running, planned, swapMade, viewing }
  *   demo: the current team is the Demo team       screen: "home", "half1", "fullTime" ...
  *   notStarted: the open game has not kicked off   running: the open game's clock is running
  *   planned: a swap is planned                      swapMade: a swap has been made in the open game
  *   profileOpen: a player card is open              viewing: a finished game is being looked at from Home
  */
 export function dueTip(ctx) {
-  if (!ctx.demo) {
-    return null;
+  if (!ctx.demo || ctx.off) {
+    return null; // not the Demo team, or the welcome is open / the coach chose "Explore on my own"
   }
   const seen = (n) => ctx.seen.includes(n);
   const onLineUp = ctx.screen === "half1" && ctx.notStarted && !ctx.profileOpen;
@@ -144,14 +159,15 @@ export function dueTip(ctx) {
   const rules = [
     [1, ctx.screen === "home" && !seen(1)],
     [2, ctx.screen === "home" && seen(1) && !seen(2)],
-    [3, onLineUp && !seen(3)],
-    [4, onLineUp && seen(3) && !seen(4)],
-    [5, ctx.screen === "half1" && ctx.notStarted && ctx.profileOpen && !seen(5)],
-    [6, inGame && !seen(6) && !ctx.swapMade],
-    [7, inGame && seen(6) && !seen(7) && ctx.planned && !ctx.swapMade],
+    [3, ctx.screen === "home" && seen(2) && !seen(3)],
+    [4, onLineUp && !seen(4)],
+    [5, onLineUp && seen(4) && !seen(5)],
+    [6, ctx.screen === "half1" && ctx.notStarted && ctx.profileOpen && !seen(6)],
+    [7, inGame && !seen(7) && !ctx.swapMade],
     [8, inGame && seen(7) && !seen(8) && ctx.planned && !ctx.swapMade],
-    [9, inGame && ctx.swapMade && !seen(9)],
-    [10, ctx.screen === "fullTime" && !ctx.viewing && !seen(10)],
+    [9, inGame && seen(8) && !seen(9) && ctx.planned && !ctx.swapMade],
+    [10, inGame && ctx.swapMade && !seen(10)],
+    [11, ctx.screen === "fullTime" && !ctx.viewing && !seen(11)],
   ];
   const found = rules.find(([, due]) => due);
   return found ? found[0] : null;

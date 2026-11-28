@@ -19,6 +19,7 @@ function contextOf(state) {
   const inGameScreen = half !== 0 && Boolean(game);
   return {
     demo: isDemoTeam(team) && !state.upgradeFailed,
+    off: state.tourOff || state.welcomeOpen, // the welcome is showing, or the coach chose Explore on my own
     screen: state.screen,
     seen: state.tourSeen,
     profileOpen: state.noteFor !== null,
@@ -54,26 +55,28 @@ function targetsFor(n, state) {
     }
     case 2:
       return one(first("#newGame"));
-    case 3: {
+    case 3:
+      return one(first("#screen .gamesTile .gameRow")); // the Sample FC card (the Demo team's only upcoming game)
+    case 4: {
       const bench = first('#screen [data-zone="bench"]');
       const from = bench?.querySelector(".slot .ci");
       const to = dropSpot();
       return bench ? { ring: [bench], from, to } : null;
     }
-    case 4:
-      return one(first("#screen .pitch .sch"));
     case 5:
-      return one(first("#noteSheet .pchart") ?? first("#noteSheet #profileNone"));
+      return one(first("#screen .pitch .sch"));
     case 6:
-    case 7: {
+      return one(first("#noteSheet .pchart") ?? first("#noteSheet #profileNone"));
+    case 7:
+    case 8: {
       const from = nextBenchCircle();
       return from ? { ring: [from], from, to: dropSpot() } : null;
     }
-    case 8:
-      return one(first("#swapPill"));
     case 9:
-      return one(first("#score"));
+      return one(first("#swapPill"));
     case 10:
+      return one(first("#score"));
+    case 11:
       return one(first("#fullTime"));
     default:
       return null;
@@ -228,9 +231,9 @@ export function drawTip(state, actions) {
   if (n === null) {
     return;
   }
-  // Another sheet (Who scored?, restart, menus' confirms...) is open: wait. Tip 5 is the player card itself.
+  // Another sheet (Who scored?, restart, menus' confirms...) is open: wait. Tip 6 is the player card itself.
   const sheets = all("#screen .scrim").filter((sheet) => sheet.id !== "noteSheet");
-  if (sheets.length > 0 || (n !== 5 && ctx.profileOpen)) {
+  if (sheets.length > 0 || (n !== 6 && ctx.profileOpen)) {
     return;
   }
   const targets = targetsFor(n, state);
@@ -252,3 +255,47 @@ function replace() {
 }
 window.addEventListener("resize", replace);
 window.addEventListener("scroll", replace, true);
+
+const WELCOME_ID = "welcome";
+/** The first-open welcome (mock-up welcome.html, option A): a full screen over the app, drawn on top. Changes no data. */
+export function drawWelcome(state, actions) {
+  document.getElementById(WELCOME_ID)?.remove();
+  if (!state.welcomeOpen) {
+    return;
+  }
+  const el = (tag, className, text) => {
+    const node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text) node.textContent = text;
+    return node;
+  };
+  const picture = (file, className) => {
+    const img = el("img", className);
+    img.src = file;
+    img.alt = "";
+    img.draggable = false;
+    return img;
+  };
+  const root = el("div", "welcome");
+  root.id = WELCOME_ID;
+  const title = el("h1");
+  title.append("Welcome to", document.createElement("br"), "Game Day"); // a forced break: no word wraps alone
+  const who = el("div", "wWho");
+  who.append(picture("demo/logo.svg", "wCrest"), picture("demo/alex.svg", "wAv"), picture("demo/finn.svg", "wAv"), picture("demo/kai.svg", "wAv"));
+  const demo = el("div", "wDemo");
+  const line = el("p");
+  line.append("A Demo team is ready to try things on.", document.createElement("br"), "Tips will point the way.");
+  demo.append(who, line);
+  const start = el("button", "btn big solid", "Start the tour");
+  start.id = "welcomeStart";
+  start.onclick = () => actions.startTour();
+  const explore = el("button", "btn big", "Explore on my own");
+  explore.id = "welcomeExplore";
+  explore.onclick = () => actions.exploreAlone();
+  const buttons = el("div", "wButtons");
+  buttons.append(start, explore);
+  const main = el("div", "wMain");
+  main.append(picture("icons/icon-180.png", "wLogo"), title, el("p", "", "Manage line-ups, rotations and game time."), demo);
+  root.append(main, buttons);
+  document.body.append(root);
+}

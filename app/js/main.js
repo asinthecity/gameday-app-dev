@@ -68,9 +68,9 @@ import { addPlayer, loadSquad, removePlayer, renamePlayer } from "./squad-store.
 import { addTeam, archiveTeam, bringBackTeam, deleteTeam, loadTeams, removeOldSheetSetting, switchTeam, updateTeam } from "./team-store.js";
 import { rememberFirstTeamId, canSwitchTeams, cleanTeamForm, deleteRefusal, newGameFormFor, teamFormValues, teamValuesToSave } from "./team-rules.js";
 import { applyUpdate, currentUpdateNotice, startUpdates } from "./updates.js";
-import { loadSeen, restartTour, runFirstOpen, saveSeen } from "./tour-store.js"; // GDA-212: the App tour
+import { loadSeen, loadTourOff, restartTour, runFirstOpen, saveSeen, saveTourOff } from "./tour-store.js"; // GDA-212: the App tour
 import { metaWithFlag, withSeen } from "./tour-rules.js";
-import { drawTip } from "./tips.js";
+import { drawTip, drawWelcome } from "./tips.js";
 
 const SAVE_PROBLEM = "That did not save. Please try again.";
 const FULL_TIME_PROBLEM = "Not saved. The game is still open. Tap End game and save to try again.";
@@ -140,6 +140,8 @@ const state = {
   restoreAsk: false, // "Restore will replace all data?" is showing. Never saved.
   deleteId: null, // The not-started game being asked about ("Delete?"). Never saved.
   updateNotice: currentUpdateNotice(),
+  tourOff: false, // GDA-212: the coach chose "Explore on my own": no tips until App tour (saved, meta "tourOff").
+  welcomeOpen: false, // GDA-212: the full-screen welcome is showing (first open, or App tour). Never saved: it shows once.
   tourSeen: [], // GDA-212: the tip numbers closed with Got it (saved on the phone, meta "tourSeen").
 };
 
@@ -169,6 +171,7 @@ async function loadEverything() {
   state.games = await gamesNow();
   state.seasonMode = (await getMeta(db, SEASON_MODE_KEY)) === "minutes" ? "minutes" : "halves"; // GDA-109
   state.tourSeen = await loadSeen(db); // GDA-212
+  state.tourOff = await loadTourOff(db);
 }
 
 const LOGO_PROBLEM = "Couldn't save the logo";
@@ -225,6 +228,7 @@ async function saveTeamThenHome(save) {
 function draw() {
   state.updateNotice = currentUpdateNotice();
   drawScreen(state, actions);
+  drawWelcome(state, actions); // GDA-212: the first-open welcome, over whatever screen is under it
   drawTip(state, actions); // GDA-212: at most one tip, only on the Demo team; it changes no data
 }
 
@@ -1151,6 +1155,7 @@ const actions = {
     try {
       await restartTour(db, [...state.teams, ...state.archivedTeams]);
       await loadEverything();
+      state.welcomeOpen = true; // App tour shows the welcome again
     } catch (error) {
       console.warn("App tour failed", error);
       state.problem = SAVE_PROBLEM;
@@ -1158,6 +1163,27 @@ const actions = {
     saving = false;
     draw();
   }),
+  // The welcome's two buttons. Start the tour: Home with tip 1. Explore on my own: no tips until App tour. Neither touches team data.
+  startTour: async () => {
+    state.welcomeOpen = false;
+    state.tourOff = false;
+    draw();
+    try {
+      await saveTourOff(db, false);
+    } catch (error) {
+      console.warn("Could not save the tour setting", error);
+    }
+  },
+  exploreAlone: async () => {
+    state.welcomeOpen = false;
+    state.tourOff = true;
+    draw();
+    try {
+      await saveTourOff(db, true);
+    } catch (error) {
+      console.warn("Could not save the tour setting", error);
+    }
+  },
   // Got it: the tip is closed and marked seen. It only ever writes the seen list, never team, player or game data.
   tipGotIt: async (n) => {
     state.tourSeen = withSeen(state.tourSeen, n);
@@ -1523,6 +1549,7 @@ async function restoreFrom(file) {
     // GDA-212: a restored phone shows exactly what the backup holds, plus the "tour shown" flag, so it never gets a Demo team or tips.
     await replaceAllStores(db, { ...parsed.stores, meta: metaWithFlag(parsed.stores.meta) });
     await loadEverything();
+    state.welcomeOpen = false; // a restored phone never shows the welcome
     goTo("home");
   } catch (error) {
     console.warn("Could not restore", error);
@@ -1564,8 +1591,9 @@ async function start() {
       console.warn("Could not remove the old Sheet setting", error);
     }
     // GDA-212: on a brand-new install, make the Demo team; any other phone just gets the flag. Never stops the app.
-    await runFirstOpen(db);
+    const firstOpen = await runFirstOpen(db);
     await loadEverything();
+    state.welcomeOpen = firstOpen === "demo"; // GDA-212: the welcome shows once, only on a brand-new install
     resumeGameIfAny();
     draw();
   } catch (error) {

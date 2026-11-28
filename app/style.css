@@ -829,3 +829,17 @@ button.tl.them { text-align: right; }
 @media (prefers-reduced-motion: reduce) {
   .tipDrag { animation: none; opacity: 1; transform: translate(var(--dx), var(--dy)) scale(1.15); }
 }
+
+/* ---- The welcome (GDA-212, mock-up welcome.html option A): full screen over the header gradient ---- */
+.welcome { position: fixed; left: 0; top: 0; right: 0; bottom: 0; z-index: 45; background: var(--grad-hero); display: flex; flex-direction: column; align-items: center; text-align: center; padding: var(--s32) var(--s24) calc(var(--s32) + env(safe-area-inset-bottom)); box-sizing: border-box; overflow-y: auto; }
+.wMain { margin: auto 0; display: flex; flex-direction: column; align-items: center; } /* centred when there is room; the buttons follow in normal flow, so nothing overlaps and a short screen scrolls */
+.welcome h1 { font-size: var(--fs-big); margin: 0 0 var(--s12); font-weight: var(--bold); line-height: 1.15; }
+.welcome p { margin: 0; font-size: var(--fs-body); line-height: 1.4; }
+.wLogo { width: var(--s72); height: var(--s72); border-radius: var(--s16); display: block; margin-bottom: var(--s24); }
+.wDemo { margin-top: var(--s32); }
+.wWho { display: flex; align-items: center; justify-content: center; gap: var(--s8); margin-bottom: var(--s12); }
+.wWho img { display: block; width: var(--s44); height: var(--s44); }
+.wWho img.wCrest { width: var(--s56); height: var(--s56); }
+.wWho img.wAv { border-radius: var(--r-round); border: var(--s2) solid var(--card); box-sizing: border-box; background: var(--card); }
+.wButtons { flex: none; width: 100%; max-width: var(--s393); margin-top: var(--s24); display: flex; flex-direction: column; gap: var(--s10); }
+.btn.solid { background: var(--brand); border-color: var(--brand); color: var(--card); font-weight: var(--bold); } /* the one solid dark button: Start the tour on the gradient */

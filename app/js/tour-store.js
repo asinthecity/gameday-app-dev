@@ -5,12 +5,15 @@
 // part-way is undone here by deleting the half-made team (deleteTeam removes a team with all its records at once).
 
 import { getMeta, read, setMeta } from "./db.js";
-import { addGame, addGoal, changeGame, endHalf, fullTime, startFirstHalf, startSecondHalf } from "./game-store.js";
+import { addGame, addGoal, changeGame, endHalf, fullTime, planPair, startFirstHalf, startSecondHalf, swapPlayers } from "./game-store.js";
 import { withPotd } from "./game-rules.js";
 import { addPlayer, loadSquad } from "./squad-store.js";
+import { saveLogo } from "./logo-store.js";
+import { savePhoto } from "./photo-store.js";
+import { PHOTO_QUALITY, PHOTO_SIZE } from "./photo-rules.js";
 import { addTeam, deleteTeam, loadTeams } from "./team-store.js";
 import { newGameFormFor, teamValuesToSave } from "./team-rules.js";
-import { cleanSeen, DEMO_PLAYERS, DEMO_TEAM, demoFinishedPlan, demoGames, demoTeamExists, isFreshInstall, SEEN_KEY, TOUR_FLAG } from "./tour-rules.js";
+import { cleanSeen, DEMO_LOGO_FILE, DEMO_PLAYERS, demoPhotoFile, OFF_KEY, DEMO_TEAM, demoFinishedPlan, demoGames, demoTeamExists, isFreshInstall, SEEN_KEY, TOUR_FLAG } from "./tour-rules.js";
 
 /** Reads what the fresh-install rule needs, in ONE read: every team, player and game record, and the flag. */
 function readFacts(db) {
@@ -37,6 +40,36 @@ function readFacts(db) {
 }
 
 /**
+ * Draws one of the app's own demo pictures (app/demo/*.svg) as the same small square JPEG the photo and logo
+ * pickers save (photo-image.js), so it behaves like any picture: shown, replaced, removed, backed up.
+ */
+async function demoPicture(file) {
+  const image = new Image();
+  image.src = new URL(file, document.baseURI).href;
+  await image.decode();
+  const canvas = document.createElement("canvas");
+  canvas.width = PHOTO_SIZE;
+  canvas.height = PHOTO_SIZE;
+  const context = canvas.getContext("2d");
+  context.fillStyle = "#fff"; // a JPEG has no see-through: the pictures sit on white, as the circles are on the pitch card
+  context.fillRect(0, 0, PHOTO_SIZE, PHOTO_SIZE);
+  context.drawImage(image, 0, 0, PHOTO_SIZE, PHOTO_SIZE);
+  return canvas.toDataURL("image/jpeg", PHOTO_QUALITY);
+}
+
+/** The crest as the team's logo and a picture for each player, through the existing logo and photo stores. A picture that cannot be made is skipped: the team is still complete. */
+async function addDemoPictures(db, teamId, squad) {
+  try {
+    await saveLogo(db, teamId, await demoPicture(DEMO_LOGO_FILE));
+    for (const player of squad) {
+      await savePhoto(db, player.id, await demoPicture(demoPhotoFile(player.name)));
+    }
+  } catch (error) {
+    console.warn("Demo pictures not added", error);
+  }
+}
+
+/**
  * Makes the Demo team, its squad of 12, a ready game v "Sample FC" and a finished game v "Example United"
  * (won 3-2, with goals, minutes and a Player of the day). The Demo team becomes the current team (addTeam does it).
  * If any step fails, the half-made team is deleted and the error is thrown: nothing half-made is left.
@@ -51,22 +84,32 @@ export async function createDemoTeam(db, now = new Date()) {
       await addPlayer(db, name, teamId, firstTeamId);
     }
     const squad = await loadSquad(db, teamId, firstTeamId);
+    await addDemoPictures(db, teamId, squad);
     const games = demoGames(now);
 
     // The finished game, played a week ago: kick-off, goals, half time, 2nd half, Full Time.
     const plan = demoFinishedPlan(games.kickOffAt, team.halfMinutes);
     const finishedId = await addGame(db, { ...newGameFormFor(team), ...games.finished }, team, firstTeamId);
     await startFirstHalf(db, finishedId, plan.firstHalfStart);
-    const addGoals = async (half) => {
-      for (const goal of plan.goals.filter((g) => g.half === half)) {
-        const scorerId = goal.scorer === null ? null : squad[goal.scorer].id;
-        await addGoal(db, finishedId, { id: crypto.randomUUID(), side: goal.side, scorerId, at: goal.at });
+    // One half, in time order: its goals and its Swaps (each Swap plans every move, then swaps them together, as in a real game).
+    const playHalf = async (half) => {
+      const steps = [...plan.goals.filter((g) => g.half === half).map((g) => ({ ...g, kind: "goal" })), ...plan.swaps.filter((w) => w.half === half).map((w) => ({ ...w, kind: "swap" }))].sort((x, y) => x.at - y.at);
+      for (const step of steps) {
+        if (step.kind === "goal") {
+          const scorerId = step.scorer === null ? null : squad[step.scorer].id;
+          await addGoal(db, finishedId, { id: crypto.randomUUID(), side: step.side, scorerId, at: step.at });
+        } else {
+          for (const move of step.moves) {
+            await planPair(db, finishedId, squad[move.on].id, { place: move.place });
+          }
+          await swapPlayers(db, finishedId, step.at);
+        }
       }
     };
-    await addGoals(1);
+    await playHalf(1);
     await endHalf(db, finishedId, plan.firstHalfEnd);
     await startSecondHalf(db, finishedId, plan.secondHalfStart);
-    await addGoals(2);
+    await playHalf(2);
     await endHalf(db, finishedId, plan.secondHalfEnd);
     await changeGame(db, finishedId, (game) => withPotd(game, squad[plan.potd].id, true));
     await fullTime(db, finishedId);
@@ -117,6 +160,16 @@ export async function runFirstOpen(db, now = new Date()) {
   }
 }
 
+/** True when the coach chose "Explore on my own" (tips off until App tour). */
+export async function loadTourOff(db) {
+  return (await getMeta(db, OFF_KEY)) === true;
+}
+
+/** Saves the tips on (false) or off (true). */
+export function saveTourOff(db, off) {
+  return setMeta(db, OFF_KEY, off);
+}
+
 /** The tips already closed. */
 export async function loadSeen(db) {
   return cleanSeen(await getMeta(db, SEEN_KEY));
@@ -133,6 +186,7 @@ export function saveSeen(db, seen) {
  */
 export async function restartTour(db, teams, now = new Date()) {
   await saveSeen(db, []);
+  await saveTourOff(db, false); // App tour turns the tips back on
   if (demoTeamExists(teams)) {
     return false;
   }

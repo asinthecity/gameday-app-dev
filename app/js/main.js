@@ -1438,7 +1438,7 @@ function saveEdit(playerId, spot) {
 function saveEditBench(playerId, targetId) {
   return onPlan() ? saveThenShowLineUp(() => reorderPlanBench(db, state.gameId, playerId, targetId)) : saveBenchMove(playerId, targetId);
 }
-const presses = watchLineUpPresses({
+const lineUpRules = {
   // GDA-181: a tap on a circle opens that player's profile (GDA-109). Moves and swaps are by dragging only.
   // Open from the line-up before kick-off (an Absent circle too) and in a running game; never on a saved game.
   canOpen: (spot) => {
@@ -1480,6 +1480,17 @@ const presses = watchLineUpPresses({
       draw();
     }
   },
+};
+const presses = watchLineUpPresses(lineUpRules);
+
+// GDA-218: in List view a tap on a player's row (Season or Today) opens the same profile as a tap on their circle, by the same rules.
+// Headings are not rows, so they still sort; the swap button is its own button, so it never lands here.
+document.addEventListener("click", (event) => {
+  const row = event.target.closest?.("tr[data-open]");
+  const spot = row ? { playerId: Number(row.dataset.open) } : null;
+  if (spot && lineUpRules.canOpen(spot)) {
+    lineUpRules.tapped(spot);
+  }
 });
 
 function openAdd(cameFrom) {

@@ -706,6 +706,7 @@ button.tl.them { text-align: right; }
 .season .lv i.l1 { height: calc(var(--chart-base) + var(--chart-step)); background: var(--chart-l1); }
 .season .lv i.l2 { height: calc(var(--chart-base) + 2 * var(--chart-step)); background: var(--chart-l2); }
 .season .lv i.l3 { height: calc(var(--chart-base) + 3 * var(--chart-step)); background: var(--chart-l3); }
+.season tr[data-open], .tally tr[data-open] { cursor: pointer; } /* GDA-218: a tap on a row opens the player's profile */
 .season tr.sep td { height: var(--s30); border-top: 0; padding-top: var(--s8); font-size: var(--fs-small); letter-spacing: var(--tracking-caps); color: var(--muted); }
 
 /* GDA-57: the season chart on a line-up circle before kick-off, under the circle where a game's turn dots go (GDA-179). Four columns stand on a baseline; height and shade show the level. */

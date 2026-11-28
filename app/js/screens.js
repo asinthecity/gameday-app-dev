@@ -1071,10 +1071,9 @@ function planBody(game, view, state, actions, { editable, firstHalf, note, overl
   if (firstHalf && state.listView) {
     return h("div", { class: "lu setup" }, seasonList(state, game, actions));
   }
-  // GDA-48 (Ben, after Gate R): the 2nd half plan has the switch too; its List is this game's Interchange history, with the plan's bench under it.
+  // GDA-48 (Ben, after Gate R): the 2nd half plan has the switch too; its List is this game's Interchange history (no bench, GDA-218).
   if (!firstHalf && state.listView) {
-    const [, bench] = pitchAndBench(view, state, editable, crowded, false, false, null, null);
-    return h("div", { class: "lu" }, historyList(state, game, actions, overlay), bench);
+    return h("div", { class: "lu" }, historyList(state, game, actions, overlay)); // GDA-218: List view hides the bench as well as the pitch
   }
   // GDA-57: before kick-off the circles of players who are here carry the season chart (Absent circles do not: their row is built without it).
   // Before kick-off the 2nd half plan shows it too (GDA-109); once the game has kicked off the half time plan has none.
@@ -1574,7 +1573,7 @@ function runningHalf(state, actions, half) {
 }
 
 /**
- * GDA-48: the pitch and bench of a running half, or (List view) the Interchange history in the pitch's place with the same bench under it.
+ * GDA-48: the pitch and bench of a running half, or (List view) the Interchange history in the pitch's place; the bench is hidden too (GDA-218).
  * The swap pill and Settings stay in their corners in both views, so Swap works in either; the view never changes by itself.
  */
 function gameBody(view, state, game, actions, live) {
@@ -1582,8 +1581,7 @@ function gameBody(view, state, game, actions, live) {
   if (!state.listView) {
     return pitchAndBench(view, state, live, view.bench.length > 6, true, false, pill, actions, viewSwitch(state, actions));
   }
-  const [, bench] = pitchAndBench(view, state, live, view.bench.length > 6, true, false, null, null);
-  return [historyList(state, game, actions, pill), bench];
+  return [historyList(state, game, actions, pill)]; // GDA-218: no bench in List view (bench times keep counting underneath)
 }
 
 /** The 1st Half and 2nd Half screens: Not started, In progress or Ended, whichever the saved game says. */
@@ -2062,7 +2060,7 @@ function tallyAndSwaps(state, game, actions) {
     "table",
     { class: "tally", id: "tally" },
     h("thead", {}, h("tr", {}, ...TALLY_COLUMNS.map(heading))),
-    h("tbody", {}, ...rows.map((r) => h("tr", { "data-id": String(r.id) }, h("td", {}, r.name), h("td", { class: "n" }, String(r.rotations)), h("td", { class: "n", "data-sec": "1" }, benchPill(r.seconds)))))
+    h("tbody", {}, ...rows.map((r) => h("tr", { "data-id": String(r.id), "data-open": String(r.id) }, h("td", {}, r.name), h("td", { class: "n" }, String(r.rotations)), h("td", { class: "n", "data-sec": "1" }, benchPill(r.seconds)))))
   );
   const swaps = interchangeRows(game, events);
   const list = swaps.length === 0
@@ -2165,7 +2163,7 @@ function seasonList(state, game, actions, { tabs = null, pill = null } = {}) {
   // GDA-218: one level column and, after it, the % (same l0..l3 look as the line-up chart); a dash has no column
   const cell = (percent, level) =>
     h("td", {}, percent === null ? h("span", { class: "pp" }, "\u2013") : h("div", { class: "pc" }, h("span", { class: "lv", "aria-hidden": "true" }, h("i", { class: `l${level}` })), h("span", { class: "pp" }, `${percent}%`)));
-  const row = (r) => h("tr", { "data-id": String(r.id) }, h("td", { class: "who" }, r.name), ...LIST_COLUMNS.slice(1).map((area) => cell(r.percent[area], r.level[area])));
+  const row = (r) => h("tr", { "data-id": String(r.id), "data-open": String(r.id) }, h("td", { class: "who" }, r.name), ...LIST_COLUMNS.slice(1).map((area) => cell(r.percent[area], r.level[area])));
   const table = h(
     "table",
     { class: "season", id: "seasonTable" },

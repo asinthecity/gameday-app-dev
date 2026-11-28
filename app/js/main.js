@@ -59,8 +59,8 @@ import { shareFile } from "./share-file.js";
 import { backupFileName, BACKUP_FAILED, makeBackup, parseBackup, RESTORE_BUSY, RESTORE_FAILED } from "./backup-rules.js";
 import { askToKeepDataOnce } from "./persistence.js";
 import { drawClock, drawLineUpActions, drawPairLines, drawScreen, screenHalf, setLogos, setPhotos, startScoreFlash } from "./screens.js";
-import { shrinkPhoto } from "./photo-image.js";
-import { PHOTO_PROBLEM } from "./photo-rules.js";
+import { shrinkPhoto, loadPhotoBitmap, cropPhoto } from "./photo-image.js";
+import { PHOTO_PROBLEM, cropSource, startCrop } from "./photo-rules.js";
 import { loadPhotos, removePhoto, savePhoto } from "./photo-store.js";
 import { loadLogos, removeLogo, saveLogo } from "./logo-store.js";
 import { cleanName } from "./squad-rules.js";
@@ -95,6 +95,7 @@ const state = {
   gameId: null, // The game whose line-up is open.
   viewId: null, // GDA-100: the finished game being looked at from Home. Never saved; gameId (a game in progress) is not touched.
   editId: null,
+  crop: null, // GDA-119: the open Move and zoom screen (picture, position), or null
   photos: {}, // playerId -> small photo, kept on this phone only (GDA-52).
   logos: {}, // teamId -> small logo, kept on this phone only (GDA-126).
   addCameFrom: "home",
@@ -330,17 +331,25 @@ async function changePhoto(file) {
     return; // The picker was cancelled: nothing changes.
   }
   const playerId = state.editId;
+  if (file !== "remove") {
+    // GDA-119: a picked photo opens Move and zoom; nothing is stored until Save is tapped there.
+    try {
+      const bitmap = await loadPhotoBitmap(file);
+      state.crop = { bitmap, playerId, typed: document.getElementById("nm")?.value ?? "", ring: 0, ...startCrop() };
+      state.problem = "";
+      draw();
+    } catch (error) {
+      console.warn("Photo not read", error);
+      state.problem = PHOTO_PROBLEM;
+      drawKeepingTypedName();
+    }
+    return;
+  }
   saving = true;
   try {
     const next = { ...state.photos };
-    if (file === "remove") {
-      await removePhoto(db, playerId);
-      delete next[playerId];
-    } else {
-      const data = await shrinkPhoto(file);
-      await savePhoto(db, playerId, data);
-      next[playerId] = data;
-    }
+    await removePhoto(db, playerId);
+    delete next[playerId];
     state.photos = next;
     setPhotos(next);
     state.problem = "";
@@ -349,6 +358,43 @@ async function changePhoto(file) {
     state.problem = PHOTO_PROBLEM;
   }
   saving = false;
+  drawKeepingTypedName();
+}
+
+/** Leaves Move and zoom for the edit screen, with the name box as it was. */
+function closeCrop() {
+  const { bitmap, typed } = state.crop;
+  bitmap.close();
+  state.crop = null;
+  draw();
+  const box = document.getElementById("nm");
+  if (box) {
+    box.value = typed;
+    box.dispatchEvent(new Event("input")); // Keeps Save available or unavailable to match.
+  }
+}
+
+/** Save on Move and zoom: stores the part of the photo inside the circle. Only the photo is written. */
+async function saveCrop() {
+  const crop = state.crop;
+  if (!crop || saving) {
+    return;
+  }
+  saving = true;
+  let problem = "";
+  try {
+    const data = cropPhoto(crop.bitmap, cropSource(crop, crop.bitmap.width, crop.bitmap.height, crop.ring));
+    await savePhoto(db, crop.playerId, data);
+    const next = { ...state.photos, [crop.playerId]: data };
+    state.photos = next;
+    setPhotos(next);
+  } catch (error) {
+    console.warn("Photo not saved", error);
+    problem = PHOTO_PROBLEM;
+  }
+  saving = false;
+  closeCrop();
+  state.problem = problem;
   drawKeepingTypedName();
 }
 
@@ -708,6 +754,8 @@ const actions = {
   }),
   cancelRemove: tap(() => showWarning(false)),
   photoPicked: (file) => changePhoto(file),
+  saveCrop: tap(() => saveCrop()), // GDA-119
+  cancelCrop: tap(() => closeCrop()),
   removePhoto: tap(() => changePhoto("remove")),
   confirmRemove: tap(() => saveThenShowSquad(() => removePlayer(db, state.editId))),
   openCreateGame: tap(() => {

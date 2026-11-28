@@ -13,6 +13,8 @@ import { gamesPlayed, goalDifferenceText, historyRows, resultRows, teamRecord } 
 import { checkFormation, formatFormationDigits, formationOf, pitchRows } from "./formation-rules.js";
 import { EXPORT_HINT } from "./export-rules.js";
 import { canSaveName, initialsFor } from "./squad-rules.js";
+import { baseScale, dragBy, zoomAbout, MAX_ZOOM } from "./photo-rules.js";
+import { previewCanvas } from "./photo-image.js";
 import { RESTORE_ASK } from "./backup-rules.js";
 import { MIN_SIDE, MAX_SIDE, formationAfterSizeChange, canSwitchTeams, deleteRefusal, deleteSummary, IN_PROGRESS_REFUSAL, LAST_TEAM_MESSAGE, LOCKED_MESSAGE, plural, UPGRADE_FAILED_MESSAGE } from "./team-rules.js";
 
@@ -2458,6 +2460,74 @@ function historyResults(state, actions) {
   );
 }
 
+/**
+ * Move and zoom (GDA-119): the picked photo behind a circle, a zoom slider, Cancel and Save.
+ * state.crop holds the picture and where it sits; a drag or the slider updates it and moves the
+ * picture directly (no redraw), so a finger never loses the photo it is dragging.
+ */
+let cropReplace = null;
+window.addEventListener("resize", () => cropReplace?.());
+function cropScreen(state, actions) {
+  const crop = state.crop;
+  const { width, height } = crop.bitmap;
+  const canvas = previewCanvas(crop.bitmap);
+  canvas.style.width = width + "px"; // Shown at the picture's own size; the transform below scales it.
+  canvas.style.height = height + "px";
+  const ring = h("div", { class: "cropRing" });
+  const stage = h("div", { class: "cropStage", id: "cropStage" }, canvas, ring, h("div", { class: "cropHint" }, "Drag to move"));
+  const slider = h("input", { type: "range", id: "cropZoom", min: "1", max: String(MAX_ZOOM), step: "0.01", value: String(crop.zoom), "aria-label": "Zoom" });
+  // Puts the picture where crop says, relative to the circle's centre.
+  const place = () => {
+    const scale = baseScale(width, height, crop.ring) * crop.zoom;
+    // Measured from the ring itself, so the photo and the circle can never disagree about where the centre is.
+    const x = ring.offsetLeft + ring.offsetWidth / 2 + crop.ox - (width * scale) / 2;
+    const y = ring.offsetTop + ring.offsetHeight / 2 + crop.oy - (height * scale) / 2;
+    canvas.style.transform = `translate(${x}px, ${y}px) scale(${scale})`;
+  };
+  const measure = () => {
+    crop.ring = ring.offsetWidth;
+    Object.assign(crop, zoomAbout(crop, crop.zoom, width, height, crop.ring));
+    place();
+  };
+  cropReplace = place; // The phone turning or the screen resizing re-places the photo under the ring.
+  slider.addEventListener("input", () => {
+    Object.assign(crop, zoomAbout(crop, Number(slider.value), width, height, crop.ring));
+    place();
+  });
+  let drag = null; // One finger only; a second finger (pinch) is ignored.
+  stage.addEventListener("pointerdown", (event) => {
+    if (drag) {
+      return;
+    }
+    drag = { id: event.pointerId, x: event.clientX, y: event.clientY, from: { ...crop } };
+    stage.setPointerCapture(event.pointerId);
+  });
+  stage.addEventListener("pointermove", (event) => {
+    if (!drag || event.pointerId !== drag.id) {
+      return;
+    }
+    Object.assign(crop, dragBy(drag.from, event.clientX - drag.x, event.clientY - drag.y, width, height, crop.ring));
+    place();
+  });
+  const end = (event) => {
+    if (drag && event.pointerId === drag.id) {
+      drag = null;
+    }
+  };
+  stage.addEventListener("pointerup", end);
+  stage.addEventListener("pointercancel", end);
+  return {
+    fixed: true,
+    nodes: [
+      header("Move and zoom", actions.cancelCrop),
+      stage,
+      h("div", { class: "cropZoom" }, slider),
+      h("div", { class: "cropBtns" }, h("button", { class: "btn", id: "cropCancel", onclick: actions.cancelCrop }, "Cancel"), h("button", { class: "btn pri", id: "cropSave", onclick: actions.saveCrop }, "Save")),
+    ],
+    after: measure,
+  };
+}
+
 const SCREENS = {
   home: homeScreen,
   squad: squadScreen,
@@ -2478,7 +2548,7 @@ const SCREENS = {
 /** Replaces what is on screen with the screen named in state.screen. */
 export function drawScreen(state, actions) {
   lastActions = actions;
-  const view = SCREENS[state.screen](state, actions);
+  const view = state.crop ? cropScreen(state, actions) : SCREENS[state.screen](state, actions); // GDA-119: Move and zoom opens over the edit screen
   document.getElementById("screen").replaceChildren(...view.nodes.filter((n) => n != null)); // GDA-79: a closed sheet is null; never print it as text
   document.getElementById("frame").className = view.fixed ? "fix" : "flow";
   document.body.classList.toggle("lock", Boolean(view.fixed));

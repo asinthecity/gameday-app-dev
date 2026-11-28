@@ -163,6 +163,7 @@
   --s393: 393px;
   --s852: 852px;
   --s232: 232px;
+  --s300: 300px;               /* GDA-119: the circle on the Move and zoom screen */
   --slide-time: 0.25s;
 }
 

@@ -442,6 +442,16 @@ button { -webkit-appearance: none; appearance: none; font: inherit; color: inher
 .photoNote { margin: 0; font-size: var(--fs-small); color: var(--muted); }
 .photoBlock .btn.redtext { background: var(--btn); }
 
+/* Move and zoom (GDA-119): the photo sits behind a ring; the dark outside of the ring is the --scrim. The stage blocks page scrolling so a finger drags the photo. */
+.cropStage { flex: 1; min-height: 0; position: relative; overflow: hidden; background: var(--ink); touch-action: none; user-select: none; -webkit-user-select: none; }
+.cropStage canvas { position: absolute; left: 0; top: 0; transform-origin: 0 0; max-width: none; pointer-events: none; }
+.cropRing { position: absolute; width: var(--s300); height: var(--s300); left: 50%; top: 50%; margin: calc(var(--s300) / -2) 0 0 calc(var(--s300) / -2); border-radius: var(--r-round); box-shadow: 0 0 0 var(--s852) var(--scrim); border: var(--bw-signal) solid var(--card); box-sizing: border-box; pointer-events: none; }
+.cropHint { position: absolute; left: 0; right: 0; bottom: var(--s8); text-align: center; color: var(--card); font-size: var(--fs-body); pointer-events: none; }
+.cropZoom { flex: none; padding: var(--s16) var(--s24) var(--s8); display: flex; }
+.cropZoom input { flex: 1; min-height: var(--s44); margin: 0; accent-color: var(--brand-bright); }
+.cropBtns { flex: none; display: flex; gap: var(--s12); padding: var(--s8) var(--s16) var(--s24); }
+.cropBtns .btn { flex: 1; min-height: var(--s56); font-size: var(--fs-title); }
+
 /* Who is here list in the Game details sheet (GDA-43): scrolls if the squad is long. */
 /* Who is here row and the reusable player picker (GDA-43). */
 .sheet.picker { height: calc(100% - var(--s56)); gap: 0; padding: 0; }

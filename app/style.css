@@ -691,17 +691,17 @@ button.tl.them { text-align: right; }
 /* The season table: name, then four areas, each a whole-number percent over a thin bar. Same heading look as the bench time table. */
 .season { width: 100%; table-layout: fixed; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 .season th { padding: 0; text-align: left; font-weight: var(--regular); }
-.season th:first-child { width: 24%; }
+.season th:first-child { width: 18%; }
 .season .sorter { display: inline-flex; align-items: center; gap: var(--s2); min-height: var(--tap); padding: 0; border: 0; background: none; color: var(--muted); font: inherit; font-size: var(--fs-small); }
 .season th[aria-sort] .sorter { color: var(--ink); font-weight: var(--bold); }
 .season .so { display: inline-block; width: 1em; text-align: left; }
 .season td { padding: var(--s4) var(--s8) var(--s4) 0; height: var(--s42); border-top: var(--bw) solid var(--line); vertical-align: baseline; } /* name and %s share one baseline */
 .season td.who { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .season { --chart-col: var(--s12); --chart-step: var(--s9); } /* GDA-218: wider, taller level columns for this list only */
-.season .pc { display: flex; align-items: flex-end; gap: var(--s4); height: var(--s36); padding-bottom: var(--s4); box-sizing: border-box; } /* fixed height: every % sits on one line whatever the column's height (as the mock-up) */
-.season .pc .pp { margin-bottom: calc(-1 * var(--s3)); width: var(--s40); text-align: right; } /* fixed width, right-aligned: the columns line up and "100%" fits */
+.season .pc { display: flex; align-items: flex-end; gap: var(--s6); height: var(--s36); padding-bottom: var(--s4); box-sizing: border-box; } /* fixed height: every % sits on one line whatever the column's height (as the mock-up) */
+.season .pc .pp { margin-bottom: calc(-1 * var(--s3)); } /* the column comes first, so every bar starts under its heading */
 .season .pp { display: block; }
-.season .lv { display: block; }
+.season .lv { display: block; margin-left: calc(-1 * var(--bw)); } /* the column's 1px white edge sits outside the heading's left edge */
 .season .lv i { display: block; width: var(--chart-col); height: var(--chart-base); background: var(--chart-l0); border: var(--chart-edge); box-sizing: content-box; }
 .season .lv i.l1 { height: calc(var(--chart-base) + var(--chart-step)); background: var(--chart-l1); }
 .season .lv i.l2 { height: calc(var(--chart-base) + 2 * var(--chart-step)); background: var(--chart-l2); }

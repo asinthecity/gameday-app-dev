@@ -2162,9 +2162,9 @@ function seasonList(state, game, actions, { tabs = null, pill = null } = {}) {
       h("button", { type: "button", class: "sorter", "data-col": column, onclick: () => actions.sortSeason(column) }, AREA_HEADINGS[column], h("span", { class: "so", "aria-hidden": "true" }, sorted ? (sort.descending ? "\u25bc" : "\u25b2") : ""))
     );
   };
-  // GDA-218: the % and, beside it, one level column (same l0..l3 look as the line-up chart); a dash has no column
+  // GDA-218: one level column and, after it, the % (same l0..l3 look as the line-up chart); a dash has no column
   const cell = (percent, level) =>
-    h("td", {}, percent === null ? h("span", { class: "pp" }, "\u2013") : h("div", { class: "pc" }, h("span", { class: "pp" }, `${percent}%`), h("span", { class: "lv", "aria-hidden": "true" }, h("i", { class: `l${level}` }))));
+    h("td", {}, percent === null ? h("span", { class: "pp" }, "\u2013") : h("div", { class: "pc" }, h("span", { class: "lv", "aria-hidden": "true" }, h("i", { class: `l${level}` })), h("span", { class: "pp" }, `${percent}%`)));
   const row = (r) => h("tr", { "data-id": String(r.id) }, h("td", { class: "who" }, r.name), ...LIST_COLUMNS.slice(1).map((area) => cell(r.percent[area], r.level[area])));
   const table = h(
     "table",
